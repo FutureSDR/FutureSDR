@@ -580,61 +580,60 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                     match &field.ty {
                         // Handle Vec<T>
                         Type::Path(type_path) if is_vec(type_path) => {
-                            let name_code = quote! {
-                                for i in 0..self.#field_name.len() {
-                                    f(PortId::new(format!("{}[{}]", #field_name_str, i)), &mut self.#field_name[i])?;
+                            let access_code = quote! {
+                                let __fsdr_len = self.#field_name.len();
+                                if index.index() < __fsdr_port_index + __fsdr_len {
+                                    let i = index.index() - __fsdr_port_index;
+                                    return Some((
+                                        PortName::new(format!("{}[{}]", #field_name_str, i)),
+                                        &mut self.#field_name[i],
+                                    ));
                                 }
+                                __fsdr_port_index += __fsdr_len;
                             };
                             let notify_code = quote! {
                                 for i in 0..self.#field_name.len() {
                                     __FsdrInput::notify_finished(&mut self.#field_name[i]).await;
                                 }
                             };
-                            let get_input_code = quote! {
-                                for (i, _) in self.#field_name.iter_mut().enumerate() {
-                                    let __fsdr_name = format!("{}[{}]", #field_name_str, i);
-                                    if ::futuresdr::runtime::__private::port_id_matches(id, __fsdr_port_index, &__fsdr_name) {
-                                        return Ok(f(&mut self.#field_name[i]));
-                                    }
-                                    __fsdr_port_index += 1;
-                                }
-                            };
-                            Some((name_code, notify_code, get_input_code))
+                            Some((access_code, notify_code))
                         }
                         // Handle arrays [T; N]
                         Type::Array(array) => {
                             let len = &array.len;
-                            let name_code = quote! {
-                                for i in 0..#len {
-                                    f(PortId::new(format!("{}[{}]", #field_name_str, i)), &mut self.#field_name[i])?;
+                            let access_code = quote! {
+                                if index.index() < __fsdr_port_index + #len {
+                                    let i = index.index() - __fsdr_port_index;
+                                    return Some((
+                                        PortName::new(format!("{}[{}]", #field_name_str, i)),
+                                        &mut self.#field_name[i],
+                                    ));
                                 }
+                                __fsdr_port_index += #len;
                             };
                             let notify_code = quote! {
                                 for i in 0..#len {
                                     __FsdrInput::notify_finished(&mut self.#field_name[i]).await;
                                 }
                             };
-                            let get_input_code = quote! {
-                                for (i, _) in self.#field_name.iter_mut().enumerate() {
-                                    let __fsdr_name = format!("{}[{}]", #field_name_str, i);
-                                    if ::futuresdr::runtime::__private::port_id_matches(id, __fsdr_port_index, &__fsdr_name) {
-                                        return Ok(f(&mut self.#field_name[i]));
-                                    }
-                                    __fsdr_port_index += 1;
-                                }
-                            };
-                            Some((name_code, notify_code, get_input_code))
+                            Some((access_code, notify_code))
                         }
                         // Handle tuples (T1, T2, ...)
                         Type::Tuple(tuple) => {
-                            let name_code = tuple.elems.iter().enumerate().map(|(i, _)| {
+                            let access_code = tuple.elems.iter().enumerate().map(|(i, _)| {
                                 let index = syn::Index::from(i);
                                 quote! {
-                                    f(PortId::new(format!("{}.{}", #field_name_str, #index)), &mut self.#field_name.#index)?;
+                                    if index.index() == __fsdr_port_index {
+                                        return Some((
+                                            PortName::new(format!("{}.{}", #field_name_str, #index)),
+                                            &mut self.#field_name.#index,
+                                        ));
+                                    }
+                                    __fsdr_port_index += 1;
                                 }
                             });
-                            let name_code = quote! {
-                                #(#name_code)*
+                            let access_code = quote! {
+                                #(#access_code)*
                             };
                             let notify_code = tuple.elems.iter().enumerate().map(|(i, _)| {
                                 let index = syn::Index::from(i);
@@ -645,36 +644,23 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                             let notify_code = quote! {
                                 #(#notify_code)*
                             };
-                            let get_input_code = tuple.elems.iter().enumerate().map(|(i, _)| {
-                                let index = syn::Index::from(i);
-                                quote!{
-                                    let __fsdr_name = format!("{}.{}", #field_name_str, #index);
-                                    if ::futuresdr::runtime::__private::port_id_matches(id, __fsdr_port_index, &__fsdr_name) {
-                                        return Ok(f(&mut self.#field_name.#index));
-                                    }
-                                    __fsdr_port_index += 1;
-                                }
-                            });
-                            let get_input_code = quote! {
-                                #(#get_input_code)*
-                            };
-                            Some((name_code, notify_code, get_input_code))
+                            Some((access_code, notify_code))
                         }
                         // Handle normal types
                         _ => {
-                            let name_code = quote! {
-                                f(PortId::new(#field_name_str.to_string()), &mut self.#field_name)?;
+                            let access_code = quote! {
+                                if index.index() == __fsdr_port_index {
+                                    return Some((
+                                        PortName::new(#field_name_str),
+                                        &mut self.#field_name,
+                                    ));
+                                }
+                                __fsdr_port_index += 1;
                             };
                             let notify_code = quote! {
                                 __FsdrInput::notify_finished(&mut self.#field_name).await;
                             };
-                            let get_input_code = quote! {
-                                if ::futuresdr::runtime::__private::port_id_matches(id, __fsdr_port_index, #field_name_str) {
-                                    return Ok(f(&mut self.#field_name));
-                                }
-                                __fsdr_port_index += 1;
-                            };
-                            Some((name_code, notify_code, get_input_code))
+                            Some((access_code, notify_code))
                         }
                     }
                 })
@@ -683,7 +669,7 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
         _ => Vec::new(),
     };
 
-    let stream_inputs_visit = stream_inputs
+    let stream_inputs_access = stream_inputs
         .iter()
         .map(|x| x.0.clone())
         .collect::<Vec<_>>();
@@ -691,11 +677,6 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
         .iter()
         .map(|x| x.1.clone())
         .collect::<Vec<_>>();
-    let stream_inputs_get = stream_inputs
-        .iter()
-        .map(|x| x.2.clone())
-        .collect::<Vec<_>>();
-
     let stream_outputs = match struct_data.fields {
         Fields::Named(ref fields) => {
             fields
@@ -717,61 +698,60 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                     match &field.ty {
                         // Handle Vec<T>
                         Type::Path(type_path) if is_vec(type_path) => {
-                            let name_code = quote! {
-                                for i in 0..self.#field_name.len() {
-                                    f(PortId::new(format!("{}[{}]", #field_name_str, i)), &mut self.#field_name[i])?;
+                            let access_code = quote! {
+                                let __fsdr_len = self.#field_name.len();
+                                if index.index() < __fsdr_port_index + __fsdr_len {
+                                    let i = index.index() - __fsdr_port_index;
+                                    return Some((
+                                        PortName::new(format!("{}[{}]", #field_name_str, i)),
+                                        &mut self.#field_name[i],
+                                    ));
                                 }
+                                __fsdr_port_index += __fsdr_len;
                             };
                             let notify_code = quote! {
                                 for i in 0..self.#field_name.len() {
                                     __FsdrOutput::notify_finished(&mut self.#field_name[i]).await;
                                 }
                             };
-                            let connect_code = quote! {
-                                for (i, _) in self.#field_name.iter_mut().enumerate() {
-                                    let __fsdr_name = format!("{}[{}]", #field_name_str, i);
-                                    if ::futuresdr::runtime::__private::port_id_matches(id, __fsdr_port_index, &__fsdr_name) {
-                                        return Ok(f(&mut self.#field_name[i]));
-                                    }
-                                    __fsdr_port_index += 1;
-                                }
-                            };
-                            Some((name_code, notify_code, connect_code))
+                            Some((access_code, notify_code))
                         }
                         // Handle arrays [T; N]
                         Type::Array(array) => {
                             let len = &array.len;
-                            let name_code = quote! {
-                                for i in 0..#len {
-                                    f(PortId::new(format!("{}[{}]", #field_name_str, i)), &mut self.#field_name[i])?;
+                            let access_code = quote! {
+                                if index.index() < __fsdr_port_index + #len {
+                                    let i = index.index() - __fsdr_port_index;
+                                    return Some((
+                                        PortName::new(format!("{}[{}]", #field_name_str, i)),
+                                        &mut self.#field_name[i],
+                                    ));
                                 }
+                                __fsdr_port_index += #len;
                             };
                             let notify_code = quote! {
                                 for i in 0..#len {
                                     __FsdrOutput::notify_finished(&mut self.#field_name[i]).await;
                                 }
                             };
-                            let connect_code = quote! {
-                                for (i, _) in self.#field_name.iter_mut().enumerate() {
-                                    let __fsdr_name = format!("{}[{}]", #field_name_str, i);
-                                    if ::futuresdr::runtime::__private::port_id_matches(id, __fsdr_port_index, &__fsdr_name) {
-                                        return Ok(f(&mut self.#field_name[i]));
-                                    }
-                                    __fsdr_port_index += 1;
-                                }
-                            };
-                            Some((name_code, notify_code, connect_code))
+                            Some((access_code, notify_code))
                         }
                         // Handle tuples (T1, T2, ...)
                         Type::Tuple(tuple) => {
-                            let name_code = tuple.elems.iter().enumerate().map(|(i, _)| {
+                            let access_code = tuple.elems.iter().enumerate().map(|(i, _)| {
                                 let index = syn::Index::from(i);
                                 quote! {
-                                    f(PortId::new(format!("{}.{}", #field_name_str, #index)), &mut self.#field_name.#index)?;
+                                    if index.index() == __fsdr_port_index {
+                                        return Some((
+                                            PortName::new(format!("{}.{}", #field_name_str, #index)),
+                                            &mut self.#field_name.#index,
+                                        ));
+                                    }
+                                    __fsdr_port_index += 1;
                                 }
                             });
-                            let name_code = quote! {
-                                #(#name_code)*
+                            let access_code = quote! {
+                                #(#access_code)*
                             };
                             let notify_code = tuple.elems.iter().enumerate().map(|(i, _)| {
                                 let index = syn::Index::from(i);
@@ -782,36 +762,23 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                             let notify_code = quote! {
                                 #(#notify_code)*
                             };
-                            let connect_code = tuple.elems.iter().enumerate().map(|(i, _)| {
-                                let index = syn::Index::from(i);
-                                quote!{
-                                    let __fsdr_name = format!("{}.{}", #field_name_str, #index);
-                                    if ::futuresdr::runtime::__private::port_id_matches(id, __fsdr_port_index, &__fsdr_name) {
-                                        return Ok(f(&mut self.#field_name.#index));
-                                    }
-                                    __fsdr_port_index += 1;
-                                }
-                            });
-                            let connect_code = quote! {
-                                #(#connect_code)*
-                            };
-                            Some((name_code, notify_code, connect_code))
+                            Some((access_code, notify_code))
                         }
                         // Handle normal types
                         _ => {
-                            let name_code = quote! {
-                                f(PortId::new(#field_name_str.to_string()), &mut self.#field_name)?;
+                            let access_code = quote! {
+                                if index.index() == __fsdr_port_index {
+                                    return Some((
+                                        PortName::new(#field_name_str),
+                                        &mut self.#field_name,
+                                    ));
+                                }
+                                __fsdr_port_index += 1;
                             };
                             let notify_code = quote! {
                                 __FsdrOutput::notify_finished(&mut self.#field_name).await;
                             };
-                            let connect_code = quote! {
-                                if ::futuresdr::runtime::__private::port_id_matches(id, __fsdr_port_index, #field_name_str) {
-                                    return Ok(f(&mut self.#field_name));
-                                }
-                                __fsdr_port_index += 1;
-                            };
-                            Some((name_code, notify_code, connect_code))
+                            Some((access_code, notify_code))
                         }
                     }
                 })
@@ -820,7 +787,7 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
         _ => Vec::new(),
     };
 
-    let stream_outputs_visit = stream_outputs
+    let stream_outputs_access = stream_outputs
         .iter()
         .map(|x| x.0.clone())
         .collect::<Vec<_>>();
@@ -828,11 +795,6 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
         .iter()
         .map(|x| x.1.clone())
         .collect::<Vec<_>>();
-    let stream_outputs_get = stream_outputs
-        .iter()
-        .map(|x| x.2.clone())
-        .collect::<Vec<_>>();
-
     // Collect the names and types of fields that have the #[input] or #[output] attribute
     let (port_idents, port_types): (Vec<Ident>, Vec<Type>) = match struct_data.fields {
         Fields::Named(ref fields_named) => fields_named
@@ -1040,52 +1002,30 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                 static TYPE_NAME: &str = #type_name;
                 TYPE_NAME
             }
-            fn visit_stream_inputs(
+            fn stream_input_at(
                 &mut self,
-                f: &mut dyn FnMut(
-                    ::futuresdr::runtime::PortId,
-                    &mut dyn ::futuresdr::runtime::buffer::DynBufferReader,
-                ) -> ::futuresdr::runtime::Result<(), ::futuresdr::runtime::Error>,
-            ) -> ::futuresdr::runtime::Result<(), ::futuresdr::runtime::Error> {
-                use ::futuresdr::runtime::PortId;
-                #(#stream_inputs_visit)*
-                Ok(())
+                index: ::futuresdr::runtime::PortIndex,
+            ) -> Option<(
+                ::futuresdr::runtime::PortName,
+                &mut dyn ::futuresdr::runtime::buffer::DynBufferReader,
+            )> {
+                use ::futuresdr::runtime::PortName;
+                let mut __fsdr_port_index = 0usize;
+                #(#stream_inputs_access)*
+                None
             }
 
-            fn visit_stream_outputs(
+            fn stream_output_at(
                 &mut self,
-                f: &mut dyn FnMut(
-                    ::futuresdr::runtime::PortId,
-                    &mut dyn ::futuresdr::runtime::buffer::DynBufferWriter,
-                ) -> ::futuresdr::runtime::Result<(), ::futuresdr::runtime::Error>,
-            ) -> ::futuresdr::runtime::Result<(), ::futuresdr::runtime::Error> {
-                use ::futuresdr::runtime::PortId;
-                #(#stream_outputs_visit)*
-                Ok(())
-            }
-
-            fn with_stream_input<'a, R>(
-                &'a mut self,
-                id: &::futuresdr::runtime::PortId,
-                f: impl FnOnce(&'a mut dyn ::futuresdr::runtime::buffer::DynBufferReader) -> R,
-            ) -> ::futuresdr::runtime::Result<R, ::futuresdr::runtime::Error> {
-                use ::futuresdr::runtime::Error;
-                use ::futuresdr::runtime::BlockPortCtx;
+                index: ::futuresdr::runtime::PortIndex,
+            ) -> Option<(
+                ::futuresdr::runtime::PortName,
+                &mut dyn ::futuresdr::runtime::buffer::DynBufferWriter,
+            )> {
+                use ::futuresdr::runtime::PortName;
                 let mut __fsdr_port_index = 0usize;
-                #(#stream_inputs_get)*
-                Err(Error::InvalidStreamPort(BlockPortCtx::None, id.clone()))
-            }
-
-            fn with_stream_output<'a, R>(
-                &'a mut self,
-                id: &::futuresdr::runtime::PortId,
-                f: impl FnOnce(&'a mut dyn ::futuresdr::runtime::buffer::DynBufferWriter) -> R,
-            ) -> ::futuresdr::runtime::Result<R, ::futuresdr::runtime::Error> {
-                use ::futuresdr::runtime::Error;
-                use ::futuresdr::runtime::BlockPortCtx;
-                let mut __fsdr_port_index = 0usize;
-                #(#stream_outputs_get)*
-                Err(Error::InvalidStreamPort(BlockPortCtx::None, id.clone()))
+                #(#stream_outputs_access)*
+                None
             }
 
             async fn stream_ports_notify_finished(&mut self) {

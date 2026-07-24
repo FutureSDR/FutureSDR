@@ -10,6 +10,7 @@ use crate::runtime::Error;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::PortId;
 use crate::runtime::PortIndex;
+use crate::runtime::PortName;
 use crate::runtime::Result;
 use crate::runtime::block::Block;
 use crate::runtime::block::BlockObject;
@@ -30,9 +31,7 @@ use crate::runtime::dev::MessageOutputs;
 use crate::runtime::dev::SendKernel;
 use crate::runtime::dev::WorkIo;
 use crate::runtime::kernel_interface::KernelInterface;
-use crate::runtime::kernel_interface::stream_input;
 use crate::runtime::kernel_interface::stream_input_finish;
-use crate::runtime::kernel_interface::stream_output;
 use crate::runtime::kernel_interface::stream_ports_init;
 use crate::runtime::kernel_interface::stream_ports_validate;
 
@@ -179,10 +178,6 @@ pub(super) struct KernelWrapper<K, I = KernelInboxes> {
     pub(super) kernel: K,
     /// Runtime block id.
     pub(super) id: BlockId,
-    /// Instance stream input port names collected when the block is added.
-    stream_inputs: Vec<String>,
-    /// Instance stream output port names collected when the block is added.
-    stream_outputs: Vec<String>,
     /// Inbox bundle for the block placement mode.
     pub(super) inbox: I,
 }
@@ -191,8 +186,7 @@ impl<K: KernelInterface + 'static> WrappedKernel<K> {
     /// Create typed block wrapper.
     pub(super) fn new(mut kernel: K, id: BlockId) -> Self {
         let inbox = KernelInboxes::new();
-        stream_ports_init(&mut kernel, id, inbox.init_arg())
-            .expect("failed to initialize stream ports");
+        stream_ports_init(&mut kernel, id, inbox.init_arg());
         Self::with_inbox(kernel, id, inbox)
     }
 }
@@ -205,30 +199,13 @@ impl<K: KernelInterface + 'static> LocalWrappedKernel<K> {
         external: BlockEndpoint,
     ) -> Self {
         let inbox = LocalKernelInboxes::new(external);
-        stream_ports_init(&mut kernel, id, inbox.init_arg())
-            .expect("failed to initialize stream ports");
+        stream_ports_init(&mut kernel, id, inbox.init_arg());
         Self::with_inbox(kernel, id, inbox)
     }
 }
 
 impl<K: KernelInterface + 'static, I: WrappedKernelInbox> KernelWrapper<K, I> {
-    fn with_inbox(mut kernel: K, id: BlockId, inbox: I) -> Self {
-        let mut stream_inputs = Vec::new();
-        kernel
-            .visit_stream_inputs(&mut |name, _port| {
-                stream_inputs.push(name.name().to_string());
-                Ok(())
-            })
-            .expect("failed to collect stream input names");
-
-        let mut stream_outputs = Vec::new();
-        kernel
-            .visit_stream_outputs(&mut |name, _port| {
-                stream_outputs.push(name.name().to_string());
-                Ok(())
-            })
-            .expect("failed to collect stream output names");
-
+    fn with_inbox(kernel: K, id: BlockId, inbox: I) -> Self {
         Self {
             meta: BlockMeta::new(),
             mo: MessageOutputs::new(
@@ -237,18 +214,8 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> KernelWrapper<K, I> {
             ),
             kernel,
             id,
-            stream_inputs,
-            stream_outputs,
             inbox,
         }
-    }
-
-    pub(super) fn stream_inputs(&self) -> &[String] {
-        &self.stream_inputs
-    }
-
-    pub(super) fn stream_outputs(&self) -> &[String] {
-        &self.stream_outputs
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -269,7 +236,9 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> KernelWrapper<K, I> {
                 stream_input_finish(kernel, id, input_id)?;
             }
             BlockMessage::StreamOutputDone { output_id } => {
-                stream_output(kernel, id, &output_id)?;
+                kernel.stream_output_at(output_id).ok_or_else(|| {
+                    Error::InvalidStreamPort(BlockPortCtx::Id(id), PortId::from(output_id))
+                })?;
                 work_io.finished = true;
             }
             BlockMessage::Post { port_id, data } => {
@@ -478,17 +447,17 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox + 'static> BlockObject
         self.id
     }
 
-    fn stream_input_names(&mut self) -> Result<Vec<String>, Error> {
-        Ok(self.stream_inputs.clone())
+    fn stream_input_at(
+        &mut self,
+        index: PortIndex,
+    ) -> Option<(PortName, &mut dyn DynBufferReader)> {
+        self.kernel.stream_input_at(index)
     }
-    fn stream_output_names(&mut self) -> Result<Vec<String>, Error> {
-        Ok(self.stream_outputs.clone())
-    }
-    fn stream_input(&mut self, id: &PortId) -> Result<&mut dyn DynBufferReader, Error> {
-        stream_input(&mut self.kernel, self.id, id)
-    }
-    fn stream_output(&mut self, id: &PortId) -> Result<&mut dyn DynBufferWriter, Error> {
-        stream_output(&mut self.kernel, self.id, id)
+    fn stream_output_at(
+        &mut self,
+        index: PortIndex,
+    ) -> Option<(PortName, &mut dyn DynBufferWriter)> {
+        self.kernel.stream_output_at(index)
     }
 
     fn message_inputs(&self) -> &'static [&'static str] {

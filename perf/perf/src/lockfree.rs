@@ -2,7 +2,7 @@ use std::fmt;
 
 use futuresdr::runtime::BlockId;
 use futuresdr::runtime::Error;
-use futuresdr::runtime::PortId;
+use futuresdr::runtime::PortIndex;
 use futuresdr::runtime::buffer::BlockInbox;
 use futuresdr::runtime::buffer::BufferReader;
 use futuresdr::runtime::buffer::BufferWriter;
@@ -26,7 +26,7 @@ where
     T: CpuSample,
 {
     reader_inbox: BlockInbox,
-    reader_input_id: PortId,
+    reader_input_id: PortIndex,
     reader_notifier: BlockNotifier,
     reader_min_items: Option<usize>,
     reader_min_buffer_size_in_items: Option<usize>,
@@ -39,7 +39,7 @@ where
 {
     reader: vm_lockfree::Reader<T, TagMetadata>,
     writer_inbox: BlockInbox,
-    writer_output_id: PortId,
+    writer_output_id: PortIndex,
     writer_notifier: BlockNotifier,
     min_buffer_size_in_items: usize,
 }
@@ -78,9 +78,9 @@ where
 {
     inbox: BlockInbox,
     block_id: BlockId,
-    port_id: PortId,
+    port_id: PortIndex,
     writer: Option<vm_lockfree::Writer<T, TagMetadata>>,
-    readers: Vec<(PortId, BlockInbox)>,
+    readers: Vec<(PortIndex, BlockInbox)>,
     reader_notifiers: Vec<BlockNotifier>,
     notifier: BlockNotifier,
     tags: Vec<ItemTag>,
@@ -96,7 +96,7 @@ where
         Self {
             inbox: BlockInbox::default(),
             block_id: BlockId::default(),
-            port_id: PortId::default(),
+            port_id: PortIndex::new(0),
             writer: None,
             readers: Vec::new(),
             reader_notifiers: Vec::new(),
@@ -140,7 +140,7 @@ where
         MAX_READERS
     }
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortIndex, inbox: BlockInbox) {
         self.block_id = block_id;
         self.port_id = port_id;
         self.notifier = inbox.notifier();
@@ -236,7 +236,7 @@ where
         self.block_id
     }
 
-    fn port_id(&self) -> PortId {
+    fn port_id(&self) -> PortIndex {
         self.port_id.clone()
     }
 }
@@ -393,10 +393,10 @@ where
     reader: Option<vm_lockfree::Reader<T, TagMetadata>>,
     finished: bool,
     writer_inbox: BlockInbox,
-    writer_output_id: PortId,
+    writer_output_id: PortIndex,
     writer_notifier: BlockNotifier,
     block_id: BlockId,
-    port_id: PortId,
+    port_id: PortIndex,
     inbox: BlockInbox,
     notifier: BlockNotifier,
     tags: Vec<ItemTag>,
@@ -413,10 +413,10 @@ where
             reader: None,
             finished: false,
             writer_inbox: BlockInbox::default(),
-            writer_output_id: PortId::default(),
+            writer_output_id: PortIndex::new(0),
             writer_notifier: BlockNotifier::new(),
             block_id: BlockId::default(),
-            port_id: PortId::default(),
+            port_id: PortIndex::new(0),
             inbox: BlockInbox::default(),
             notifier: BlockNotifier::new(),
             tags: Vec::new(),
@@ -453,7 +453,7 @@ where
 {
     type Inbox = BlockInbox;
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortIndex, inbox: BlockInbox) {
         self.block_id = block_id;
         self.port_id = port_id;
         self.notifier = inbox.notifier();
@@ -490,7 +490,7 @@ where
         self.block_id
     }
 
-    fn port_id(&self) -> PortId {
+    fn port_id(&self) -> PortIndex {
         self.port_id.clone()
     }
 }

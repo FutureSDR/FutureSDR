@@ -30,28 +30,14 @@ pub trait KernelInterface {
     fn is_blocking() -> bool;
     /// Static block type name.
     fn type_name() -> &'static str;
-    /// Visit all stream input ports.
-    fn visit_stream_inputs(
+    /// Access one type-erased stream input and its public name by dense index.
+    fn stream_input_at(&mut self, index: PortIndex)
+    -> Option<(PortName, &mut dyn DynBufferReader)>;
+    /// Access one type-erased stream output and its public name by dense index.
+    fn stream_output_at(
         &mut self,
-        f: &mut dyn FnMut(PortId, &mut dyn DynBufferReader) -> Result<(), Error>,
-    ) -> Result<(), Error>;
-    /// Visit all stream output ports.
-    fn visit_stream_outputs(
-        &mut self,
-        f: &mut dyn FnMut(PortId, &mut dyn DynBufferWriter) -> Result<(), Error>,
-    ) -> Result<(), Error>;
-    /// Access one type-erased stream input by port id.
-    fn with_stream_input<'a, R>(
-        &'a mut self,
-        id: &PortId,
-        f: impl FnOnce(&'a mut dyn DynBufferReader) -> R,
-    ) -> Result<R, Error>;
-    /// Access one type-erased stream output by port id.
-    fn with_stream_output<'a, R>(
-        &'a mut self,
-        id: &PortId,
-        f: impl FnOnce(&'a mut dyn DynBufferWriter) -> R,
-    ) -> Result<R, Error>;
+        index: PortIndex,
+    ) -> Option<(PortName, &mut dyn DynBufferWriter)>;
     /// Notify adjacent stream peers that this block is done.
     ///
     /// This stays generated because concrete buffer `notify_finished` methods
@@ -82,101 +68,75 @@ pub trait KernelInterface {
     ) -> impl Future<Output = Result<Pmt, Error>>;
 }
 
-pub(crate) fn stream_input_manifest<K: KernelInterface>(
-    kernel: &mut K,
-) -> Result<Vec<PortManifest>, Error> {
-    let mut index = 0usize;
+pub(crate) fn stream_input_manifest<K: KernelInterface>(kernel: &mut K) -> Vec<PortManifest> {
     let mut manifest = Vec::new();
-    kernel.visit_stream_inputs(&mut |name, port| {
+    let mut index = 0;
+    while let Some((name, port)) = kernel.stream_input_at(PortIndex::new(index)) {
         manifest.push(PortManifest::input(
-            name.name().to_string(),
+            name.into_string(),
             PortIndex::new(index),
             port,
         ));
         index += 1;
-        Ok(())
-    })?;
-    Ok(manifest)
+    }
+    manifest
 }
 
-pub(crate) fn stream_output_manifest<K: KernelInterface>(
-    kernel: &mut K,
-) -> Result<Vec<PortManifest>, Error> {
-    let mut index = 0usize;
+pub(crate) fn stream_output_manifest<K: KernelInterface>(kernel: &mut K) -> Vec<PortManifest> {
     let mut manifest = Vec::new();
-    kernel.visit_stream_outputs(&mut |name, port| {
+    let mut index = 0;
+    while let Some((name, port)) = kernel.stream_output_at(PortIndex::new(index)) {
         manifest.push(PortManifest::output(
-            name.name().to_string(),
+            name.into_string(),
             PortIndex::new(index),
             port,
         ));
         index += 1;
-        Ok(())
-    })?;
-    Ok(manifest)
+    }
+    manifest
 }
 
 pub(crate) fn stream_ports_init<K: KernelInterface>(
     kernel: &mut K,
     block_id: BlockId,
     inboxes: PortInboxes,
-) -> Result<(), Error> {
-    let mut index = 0usize;
-    kernel.visit_stream_inputs(&mut |_name, port| {
-        port.init_from(block_id, PortId::index(index), &inboxes);
+) {
+    let mut index = 0;
+    while let Some((_, port)) = kernel.stream_input_at(PortIndex::new(index)) {
+        port.init_from(block_id, PortIndex::new(index), &inboxes);
         index += 1;
-        Ok(())
-    })?;
-    let mut index = 0usize;
-    kernel.visit_stream_outputs(&mut |_name, port| {
-        port.init_from(block_id, PortId::index(index), &inboxes);
+    }
+    let mut index = 0;
+    while let Some((_, port)) = kernel.stream_output_at(PortIndex::new(index)) {
+        port.init_from(block_id, PortIndex::new(index), &inboxes);
         index += 1;
-        Ok(())
-    })
+    }
 }
 
 pub(crate) fn stream_ports_validate<K: KernelInterface>(kernel: &mut K) -> Result<(), Error> {
-    kernel.visit_stream_inputs(&mut |_, port| port.validate())?;
-    kernel.visit_stream_outputs(&mut |_, port| port.validate())
-}
-
-fn stream_port_error_with_block_id(block_id: BlockId, error: Error) -> Error {
-    match error {
-        Error::InvalidStreamPort(BlockPortCtx::None, port) => {
-            Error::InvalidStreamPort(BlockPortCtx::Id(block_id), port)
-        }
-        error => error,
+    let mut index = 0;
+    while let Some((_, port)) = kernel.stream_input_at(PortIndex::new(index)) {
+        port.validate()?;
+        index += 1;
     }
+    let mut index = 0;
+    while let Some((_, port)) = kernel.stream_output_at(PortIndex::new(index)) {
+        port.validate()?;
+        index += 1;
+    }
+    Ok(())
 }
 
 pub(crate) fn stream_input_finish<K: KernelInterface>(
     kernel: &mut K,
     block_id: BlockId,
-    port_id: PortId,
+    index: PortIndex,
 ) -> Result<(), Error> {
-    kernel
-        .with_stream_input(&port_id, |port| port.finish())
-        .map_err(|error| stream_port_error_with_block_id(block_id, error))
-}
-
-pub(crate) fn stream_input<'a, K: KernelInterface>(
-    kernel: &'a mut K,
-    block_id: BlockId,
-    id: &PortId,
-) -> Result<&'a mut dyn DynBufferReader, Error> {
-    kernel
-        .with_stream_input(id, |port| port)
-        .map_err(|error| stream_port_error_with_block_id(block_id, error))
-}
-
-pub(crate) fn stream_output<'a, K: KernelInterface>(
-    kernel: &'a mut K,
-    block_id: BlockId,
-    id: &PortId,
-) -> Result<&'a mut dyn DynBufferWriter, Error> {
-    kernel
-        .with_stream_output(id, |port| port)
-        .map_err(|error| stream_port_error_with_block_id(block_id, error))
+    let (_, port) = kernel
+        .stream_input_at(index)
+        .ok_or_else(|| Error::InvalidStreamPort(BlockPortCtx::Id(block_id), PortId::from(index)))?;
+    port.finish();
+    Ok(())
 }
 
 #[cfg(test)]
@@ -194,34 +154,18 @@ mod tests {
             "MissingPorts"
         }
 
-        fn visit_stream_inputs(
+        fn stream_input_at(
             &mut self,
-            _f: &mut dyn FnMut(PortId, &mut dyn DynBufferReader) -> Result<(), Error>,
-        ) -> Result<(), Error> {
-            Ok(())
+            _index: PortIndex,
+        ) -> Option<(PortName, &mut dyn DynBufferReader)> {
+            None
         }
 
-        fn visit_stream_outputs(
+        fn stream_output_at(
             &mut self,
-            _f: &mut dyn FnMut(PortId, &mut dyn DynBufferWriter) -> Result<(), Error>,
-        ) -> Result<(), Error> {
-            Ok(())
-        }
-
-        fn with_stream_input<'a, R>(
-            &'a mut self,
-            id: &PortId,
-            _f: impl FnOnce(&'a mut dyn DynBufferReader) -> R,
-        ) -> Result<R, Error> {
-            Err(Error::InvalidStreamPort(BlockPortCtx::None, id.clone()))
-        }
-
-        fn with_stream_output<'a, R>(
-            &'a mut self,
-            id: &PortId,
-            _f: impl FnOnce(&'a mut dyn DynBufferWriter) -> R,
-        ) -> Result<R, Error> {
-            Err(Error::InvalidStreamPort(BlockPortCtx::None, id.clone()))
+            _index: PortIndex,
+        ) -> Option<(PortName, &mut dyn DynBufferWriter)> {
+            None
         }
 
         async fn stream_ports_notify_finished(&mut self) {}
@@ -252,31 +196,7 @@ mod tests {
     #[test]
     fn stream_input_finish_invalid_port_reports_block_id() {
         let mut kernel = MissingPorts;
-        let result = stream_input_finish(&mut kernel, BlockId(7), PortId::index(3));
-
-        assert!(matches!(
-            result,
-            Err(Error::InvalidStreamPort(ctx, port))
-                if ctx == BlockPortCtx::Id(BlockId(7)) && port == PortId::index(3)
-        ));
-    }
-
-    #[test]
-    fn stream_input_invalid_port_reports_block_id() {
-        let mut kernel = MissingPorts;
-        let result = stream_input(&mut kernel, BlockId(7), &PortId::index(3));
-
-        assert!(matches!(
-            result,
-            Err(Error::InvalidStreamPort(ctx, port))
-                if ctx == BlockPortCtx::Id(BlockId(7)) && port == PortId::index(3)
-        ));
-    }
-
-    #[test]
-    fn stream_output_invalid_port_reports_block_id() {
-        let mut kernel = MissingPorts;
-        let result = stream_output(&mut kernel, BlockId(7), &PortId::index(3));
+        let result = stream_input_finish(&mut kernel, BlockId(7), PortIndex::new(3));
 
         assert!(matches!(
             result,

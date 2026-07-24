@@ -61,22 +61,13 @@ impl<'a> FlowgraphConnector<'a> {
         dst_block: &mut dyn BlockObject,
         dst_requirements: BufferRequirements,
     ) -> Result<(), Error> {
-        let src_port_id = PortId::Index(src_port);
-        let dst_port_id = PortId::Index(dst_port);
-
-        let reader = dst_block.stream_input(&dst_port_id).map_err(|e| match e {
-            Error::InvalidStreamPort(_, port) => {
-                Error::InvalidStreamPort(BlockPortCtx::Id(dst_block_id), port)
-            }
-            o => o,
+        let (_, reader) = dst_block.stream_input_at(dst_port).ok_or_else(|| {
+            Error::InvalidStreamPort(BlockPortCtx::Id(dst_block_id), PortId::from(dst_port))
         })?;
         reader.raise_buffer_requirements(dst_requirements);
 
-        let writer = src_block.stream_output(&src_port_id).map_err(|e| match e {
-            Error::InvalidStreamPort(_, port) => {
-                Error::InvalidStreamPort(BlockPortCtx::Id(src_block_id), port)
-            }
-            o => o,
+        let (_, writer) = src_block.stream_output_at(src_port).ok_or_else(|| {
+            Error::InvalidStreamPort(BlockPortCtx::Id(src_block_id), PortId::from(src_port))
         })?;
         writer.raise_buffer_requirements(src_requirements);
 
@@ -101,7 +92,9 @@ impl<'a> FlowgraphConnector<'a> {
         FS: FnOnce(&mut KS) -> &mut B + Send + 'static,
     {
         self.flowgraph
-            .with_typed_kernel_mut::<KS, _>(location, move |kernel| Ok(src_port(kernel).port_id()))
+            .with_typed_kernel_mut::<KS, _>(location, move |kernel| {
+                Ok(PortId::from(src_port(kernel).port_id()))
+            })
             .await
     }
 
@@ -116,7 +109,9 @@ impl<'a> FlowgraphConnector<'a> {
         FD: FnOnce(&mut KD) -> &mut B::Reader + Send + 'static,
     {
         self.flowgraph
-            .with_typed_kernel_mut::<KD, _>(location, move |kernel| Ok(dst_port(kernel).port_id()))
+            .with_typed_kernel_mut::<KD, _>(location, move |kernel| {
+                Ok(PortId::from(dst_port(kernel).port_id()))
+            })
             .await
     }
 
@@ -182,14 +177,13 @@ impl<'a> FlowgraphConnector<'a> {
         requirements: BufferRequirements,
         connect: Arc<dyn DynThreadSafeConnect>,
     ) -> Result<DynThreadSafeToken, Error> {
-        let port_id = PortId::Index(port);
         self.flowgraph
             .with_block_mut(location, move |block| {
-                let reader = block.stream_input(&port_id).map_err(|e| match e {
-                    Error::InvalidStreamPort(_, port) => {
-                        Error::InvalidStreamPort(BlockPortCtx::Id(location.block_id), port)
-                    }
-                    o => o,
+                let (_, reader) = block.stream_input_at(port).ok_or_else(|| {
+                    Error::InvalidStreamPort(
+                        BlockPortCtx::Id(location.block_id),
+                        PortId::from(port),
+                    )
                 })?;
                 reader.raise_buffer_requirements(requirements);
                 connect.take_reader(reader).map_err(|e| match e {
@@ -210,14 +204,13 @@ impl<'a> FlowgraphConnector<'a> {
         token: DynThreadSafeToken,
         connect: Arc<dyn DynThreadSafeConnect>,
     ) -> Result<DynThreadSafeToken, Error> {
-        let port_id = PortId::Index(port);
         self.flowgraph
             .with_block_mut(location, move |block| {
-                let writer = block.stream_output(&port_id).map_err(|e| match e {
-                    Error::InvalidStreamPort(_, port) => {
-                        Error::InvalidStreamPort(BlockPortCtx::Id(location.block_id), port)
-                    }
-                    o => o,
+                let (_, writer) = block.stream_output_at(port).ok_or_else(|| {
+                    Error::InvalidStreamPort(
+                        BlockPortCtx::Id(location.block_id),
+                        PortId::from(port),
+                    )
                 })?;
                 writer.raise_buffer_requirements(requirements);
                 connect.connect_reader(writer, token).map_err(|e| match e {
@@ -239,12 +232,11 @@ impl<'a> FlowgraphConnector<'a> {
     ) -> Result<(), Error> {
         self.flowgraph
             .with_block_mut(location, move |block| {
-                let port_id = PortId::Index(port);
-                let reader = block.stream_input(&port_id).map_err(|e| match e {
-                    Error::InvalidStreamPort(_, port) => {
-                        Error::InvalidStreamPort(BlockPortCtx::Id(location.block_id), port)
-                    }
-                    o => o,
+                let (_, reader) = block.stream_input_at(port).ok_or_else(|| {
+                    Error::InvalidStreamPort(
+                        BlockPortCtx::Id(location.block_id),
+                        PortId::from(port),
+                    )
                 })?;
                 connect.finish_reader(reader, token).map_err(|e| match e {
                     Error::InvalidStreamPort(_, port) => {

@@ -131,14 +131,7 @@ pub fn block_on<T>(future: impl std::future::Future<Output = T>) -> T {
 #[doc(hidden)]
 pub mod __private {
     pub use super::add_to_flowgraph::AddToFlowgraph;
-
-    use super::PortId;
     pub use super::kernel_interface::KernelInterface;
-
-    #[doc(hidden)]
-    pub fn port_id_matches(port_id: &PortId, index: usize, name: &str) -> bool {
-        super::port_id_matches(port_id, index, name)
-    }
 }
 
 /// Generic result type used by runtime APIs and custom block kernels.
@@ -260,13 +253,13 @@ pub(crate) enum BlockMessage {
     Terminate,
     /// Stream input port is done
     StreamInputDone {
-        /// Stream input Id
-        input_id: PortId,
+        /// Stream input index
+        input_id: PortIndex,
     },
     /// Stream output port is done
     StreamOutputDone {
-        /// Stream output Id
-        output_id: PortId,
+        /// Stream output index
+        output_id: PortIndex,
     },
     /// Post to a message handler without waiting for handler completion.
     Post {

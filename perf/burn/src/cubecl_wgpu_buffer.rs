@@ -17,7 +17,7 @@ use cubecl::wgpu::init_setup;
 use cubecl_runtime::storage::ManagedResource;
 use futuresdr::runtime::BlockId;
 use futuresdr::runtime::Error;
-use futuresdr::runtime::PortId;
+use futuresdr::runtime::PortIndex;
 use futuresdr::runtime::buffer::BlockInbox;
 use futuresdr::runtime::buffer::BufferReader;
 use futuresdr::runtime::buffer::BufferWriter;
@@ -309,7 +309,7 @@ impl<D: CpuSample> BufferWriter for H2DWriter<D> {
     type Inbox = BlockInbox;
     type Reader = H2DReader<D>;
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortIndex, inbox: BlockInbox) {
         self.core.init(block_id, port_id, inbox);
     }
 
@@ -371,7 +371,7 @@ impl<D: CpuSample> BufferWriter for H2DWriter<D> {
         self.core.block_id()
     }
 
-    fn port_id(&self) -> PortId {
+    fn port_id(&self) -> PortIndex {
         self.core.port_id()
     }
 }
@@ -592,7 +592,7 @@ impl<D: CpuSample> Default for H2DReader<D> {
 impl<D: CpuSample> BufferReader for H2DReader<D> {
     type Inbox = BlockInbox;
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortIndex, inbox: BlockInbox) {
         self.core.init(block_id, port_id, inbox);
     }
 
@@ -628,7 +628,7 @@ impl<D: CpuSample> BufferReader for H2DReader<D> {
         self.core.block_id()
     }
 
-    fn port_id(&self) -> PortId {
+    fn port_id(&self) -> PortIndex {
         self.core.port_id()
     }
 }
@@ -721,7 +721,7 @@ impl<D: CpuSample> BufferWriter for D2HWriter<D> {
     type Inbox = BlockInbox;
     type Reader = D2HReader<D>;
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortIndex, inbox: BlockInbox) {
         self.core.init(block_id, port_id, inbox);
     }
 
@@ -758,7 +758,7 @@ impl<D: CpuSample> BufferWriter for D2HWriter<D> {
         self.core.block_id()
     }
 
-    fn port_id(&self) -> PortId {
+    fn port_id(&self) -> PortIndex {
         self.core.port_id()
     }
 }
@@ -839,7 +839,7 @@ impl<D: CpuSample> Default for D2HReader<D> {
 impl<D: CpuSample> BufferReader for D2HReader<D> {
     type Inbox = BlockInbox;
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortIndex, inbox: BlockInbox) {
         self.core.init(block_id, port_id, inbox);
     }
 
@@ -875,7 +875,7 @@ impl<D: CpuSample> BufferReader for D2HReader<D> {
         self.core.block_id()
     }
 
-    fn port_id(&self) -> PortId {
+    fn port_id(&self) -> PortIndex {
         self.core.port_id()
     }
 }

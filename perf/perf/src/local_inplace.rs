@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use futuresdr::runtime::BlockId;
 use futuresdr::runtime::Error;
-use futuresdr::runtime::PortId;
+use futuresdr::runtime::PortIndex;
 use futuresdr::runtime::buffer::BufferInbox;
 use futuresdr::runtime::buffer::BufferReader;
 use futuresdr::runtime::buffer::BufferWriter;
@@ -138,7 +138,7 @@ where
     T: CpuSample,
 {
     reader_inbox: LocalBlockInbox,
-    reader_input_id: PortId,
+    reader_input_id: PortIndex,
     reader_notifier: LocalBlockNotifier,
     outbound: Queue<T>,
 }
@@ -150,7 +150,7 @@ where
 {
     inbox: LocalBlockInbox,
     block_id: BlockId,
-    port_id: PortId,
+    port_id: PortIndex,
     inbound: Queue<T>,
     connected: Option<ConnectedWriter<T>>,
 }
@@ -163,7 +163,7 @@ where
         Self {
             inbox: LocalBlockInbox::default(),
             block_id: BlockId::default(),
-            port_id: PortId::default(),
+            port_id: PortIndex::new(0),
             inbound: queue(),
             connected: None,
         }
@@ -186,7 +186,7 @@ where
     type Inbox = LocalBlockInbox;
     type Reader = Reader<T>;
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: LocalBlockInbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortIndex, inbox: LocalBlockInbox) {
         self.block_id = block_id;
         self.port_id = port_id;
         self.inbox = inbox;
@@ -232,7 +232,7 @@ where
         self.block_id
     }
 
-    fn port_id(&self) -> PortId {
+    fn port_id(&self) -> PortIndex {
         self.port_id.clone()
     }
 }
@@ -284,7 +284,7 @@ where
     T: CpuSample,
 {
     writer_inbox: LocalBlockInbox,
-    writer_output_id: PortId,
+    writer_output_id: PortIndex,
     inbound: Queue<T>,
 }
 
@@ -294,7 +294,7 @@ where
     T: CpuSample,
 {
     block_id: BlockId,
-    port_id: PortId,
+    port_id: PortIndex,
     inbox: LocalBlockInbox,
     notifier: LocalBlockNotifier,
     connected: Option<ConnectedReader<T>>,
@@ -308,7 +308,7 @@ where
     pub fn new() -> Self {
         Self {
             block_id: BlockId::default(),
-            port_id: PortId::default(),
+            port_id: PortIndex::new(0),
             inbox: LocalBlockInbox::default(),
             notifier: LocalBlockNotifier::default(),
             connected: None,
@@ -332,7 +332,7 @@ where
 {
     type Inbox = LocalBlockInbox;
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: LocalBlockInbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortIndex, inbox: LocalBlockInbox) {
         self.block_id = block_id;
         self.port_id = port_id;
         self.notifier = inbox.notifier();
@@ -376,7 +376,7 @@ where
         self.block_id
     }
 
-    fn port_id(&self) -> PortId {
+    fn port_id(&self) -> PortIndex {
         self.port_id.clone()
     }
 }

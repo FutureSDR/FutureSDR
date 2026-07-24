@@ -75,7 +75,7 @@ impl BufferReader for NonSendReader {
     fn init(
         &mut self,
         block_id: futuresdr::runtime::BlockId,
-        port_id: futuresdr::runtime::PortId,
+        port_id: futuresdr::runtime::PortIndex,
         inbox: BlockInbox,
     ) {
         self.inner.init(block_id, port_id, inbox);
@@ -101,7 +101,7 @@ impl BufferReader for NonSendReader {
         self.inner.block_id()
     }
 
-    fn port_id(&self) -> futuresdr::runtime::PortId {
+    fn port_id(&self) -> futuresdr::runtime::PortIndex {
         self.inner.port_id()
     }
 }
@@ -160,7 +160,7 @@ impl BufferWriter for NonSendWriter {
     fn init(
         &mut self,
         block_id: futuresdr::runtime::BlockId,
-        port_id: futuresdr::runtime::PortId,
+        port_id: futuresdr::runtime::PortIndex,
         inbox: BlockInbox,
     ) {
         self.inner.init(block_id, port_id, inbox);
@@ -182,7 +182,7 @@ impl BufferWriter for NonSendWriter {
         self.inner.block_id()
     }
 
-    fn port_id(&self) -> futuresdr::runtime::PortId {
+    fn port_id(&self) -> futuresdr::runtime::PortIndex {
         self.inner.port_id()
     }
 }

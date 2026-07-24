@@ -81,7 +81,7 @@ mod wasm_spin {
 
 use crate::runtime::BlockId;
 use crate::runtime::Error;
-use crate::runtime::PortId;
+use crate::runtime::PortIndex;
 use crate::runtime::buffer::BlockInbox;
 use crate::runtime::buffer::BufferInbox;
 use crate::runtime::buffer::BufferReader;
@@ -282,7 +282,7 @@ where
     type Inbox = I;
     type Reader = Reader<D, S, I>;
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: I) {
+    fn init(&mut self, block_id: BlockId, port_id: PortIndex, inbox: I) {
         self.core.init(block_id, port_id, inbox);
     }
 
@@ -383,7 +383,7 @@ where
         self.core.block_id()
     }
 
-    fn port_id(&self) -> PortId {
+    fn port_id(&self) -> PortIndex {
         self.core.port_id()
     }
 }
@@ -611,7 +611,7 @@ where
     I: BufferInbox,
 {
     type Inbox = I;
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: I) {
+    fn init(&mut self, block_id: BlockId, port_id: PortIndex, inbox: I) {
         self.core.init(block_id, port_id, inbox);
     }
 
@@ -656,7 +656,7 @@ where
         self.core.block_id()
     }
 
-    fn port_id(&self) -> PortId {
+    fn port_id(&self) -> PortIndex {
         self.core.port_id()
     }
 }
@@ -829,8 +829,8 @@ mod tests {
         let mut writer = local::Writer::<u8>::default();
         let mut reader = local::Reader::<u8>::default();
 
-        BufferWriter::init(&mut writer, BlockId(0), PortId::new("out"), local_inbox());
-        BufferReader::init(&mut reader, BlockId(1), PortId::new("in"), local_inbox());
+        BufferWriter::init(&mut writer, BlockId(0), PortIndex::new(0), local_inbox());
+        BufferReader::init(&mut reader, BlockId(1), PortIndex::new(0), local_inbox());
 
         CpuBufferWriter::set_min_buffer_size_in_items(&mut writer, 5);
         CpuBufferReader::set_min_items(&mut reader, 1);
@@ -858,8 +858,8 @@ mod tests {
         let mut writer = local::Writer::<u8>::default();
         let mut reader = local::Reader::<u8>::default();
 
-        BufferWriter::init(&mut writer, BlockId(0), PortId::new("out"), local_inbox());
-        BufferReader::init(&mut reader, BlockId(1), PortId::new("in"), local_inbox());
+        BufferWriter::init(&mut writer, BlockId(0), PortIndex::new(0), local_inbox());
+        BufferReader::init(&mut reader, BlockId(1), PortIndex::new(0), local_inbox());
 
         CpuBufferWriter::set_min_buffer_size_in_items(&mut writer, 8);
         BufferWriter::connect(&mut writer, &mut reader);

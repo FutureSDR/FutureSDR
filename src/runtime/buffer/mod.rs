@@ -46,7 +46,6 @@ use std::sync::Arc;
 use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
 use crate::runtime::Error;
-use crate::runtime::PortId;
 use crate::runtime::PortIndex;
 pub use crate::runtime::block_inbox::BlockInbox;
 pub use crate::runtime::block_inbox::LocalBlockInbox;
@@ -264,6 +263,12 @@ impl PortManifest {
     }
 }
 
+impl AsRef<str> for PortManifest {
+    fn as_ref(&self) -> &str {
+        self.name()
+    }
+}
+
 /// Wake-only handle stored by stream buffers for hot-path notifications.
 pub trait BufferNotifier: Clone + Debug + 'static {
     /// Wake the owning block without sending a message.
@@ -300,9 +305,9 @@ pub trait BufferInbox: Clone + Debug + 'static {
     /// Wake the owning block without sending a message.
     fn notify(&self);
     /// Notify the destination block that one stream input port is done.
-    fn stream_input_done(&self, input_id: PortId) -> impl Future<Output = Result<(), Error>>;
+    fn stream_input_done(&self, input_id: PortIndex) -> impl Future<Output = Result<(), Error>>;
     /// Notify the destination block that one stream output port is done.
-    fn stream_output_done(&self, output_id: PortId) -> impl Future<Output = Result<(), Error>>;
+    fn stream_output_done(&self, output_id: PortIndex) -> impl Future<Output = Result<(), Error>>;
 }
 
 impl BufferInbox for BlockInbox {
@@ -321,11 +326,11 @@ impl BufferInbox for BlockInbox {
         BlockInbox::notify(self);
     }
 
-    async fn stream_input_done(&self, input_id: PortId) -> Result<(), Error> {
+    async fn stream_input_done(&self, input_id: PortIndex) -> Result<(), Error> {
         BlockInbox::stream_input_done(self, input_id).await
     }
 
-    async fn stream_output_done(&self, output_id: PortId) -> Result<(), Error> {
+    async fn stream_output_done(&self, output_id: PortIndex) -> Result<(), Error> {
         BlockInbox::stream_output_done(self, output_id).await
     }
 }
@@ -346,11 +351,11 @@ impl BufferInbox for LocalBlockInbox {
         LocalBlockInbox::notify(self);
     }
 
-    async fn stream_input_done(&self, input_id: PortId) -> Result<(), Error> {
+    async fn stream_input_done(&self, input_id: PortIndex) -> Result<(), Error> {
         LocalBlockInbox::send(self, BlockMessage::StreamInputDone { input_id }).await
     }
 
-    async fn stream_output_done(&self, output_id: PortId) -> Result<(), Error> {
+    async fn stream_output_done(&self, output_id: PortIndex) -> Result<(), Error> {
         LocalBlockInbox::send(self, BlockMessage::StreamOutputDone { output_id }).await
     }
 }
@@ -449,7 +454,7 @@ pub enum PortBinding<I: BufferInbox = BlockInbox> {
         /// Owning block of the bound port.
         block_id: BlockId,
         /// Port id inside the owning block.
-        port_id: PortId,
+        port_index: PortIndex,
         /// Inbox used to notify the owning block.
         inbox: I,
     },
@@ -477,10 +482,10 @@ impl<I: BufferInbox> PortCore<I> {
     }
 
     /// Bind the port to the given block/port id and inbox.
-    pub fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: I) {
+    pub fn init(&mut self, block_id: BlockId, port_index: PortIndex, inbox: I) {
         self.binding = PortBinding::Bound {
             block_id,
-            port_id,
+            port_index,
             inbox,
         };
     }
@@ -512,17 +517,17 @@ impl<I: BufferInbox> PortCore<I> {
     }
 
     /// Get the bound port id.
-    pub fn port_id(&self) -> PortId {
+    pub fn port_id(&self) -> PortIndex {
         match &self.binding {
-            PortBinding::Bound { port_id, .. } => port_id.clone(),
+            PortBinding::Bound { port_index, .. } => *port_index,
             PortBinding::Unbound => panic!("port is not bound to a flowgraph"),
         }
     }
 
-    /// Get the bound port id if available.
-    pub fn port_id_if_bound(&self) -> Option<&PortId> {
+    /// Get the bound port index if available.
+    pub fn port_id_if_bound(&self) -> Option<PortIndex> {
         match &self.binding {
-            PortBinding::Bound { port_id, .. } => Some(port_id),
+            PortBinding::Bound { port_index, .. } => Some(*port_index),
             PortBinding::Unbound => None,
         }
     }
@@ -601,8 +606,10 @@ impl<I: BufferInbox> PortCore<I> {
     pub fn not_connected_error(&self) -> Error {
         match &self.binding {
             PortBinding::Bound {
-                block_id, port_id, ..
-            } => Error::ValidationError(format!("{block_id:?}:{port_id:?} not connected")),
+                block_id,
+                port_index,
+                ..
+            } => Error::ValidationError(format!("{block_id:?}:{port_index:?} not connected")),
             PortBinding::Unbound => {
                 Error::ValidationError("stream port is not bound to a flowgraph".to_string())
             }
@@ -614,12 +621,12 @@ impl<I: BufferInbox> PortCore<I> {
 #[derive(Debug, Clone)]
 pub struct PortEndpoint<I: BufferInbox = BlockInbox> {
     inbox: I,
-    port_id: PortId,
+    port_id: PortIndex,
 }
 
 impl<I: BufferInbox> PortEndpoint<I> {
     /// Create a new peer endpoint.
-    pub fn new(inbox: I, port_id: PortId) -> Self {
+    pub fn new(inbox: I, port_id: PortIndex) -> Self {
         Self { inbox, port_id }
     }
 
@@ -628,9 +635,9 @@ impl<I: BufferInbox> PortEndpoint<I> {
         self.inbox.clone()
     }
 
-    /// Get the peer port id.
-    pub fn port_id(&self) -> PortId {
-        self.port_id.clone()
+    /// Get the peer port index.
+    pub fn port_id(&self) -> PortIndex {
+        self.port_id
     }
 }
 
@@ -735,7 +742,7 @@ pub trait DynBufferReader: Any {
     /// Raise this port's configured requirements.
     fn raise_buffer_requirements(&mut self, requirements: BufferRequirements);
     /// Initialize the reader from a block's available inbox handles.
-    fn init_from(&mut self, block_id: BlockId, port_id: PortId, inboxes: &PortInboxes);
+    fn init_from(&mut self, block_id: BlockId, port_index: PortIndex, inboxes: &PortInboxes);
     /// Validate that this reader is connected and ready to run.
     fn validate(&self) -> Result<(), Error>;
     /// Mark this reader because the upstream writer is done.
@@ -744,8 +751,8 @@ pub trait DynBufferReader: Any {
     fn finished(&self) -> bool;
     /// Get the owning block id.
     fn block_id(&self) -> BlockId;
-    /// Get the owning port id.
-    fn port_id(&self) -> PortId;
+    /// Get the owning port index.
+    fn port_id(&self) -> PortIndex;
 }
 
 impl<T: BufferReader> DynBufferReader for T {
@@ -757,8 +764,8 @@ impl<T: BufferReader> DynBufferReader for T {
         BufferReader::raise_buffer_requirements(self, requirements);
     }
 
-    fn init_from(&mut self, block_id: BlockId, port_id: PortId, inboxes: &PortInboxes) {
-        BufferReader::init_from(self, block_id, port_id, inboxes);
+    fn init_from(&mut self, block_id: BlockId, port_index: PortIndex, inboxes: &PortInboxes) {
+        BufferReader::init_from(self, block_id, port_index, inboxes);
     }
 
     fn validate(&self) -> Result<(), Error> {
@@ -777,7 +784,7 @@ impl<T: BufferReader> DynBufferReader for T {
         BufferReader::block_id(self)
     }
 
-    fn port_id(&self) -> PortId {
+    fn port_id(&self) -> PortIndex {
         BufferReader::port_id(self)
     }
 }
@@ -792,17 +799,21 @@ pub trait BufferReader: Any {
     }
     /// Raise this port's configured requirements.
     fn raise_buffer_requirements(&mut self, _requirements: BufferRequirements) {}
-    /// Initialize the reader with its owning block, port id, and inbox.
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: Self::Inbox);
+    /// Initialize the reader with its owning block, port index, and inbox.
+    fn init(&mut self, block_id: BlockId, port_index: PortIndex, inbox: Self::Inbox);
     /// Initialize the reader from a block's available inbox handles.
-    fn init_from(&mut self, block_id: BlockId, port_id: PortId, inboxes: &PortInboxes) {
-        self.init(block_id, port_id, Self::Inbox::from_port_inboxes(inboxes));
+    fn init_from(&mut self, block_id: BlockId, port_index: PortIndex, inboxes: &PortInboxes) {
+        self.init(
+            block_id,
+            port_index,
+            Self::Inbox::from_port_inboxes(inboxes),
+        );
     }
     /// Replace the inbox/wake handle for this already-bound reader.
     fn set_inbox(&mut self, inbox: Self::Inbox) {
         let block_id = self.block_id();
-        let port_id = self.port_id();
-        self.init(block_id, port_id, inbox);
+        let port_index = self.port_id();
+        self.init(block_id, port_index, inbox);
     }
     /// Validate that this reader is connected and ready to run.
     ///
@@ -822,8 +833,8 @@ pub trait BufferReader: Any {
     fn finished(&self) -> bool;
     /// Get the owning block id.
     fn block_id(&self) -> BlockId;
-    /// Get the owning port id.
-    fn port_id(&self) -> PortId;
+    /// Get the owning port index.
+    fn port_id(&self) -> PortIndex;
 }
 
 /// Buffer writer that can be connected while its endpoints stay in different domains.
@@ -932,7 +943,7 @@ pub trait DynBufferWriter: Any {
     /// Raise this port's configured requirements.
     fn raise_buffer_requirements(&mut self, requirements: BufferRequirements);
     /// Initialize the writer from a block's available inbox handles.
-    fn init_from(&mut self, block_id: BlockId, port_id: PortId, inboxes: &PortInboxes);
+    fn init_from(&mut self, block_id: BlockId, port_index: PortIndex, inboxes: &PortInboxes);
     /// Validate that this writer is connected and ready to run.
     fn validate(&self) -> Result<(), Error>;
     /// Connect this writer to a type-erased reader.
@@ -942,8 +953,8 @@ pub trait DynBufferWriter: Any {
     fn thread_safe_connect(&self) -> Option<Arc<dyn DynThreadSafeConnect>>;
     /// Get the owning block id.
     fn block_id(&self) -> BlockId;
-    /// Get the owning port id.
-    fn port_id(&self) -> PortId;
+    /// Get the owning port index.
+    fn port_id(&self) -> PortIndex;
 }
 
 impl<T> DynBufferWriter for T
@@ -966,8 +977,8 @@ where
         BufferWriter::raise_buffer_requirements(self, requirements);
     }
 
-    fn init_from(&mut self, block_id: BlockId, port_id: PortId, inboxes: &PortInboxes) {
-        BufferWriter::init_from(self, block_id, port_id, inboxes);
+    fn init_from(&mut self, block_id: BlockId, port_index: PortIndex, inboxes: &PortInboxes) {
+        BufferWriter::init_from(self, block_id, port_index, inboxes);
     }
 
     fn validate(&self) -> Result<(), Error> {
@@ -986,7 +997,7 @@ where
         BufferWriter::block_id(self)
     }
 
-    fn port_id(&self) -> PortId {
+    fn port_id(&self) -> PortIndex {
         BufferWriter::port_id(self)
     }
 }
@@ -1016,17 +1027,21 @@ pub trait BufferWriter: Any {
     }
     /// Raise this port's configured requirements.
     fn raise_buffer_requirements(&mut self, _requirements: BufferRequirements) {}
-    /// Initialize the writer with its owning block, port id, and inbox.
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: Self::Inbox);
+    /// Initialize the writer with its owning block, port index, and inbox.
+    fn init(&mut self, block_id: BlockId, port_index: PortIndex, inbox: Self::Inbox);
     /// Initialize the writer from a block's available inbox handles.
-    fn init_from(&mut self, block_id: BlockId, port_id: PortId, inboxes: &PortInboxes) {
-        self.init(block_id, port_id, Self::Inbox::from_port_inboxes(inboxes));
+    fn init_from(&mut self, block_id: BlockId, port_index: PortIndex, inboxes: &PortInboxes) {
+        self.init(
+            block_id,
+            port_index,
+            Self::Inbox::from_port_inboxes(inboxes),
+        );
     }
     /// Replace the inbox/wake handle for this already-bound writer.
     fn set_inbox(&mut self, inbox: Self::Inbox) {
         let block_id = self.block_id();
-        let port_id = self.port_id();
-        self.init(block_id, port_id, inbox);
+        let port_index = self.port_id();
+        self.init(block_id, port_index, inbox);
     }
     /// Validate that this writer is connected and ready to run.
     fn validate(&self) -> Result<(), Error>;
@@ -1053,8 +1068,8 @@ pub trait BufferWriter: Any {
     fn notify_finished(&mut self) -> impl Future<Output = ()>;
     /// Get the owning block id.
     fn block_id(&self) -> BlockId;
-    /// Get the owning port id.
-    fn port_id(&self) -> PortId;
+    /// Get the owning port index.
+    fn port_id(&self) -> PortIndex;
 }
 
 /// Value-level contract for sample types supported by CPU buffers.

@@ -62,8 +62,6 @@ use types::StreamEdge;
 pub(super) struct BlockSlot {
     placement: BlockPlacement,
     endpoint: BlockEndpoint,
-    stream_inputs: Vec<String>,
-    stream_outputs: Vec<String>,
     stream_input_manifest: Vec<PortManifest>,
     stream_output_manifest: Vec<PortManifest>,
     message_inputs: &'static [&'static str],
@@ -78,8 +76,6 @@ impl BlockSlot {
     fn normal(
         normal_id: usize,
         endpoint: BlockEndpoint,
-        stream_inputs: Vec<String>,
-        stream_outputs: Vec<String>,
         stream_input_manifest: Vec<PortManifest>,
         stream_output_manifest: Vec<PortManifest>,
         message_inputs: &'static [&'static str],
@@ -91,8 +87,6 @@ impl BlockSlot {
         Self {
             placement: BlockPlacement::Normal { normal_id },
             endpoint,
-            stream_inputs,
-            stream_outputs,
             stream_input_manifest,
             stream_output_manifest,
             message_inputs,
@@ -108,8 +102,6 @@ impl BlockSlot {
         domain_id: usize,
         local_id: usize,
         endpoint: BlockEndpoint,
-        stream_inputs: Vec<String>,
-        stream_outputs: Vec<String>,
         stream_input_manifest: Vec<PortManifest>,
         stream_output_manifest: Vec<PortManifest>,
         message_inputs: &'static [&'static str],
@@ -124,8 +116,6 @@ impl BlockSlot {
                 local_id,
             },
             endpoint,
-            stream_inputs,
-            stream_outputs,
             stream_input_manifest,
             stream_output_manifest,
             message_inputs,
@@ -149,19 +139,19 @@ impl BlockSlot {
     }
 
     fn stream_input_name(&self, port_id: &PortId) -> Option<PortId> {
-        resolve_port_name(port_id, &self.stream_inputs)
+        resolve_port_name(port_id, &self.stream_input_manifest)
     }
 
     fn stream_output_name(&self, port_id: &PortId) -> Option<PortId> {
-        resolve_port_name(port_id, &self.stream_outputs)
+        resolve_port_name(port_id, &self.stream_output_manifest)
     }
 
     fn stream_input_index(&self, port_id: &PortId) -> Option<PortId> {
-        resolve_port_index(port_id, &self.stream_inputs).map(PortId::index)
+        resolve_port_index(port_id, &self.stream_input_manifest).map(PortId::index)
     }
 
     fn stream_output_index(&self, port_id: &PortId) -> Option<PortId> {
-        resolve_port_index(port_id, &self.stream_outputs).map(PortId::index)
+        resolve_port_index(port_id, &self.stream_output_manifest).map(PortId::index)
     }
 
     fn stream_input_manifest(&self, port_id: PortIndex) -> Option<&PortManifest> {
@@ -188,12 +178,12 @@ impl BlockSlot {
         self.message_outputs
     }
 
-    fn stream_inputs(&self) -> &[String] {
-        &self.stream_inputs
+    fn stream_inputs(&self) -> impl Iterator<Item = &str> {
+        self.stream_input_manifest.iter().map(PortManifest::name)
     }
 
-    fn stream_outputs(&self) -> &[String] {
-        &self.stream_outputs
+    fn stream_outputs(&self) -> impl Iterator<Item = &str> {
+        self.stream_output_manifest.iter().map(PortManifest::name)
     }
 
     fn type_name(&self) -> &'static str {
@@ -499,19 +489,13 @@ impl Flowgraph {
         b.meta
             .set_instance_name(format!("{}-{}", block_name, block_id.0));
         let inbox = b.inbox();
-        let stream_inputs = b.stream_inputs().to_vec();
-        let stream_outputs = b.stream_outputs().to_vec();
-        let stream_input_manifest =
-            stream_input_manifest(&mut b.kernel).expect("failed to collect stream input manifest");
-        let stream_output_manifest = stream_output_manifest(&mut b.kernel)
-            .expect("failed to collect stream output manifest");
+        let stream_input_manifest = stream_input_manifest(&mut b.kernel);
+        let stream_output_manifest = stream_output_manifest(&mut b.kernel);
         let type_name = K::type_name();
         let instance_name = b.meta.instance_name().unwrap_or(type_name).to_string();
         self.add_normal_block(
             Box::new(b),
             inbox,
-            stream_inputs,
-            stream_outputs,
             stream_input_manifest,
             stream_output_manifest,
             <K as KernelInterface>::message_inputs(),
@@ -536,8 +520,6 @@ impl Flowgraph {
         &mut self,
         block: Box<dyn Block>,
         inbox: BlockEndpoint,
-        stream_inputs: Vec<String>,
-        stream_outputs: Vec<String>,
         stream_input_manifest: Vec<PortManifest>,
         stream_output_manifest: Vec<PortManifest>,
         message_inputs: &'static [&'static str],
@@ -552,8 +534,6 @@ impl Flowgraph {
         self.blocks.push(BlockSlot::normal(
             normal_id,
             inbox,
-            stream_inputs,
-            stream_outputs,
             stream_input_manifest,
             stream_output_manifest,
             message_inputs,
@@ -620,8 +600,6 @@ impl Flowgraph {
             domain_id,
             local_id,
             build_info.endpoint,
-            build_info.stream_inputs,
-            build_info.stream_outputs,
             build_info.stream_input_manifest,
             build_info.stream_output_manifest,
             K::message_inputs(),

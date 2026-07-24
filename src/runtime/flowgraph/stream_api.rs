@@ -23,9 +23,9 @@ impl Flowgraph {
     ) -> Edge {
         Edge::new(
             src_port.block_id(),
-            src_port.port_id(),
+            PortId::from(src_port.port_id()),
             dst_port.block_id(),
-            dst_port.port_id(),
+            PortId::from(dst_port.port_id()),
         )
     }
 

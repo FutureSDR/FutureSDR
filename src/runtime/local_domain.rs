@@ -149,10 +149,9 @@ mod tests {
 
     use crate::runtime::BlockId;
     use crate::runtime::BlockMessage;
-    use crate::runtime::BlockPortCtx;
     use crate::runtime::FlowgraphMessage;
-    use crate::runtime::PortId;
     use crate::runtime::PortIndex;
+    use crate::runtime::PortName;
     use crate::runtime::block::BlockObject;
     use crate::runtime::block::LocalBlock;
     use crate::runtime::block_inbox::BlockEndpoint;
@@ -183,26 +182,18 @@ mod tests {
             self.id
         }
 
-        fn stream_input_names(&mut self) -> Result<Vec<String>, Error> {
-            Ok(Vec::new())
+        fn stream_input_at(
+            &mut self,
+            _index: PortIndex,
+        ) -> Option<(PortName, &mut dyn DynBufferReader)> {
+            None
         }
 
-        fn stream_output_names(&mut self) -> Result<Vec<String>, Error> {
-            Ok(Vec::new())
-        }
-
-        fn stream_input(&mut self, id: &PortId) -> Result<&mut dyn DynBufferReader, Error> {
-            Err(Error::InvalidStreamPort(
-                BlockPortCtx::Id(self.id),
-                id.clone(),
-            ))
-        }
-
-        fn stream_output(&mut self, id: &PortId) -> Result<&mut dyn DynBufferWriter, Error> {
-            Err(Error::InvalidStreamPort(
-                BlockPortCtx::Id(self.id),
-                id.clone(),
-            ))
+        fn stream_output_at(
+            &mut self,
+            _index: PortIndex,
+        ) -> Option<(PortName, &mut dyn DynBufferWriter)> {
+            None
         }
 
         fn message_inputs(&self) -> &'static [&'static str] {

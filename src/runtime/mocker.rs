@@ -8,6 +8,7 @@ use crate::runtime::BlockPortCtx;
 use crate::runtime::Error;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
+use crate::runtime::PortIndex;
 use crate::runtime::block_on;
 use crate::runtime::buffer::BlockInbox;
 use crate::runtime::buffer::BufferReader;
@@ -216,7 +217,7 @@ pub struct Reader<T: Debug + Send + 'static> {
     data: Vec<T>,
     tags: Vec<ItemTag>,
     block_id: BlockId,
-    port_id: PortId,
+    port_id: PortIndex,
 }
 
 impl<T: Debug + Send + 'static> Reader<T> {
@@ -244,7 +245,7 @@ impl<T: Debug + Send + 'static> Default for Reader<T> {
             data: vec![],
             tags: vec![],
             block_id: BlockId(0),
-            port_id: PortId::new("input"),
+            port_id: PortIndex::new(0),
         }
     }
 }
@@ -252,7 +253,7 @@ impl<T: Debug + Send + 'static> Default for Reader<T> {
 impl<T: Debug + Send + 'static> BufferReader for Reader<T> {
     type Inbox = BlockInbox;
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, _inbox: BlockInbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortIndex, _inbox: BlockInbox) {
         self.block_id = block_id;
         self.port_id = port_id;
     }
@@ -267,8 +268,8 @@ impl<T: Debug + Send + 'static> BufferReader for Reader<T> {
     fn block_id(&self) -> BlockId {
         self.block_id
     }
-    fn port_id(&self) -> PortId {
-        self.port_id.clone()
+    fn port_id(&self) -> PortIndex {
+        self.port_id
     }
 }
 
@@ -317,7 +318,7 @@ pub struct Writer<T: Clone + Debug + Send + 'static> {
     tags: Vec<ItemTag>,
     produced: usize,
     block_id: BlockId,
-    port_id: PortId,
+    port_id: PortIndex,
 }
 
 impl<T: Clone + Debug + Send + 'static> Default for Writer<T> {
@@ -327,7 +328,7 @@ impl<T: Clone + Debug + Send + 'static> Default for Writer<T> {
             tags: vec![],
             produced: 0,
             block_id: BlockId(0),
-            port_id: PortId::new("output"),
+            port_id: PortIndex::new(0),
         }
     }
 }
@@ -360,7 +361,7 @@ impl<T: Clone + Debug + Send + 'static> BufferWriter for Writer<T> {
     type Inbox = BlockInbox;
     type Reader = Reader<T>;
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, _inbox: BlockInbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortIndex, _inbox: BlockInbox) {
         self.block_id = block_id;
         self.port_id = port_id;
     }
@@ -375,8 +376,8 @@ impl<T: Clone + Debug + Send + 'static> BufferWriter for Writer<T> {
         self.block_id
     }
 
-    fn port_id(&self) -> PortId {
-        self.port_id.clone()
+    fn port_id(&self) -> PortIndex {
+        self.port_id
     }
 }
 

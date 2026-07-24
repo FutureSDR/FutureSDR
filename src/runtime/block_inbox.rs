@@ -17,7 +17,7 @@ use std::task::Waker;
 use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
 use crate::runtime::Error;
-use crate::runtime::PortId;
+use crate::runtime::PortIndex;
 use crate::runtime::channel::mpsc;
 use crate::runtime::config::config;
 use crate::runtime::local_domain::LocalDomainInbox;
@@ -221,12 +221,12 @@ impl BlockInbox {
     }
 
     /// Notify the destination block that one stream input port is done.
-    pub async fn stream_input_done(&self, input_id: PortId) -> Result<(), Error> {
+    pub async fn stream_input_done(&self, input_id: PortIndex) -> Result<(), Error> {
         self.send(BlockMessage::StreamInputDone { input_id }).await
     }
 
     /// Notify the destination block that one stream output port is done.
-    pub async fn stream_output_done(&self, output_id: PortId) -> Result<(), Error> {
+    pub async fn stream_output_done(&self, output_id: PortIndex) -> Result<(), Error> {
         self.send(BlockMessage::StreamOutputDone { output_id })
             .await
     }

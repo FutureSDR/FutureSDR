@@ -1,6 +1,6 @@
 use futuresdr::runtime::BlockId;
 use futuresdr::runtime::Error;
-use futuresdr::runtime::PortId;
+use futuresdr::runtime::PortIndex;
 use futuresdr::runtime::buffer::BlockInbox;
 use futuresdr::runtime::buffer::BufferReader;
 use futuresdr::runtime::buffer::BufferRequirements;
@@ -41,7 +41,7 @@ impl<T: CpuSample> BufferReader for CustomReader<T> {
         self.core.raise_requirements(requirements);
     }
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortIndex, inbox: BlockInbox) {
         self.core.init(block_id, port_id, inbox);
     }
 
@@ -63,7 +63,7 @@ impl<T: CpuSample> BufferReader for CustomReader<T> {
         self.core.block_id()
     }
 
-    fn port_id(&self) -> PortId {
+    fn port_id(&self) -> PortIndex {
         self.core.port_id()
     }
 }
@@ -124,7 +124,7 @@ impl<T: CpuSample> BufferWriter for CustomWriter<T> {
         self.core.raise_requirements(requirements);
     }
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortIndex, inbox: BlockInbox) {
         self.core.init(block_id, port_id, inbox);
     }
 
@@ -140,7 +140,7 @@ impl<T: CpuSample> BufferWriter for CustomWriter<T> {
         self.core.block_id()
     }
 
-    fn port_id(&self) -> PortId {
+    fn port_id(&self) -> PortIndex {
         self.core.port_id()
     }
 }

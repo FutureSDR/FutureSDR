@@ -7,6 +7,7 @@ use futuresdr::runtime::Error;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::PortId;
+use futuresdr::runtime::PortIndex;
 use futuresdr::runtime::dev::prelude::*;
 
 #[derive(Block)]
@@ -51,12 +52,11 @@ fn derive_expands_vector_array_and_tuple_stream_port_names() {
     let mut block = PortShape::new();
 
     let mut inputs = Vec::new();
-    block
-        .visit_stream_inputs(&mut |port, _| {
-            inputs.push(port.name().to_string());
-            Ok(())
-        })
-        .unwrap();
+    let mut index = 0;
+    while let Some((name, _)) = block.stream_input_at(PortIndex::new(index)) {
+        inputs.push(name.into_string());
+        index += 1;
+    }
     assert_eq!(
         inputs,
         [
@@ -70,12 +70,11 @@ fn derive_expands_vector_array_and_tuple_stream_port_names() {
     );
 
     let mut outputs = Vec::new();
-    block
-        .visit_stream_outputs(&mut |port, _| {
-            outputs.push(port.name().to_string());
-            Ok(())
-        })
-        .unwrap();
+    let mut index = 0;
+    while let Some((name, _)) = block.stream_output_at(PortIndex::new(index)) {
+        outputs.push(name.into_string());
+        index += 1;
+    }
     assert_eq!(
         outputs,
         [
@@ -88,18 +87,10 @@ fn derive_expands_vector_array_and_tuple_stream_port_names() {
         ]
     );
 
-    assert!(
-        block
-            .with_stream_input(&PortId::from("input_tuple.1"), |_| ())
-            .is_ok()
-    );
-    assert!(block.with_stream_input(&PortId::index(5), |_| ()).is_ok());
-    assert!(
-        block
-            .with_stream_output(&PortId::from("output_arr[0]"), |_| ())
-            .is_ok()
-    );
-    assert!(block.with_stream_output(&PortId::index(2), |_| ()).is_ok());
+    assert!(block.stream_input_at(PortIndex::new(5)).is_some());
+    assert!(block.stream_input_at(PortIndex::new(6)).is_none());
+    assert!(block.stream_output_at(PortIndex::new(2)).is_some());
+    assert!(block.stream_output_at(PortIndex::new(6)).is_none());
 }
 
 #[derive(Block)]
@@ -133,33 +124,13 @@ fn derive_strips_raw_identifier_prefixes_from_port_names() {
         r#async: Default::default(),
     };
 
-    let mut inputs = Vec::new();
-    block
-        .visit_stream_inputs(&mut |port, _| {
-            inputs.push(port.name().to_string());
-            Ok(())
-        })
-        .unwrap();
-    assert_eq!(inputs, ["type"]);
-    assert!(
-        block
-            .with_stream_input(&PortId::from("type"), |_| ())
-            .is_ok()
-    );
-    assert!(
-        block
-            .with_stream_input(&PortId::from("r#type"), |_| ())
-            .is_ok()
-    );
+    let (input_name, _) = block.stream_input_at(PortIndex::new(0)).unwrap();
+    assert_eq!(input_name.as_str(), "type");
+    assert!(block.stream_input_at(PortIndex::new(1)).is_none());
 
-    let mut outputs = Vec::new();
-    block
-        .visit_stream_outputs(&mut |port, _| {
-            outputs.push(port.name().to_string());
-            Ok(())
-        })
-        .unwrap();
-    assert_eq!(outputs, ["async"]);
+    let (output_name, _) = block.stream_output_at(PortIndex::new(0)).unwrap();
+    assert_eq!(output_name.as_str(), "async");
+    assert!(block.stream_output_at(PortIndex::new(1)).is_none());
     assert_eq!(RawPortNames::message_inputs(), &["await"]);
     assert_eq!(RawPortNames::message_outputs(), &["loop"]);
     assert_eq!(

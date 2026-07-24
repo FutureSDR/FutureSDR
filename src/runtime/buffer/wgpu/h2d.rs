@@ -9,7 +9,7 @@ use wgpu::BufferViewMut;
 use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
 use crate::runtime::Error;
-use crate::runtime::PortId;
+use crate::runtime::PortIndex;
 use crate::runtime::buffer::BlockInbox;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferRequirements;
@@ -223,7 +223,7 @@ where
     type Inbox = BlockInbox;
     type Reader = Reader<D>;
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortIndex, inbox: BlockInbox) {
         self.core.init(block_id, port_id, inbox);
     }
 
@@ -300,7 +300,7 @@ where
         self.core.block_id()
     }
 
-    fn port_id(&self) -> PortId {
+    fn port_id(&self) -> PortIndex {
         self.core.port_id()
     }
 }
@@ -571,7 +571,7 @@ where
 {
     type Inbox = BlockInbox;
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortIndex, inbox: BlockInbox) {
         self.core.init(block_id, port_id, inbox);
     }
 
@@ -623,7 +623,7 @@ where
         self.core.block_id()
     }
 
-    fn port_id(&self) -> PortId {
+    fn port_id(&self) -> PortIndex {
         self.core.port_id()
     }
 }

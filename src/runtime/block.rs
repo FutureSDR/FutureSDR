@@ -4,8 +4,8 @@ use std::fmt;
 use crate::runtime::BlockId;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphMessage;
-use crate::runtime::PortId;
 use crate::runtime::PortIndex;
+use crate::runtime::PortName;
 use crate::runtime::Result;
 use crate::runtime::block_inbox::BlockEndpoint;
 use crate::runtime::block_inbox::BlockInboxReader;
@@ -30,14 +30,14 @@ pub(crate) trait BlockObject: Any {
     /// Get the current runtime instance name of the block.
     fn instance_name(&self) -> Option<&str>;
 
-    /// Get stream input port names declared by this block.
-    fn stream_input_names(&mut self) -> Result<Vec<String>, Error>;
-    /// Get stream output port names declared by this block.
-    fn stream_output_names(&mut self) -> Result<Vec<String>, Error>;
-    /// Get a type-erased stream input by port id.
-    fn stream_input(&mut self, id: &PortId) -> Result<&mut dyn DynBufferReader, Error>;
-    /// Get a type-erased stream output by port id.
-    fn stream_output(&mut self, id: &PortId) -> Result<&mut dyn DynBufferWriter, Error>;
+    /// Get a named, type-erased stream input by dense index.
+    fn stream_input_at(&mut self, index: PortIndex)
+    -> Option<(PortName, &mut dyn DynBufferReader)>;
+    /// Get a named, type-erased stream output by dense index.
+    fn stream_output_at(
+        &mut self,
+        index: PortIndex,
+    ) -> Option<(PortName, &mut dyn DynBufferWriter)>;
     /// Message input port names declared by this block.
     fn message_inputs(&self) -> &'static [&'static str];
     /// Message output port names declared by this block.

@@ -207,16 +207,8 @@ impl<'a, LS: LocalScheduler> LocalDomainContext<'a, LS> {
             .meta
             .set_instance_name(format!("{}-{}", K::type_name(), block_id.0));
         let inbox = block.inbox();
-        let stream_inputs = block
-            .stream_input_names()
-            .expect("failed to collect stream input manifest");
-        let stream_outputs = block
-            .stream_output_names()
-            .expect("failed to collect stream output manifest");
-        let stream_input_manifest = stream_input_manifest(&mut block.kernel)
-            .expect("failed to collect stream input manifest");
-        let stream_output_manifest = stream_output_manifest(&mut block.kernel)
-            .expect("failed to collect stream output manifest");
+        let stream_input_manifest = stream_input_manifest(&mut block.kernel);
+        let stream_output_manifest = stream_output_manifest(&mut block.kernel);
         let type_name = K::type_name();
         let instance_name = block.meta.instance_name().unwrap_or(type_name).to_string();
         inner
@@ -229,8 +221,6 @@ impl<'a, LS: LocalScheduler> LocalDomainContext<'a, LS> {
                 domain_id,
                 local_id,
                 inbox,
-                stream_inputs,
-                stream_outputs,
                 stream_input_manifest,
                 stream_output_manifest,
                 K::message_inputs(),

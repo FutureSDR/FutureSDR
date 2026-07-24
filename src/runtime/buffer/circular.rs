@@ -3,7 +3,7 @@ use vmcircbuffer::generic;
 
 use crate::runtime::BlockId;
 use crate::runtime::Error;
-use crate::runtime::PortId;
+use crate::runtime::PortIndex;
 use crate::runtime::buffer::BlockInbox;
 use crate::runtime::buffer::BufferInbox;
 use crate::runtime::buffer::BufferNotifier;
@@ -140,7 +140,7 @@ where
     type Inbox = I;
     type Reader = Reader<D, I>;
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: I) {
+    fn init(&mut self, block_id: BlockId, port_id: PortIndex, inbox: I) {
         self.core.init(block_id, port_id, inbox);
     }
 
@@ -258,7 +258,7 @@ where
     fn block_id(&self) -> BlockId {
         self.core.block_id()
     }
-    fn port_id(&self) -> PortId {
+    fn port_id(&self) -> PortIndex {
         self.core.port_id()
     }
 }
@@ -454,7 +454,7 @@ where
     I: BufferInbox,
 {
     type Inbox = I;
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: I) {
+    fn init(&mut self, block_id: BlockId, port_id: PortIndex, inbox: I) {
         self.core.init(block_id, port_id, inbox);
     }
     fn buffer_requirements(&self) -> BufferRequirements {
@@ -488,7 +488,7 @@ where
     fn block_id(&self) -> BlockId {
         self.core.block_id()
     }
-    fn port_id(&self) -> PortId {
+    fn port_id(&self) -> PortIndex {
         self.core.port_id()
     }
 }
