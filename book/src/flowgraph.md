@@ -104,7 +104,7 @@ Use `connect!` for normal application code. The explicit form is useful when blo
 
 ## Local Domains
 
-Normal blocks and buffers must be send-capable because the scheduler may move block tasks between workers. A local domain gives you a single-thread execution island for blocks or buffers that are not `Send`, or for integrations that must stay on one thread. On WASM, local domains are backed by web workers.
+Normal blocks, including the buffer endpoints stored in them, must be `Send` because the scheduler may move block tasks between workers. A local domain gives you a single-thread execution island for blocks or buffers that are not `Send`, or for integrations that must stay on one thread. On WASM, local domains are backed by web workers.
 
 Create a local domain, add blocks through the provided `LocalDomainContext`, and connect local-only stream buffers with `~>` in `connect!` or `ctx.stream_local()` manually:
 
@@ -134,7 +134,7 @@ The `~>` macro operator is the equivalent typed local-stream connection:
 connect!(ctx, src ~> snk);
 ```
 
-Local-only stream connections must stay inside one local domain. Send-capable stream buffers can still connect normal blocks and local-domain blocks. Message connections are not restricted by local domains.
+Local-only stream connections must stay inside one local domain. Writers implementing `ThreadSafeConnect` can connect normal blocks and local-domain blocks without moving either endpoint. Message connections are not restricted by local domains.
 
 When a block's state must be created on the local-domain thread itself, build that part of the graph with `with_local_domain()` (or `with_local_domain_async()` in async code). The closure receives a `LocalDomainContext`; add local blocks through `ctx.add(...)` and use the same `connect!` syntax with `ctx` as the graph argument:
 

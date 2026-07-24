@@ -8,7 +8,7 @@ This example demonstrates how to use in-place, zero-copy buffers in FutureSDR. I
 2. An in-place version that reuses the same buffers across the pipeline.
 3. A hybrid version in which standard CPU sources and sinks interface with an intermediate in-place stage.
 
-The hybrid setup works because the in-place buffers implement the normal `CpuBufferReader` and `CpuBufferWriter` APIs and satisfy the `SendCpuBufferReader` and `SendCpuBufferWriter` marker traits, which means they can also be used like normal send-capable CPU buffers.
+The hybrid setup works because the in-place buffers also implement the normal `CpuBufferReader` and `CpuBufferWriter` APIs. Their writers implement `ThreadSafeConnect`, so they can be connected through the normal flowgraph API as well.
 
 ## How It Works
 
@@ -23,7 +23,7 @@ The example contains the following components:
 The three runs differ as follows:
 
 1. Out-of-place: Uses the standard FutureSDR `VectorSource`, `Apply`, and `VectorSink` blocks.
-2. In-place: Uses custom `VectorSource`, `Apply`, and `VectorSink` blocks built on `SendInplaceReader` and `SendInplaceWriter`.
+2. In-place: Uses custom `VectorSource`, `Apply`, and `VectorSink` blocks built on `InplaceReader` and `InplaceWriter`.
 3. Hybrid: Uses the standard FutureSDR `VectorSource` and `VectorSink` together with the custom in-place `Apply` block.
 
 For the in-place and hybrid variants, the source injects reusable buffers into the circuit. Buffers carry their return path and recycle automatically when the final owner drops them, so blocks do not manually return consumed buffers.

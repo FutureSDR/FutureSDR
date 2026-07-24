@@ -504,7 +504,7 @@ async fn run(
         })
         .await?;
 
-    // Send-capable slab buffers carry samples between the three execution domains.
+    // Slab connection tokens link the three execution domains.
     connect_async!(fg, src > spectrum > snk);
     let _ = set_hackrf_block_id.try_set(Some(hackrf_block_id));
 

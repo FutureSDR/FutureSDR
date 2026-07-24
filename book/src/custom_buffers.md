@@ -20,7 +20,6 @@ Use `PortCore` and `ConnectionState` for the common lifecycle:
 
 ```rust
 use futuresdr::runtime::buffer::*;
-use futuresdr::runtime::dev::BlockInbox;
 use futuresdr::runtime::{BlockId, Error, PortId};
 
 pub struct MyWriter<T> {
@@ -42,20 +41,34 @@ impl<T> Default for MyWriter<T> {
 
 `init()` binds a port to its owning block id, port id, and inbox. The derive macro calls it during flowgraph construction. `connect()` receives the matching peer during `Flowgraph::stream()` or the `connect!` macro expansion.
 
-## Send-Capable Buffers
+The buffer's `Inbox` associated type is the concrete handle stored by its port
+state. Use `BlockInbox` for the normal send-capable path or `LocalBlockInbox`
+inside a local domain. `BufferInbox` supplies the corresponding wake-only
+notifier and selects the appropriate handle during port initialization.
 
-Normal native flowgraphs require send-capable buffers. The marker traits are implemented automatically when the concrete type and relevant futures satisfy the bounds:
+## Cross-Domain Connections
 
-- `SendBufferReader`
-- `SendBufferWriter`
-- `SendCpuBufferReader`
-- `SendCpuBufferWriter`
-- `SendInplaceReader`
-- `SendInplaceWriter`
+Reader and writer endpoints remain pinned in their owning execution domains. A buffer opts into connections between domains by implementing `ThreadSafeConnect`. Its `ReaderToken` and `WriterToken` must be `Send`, but the endpoint types do not.
 
-If a buffer is not `Send`, use a local domain and connect it inside `Flowgraph::with_local_domain()` with `LocalDomainContext::stream_local()` or the `~>` operator in `connect!`.
+Connection setup always runs from reader to writer and back to the reader:
+
+1. `take_reader_token()` creates an offer beside the reader.
+2. `connect_reader()` consumes that offer beside the writer, mutates the pinned writer state, and returns a reader installation token.
+3. `finish_reader()` installs the returned state beside the reader.
+
+Only the connection tokens cross domain boundaries. Neither endpoint needs to implement `Send`, and an existing endpoint's data-plane state must not be extracted into either token.
+
+`ThreadSafeConnect` is the only capability declaration a buffer author implements. The runtime automatically wraps it in its internal type-erased adapter when it builds the output-port manifest; there is no second function table or advertisement method to keep in sync. Typed flowgraph connections use the same implementation directly as their compile-time proof.
+
+Buffers without this capability can still connect blocks in the same local domain through `LocalDomainContext::stream_local()` or the `~>` operator. A thread-safe backing buffer can also use `LocalBlockInbox` there to avoid the thread-safe inbox path.
 
 ## CPU Buffer Expectations
+
+`CpuSample` is the value-level contract for typed CPU storage: samples are
+`Copy + Default + Debug + Send + Sync + 'static`, and `T::SIZE` rejects
+zero-sized types. Initialize typed backing storage with `T::default()`. If a
+buffer or block reinterprets arbitrary bytes as samples, require an additional
+representation guarantee such as `bytemuck::Pod` at that boundary.
 
 For CPU buffers, `slice_with_tags()` returns the currently readable or writable window. Tags use indices relative to that window. A block calls:
 
