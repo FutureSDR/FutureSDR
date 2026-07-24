@@ -72,7 +72,7 @@ where
 {
     pub fn new() -> Self {
         Self {
-            core: PortCore::new_disconnected(),
+            core: PortCore::new_unbound(),
             inner: ptr::null(),
             inner_owner: None,
             connected: false,
@@ -331,7 +331,7 @@ where
             finished: false,
             writer: None,
             writer_notifier: LocalBlockNotifier::default(),
-            core: PortCore::new_disconnected(),
+            core: PortCore::new_unbound(),
             notifier: LocalBlockNotifier::default(),
             last_space: 0,
             read_pos: 0,

@@ -313,9 +313,6 @@ pub enum Error {
     /// Conversion to or from a [`Pmt`] failed.
     #[error("PMT conversion error")]
     PmtConversionError,
-    /// Another block already uses this instance name.
-    #[error("A Block with an instance name of '{0}' already exists")]
-    DuplicateBlockName(String),
     /// A lock that should be immediately available was poisoned or contended.
     #[error("Error while locking a Mutex that should not be contended or poisoned")]
     LockError,
@@ -387,8 +384,6 @@ pub enum BlockPortCtx {
     None,
     /// Block is identified by its ID in the [`Flowgraph`]
     Id(BlockId),
-    /// Block is identified by its `type_name`
-    Name(String),
 }
 
 impl Display for BlockPortCtx {
@@ -396,7 +391,6 @@ impl Display for BlockPortCtx {
         match self {
             BlockPortCtx::None => write!(f, "<None>"),
             BlockPortCtx::Id(id) => write!(f, "{id:?}"),
-            BlockPortCtx::Name(name) => write!(f, "{name}"),
         }
     }
 }

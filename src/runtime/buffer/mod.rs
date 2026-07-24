@@ -329,7 +329,7 @@ pub struct PortCore<I: BufferInbox = BlockInbox> {
 
 impl<I: BufferInbox> PortCore<I> {
     /// Create an unbound port with empty buffer requirements.
-    pub const fn new_disconnected() -> Self {
+    pub const fn new_unbound() -> Self {
         Self::with_requirements(BufferRequirements::new())
     }
 

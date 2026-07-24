@@ -82,7 +82,7 @@ where
 {
     pub fn new() -> Self {
         Self {
-            core: PortCore::new_disconnected(),
+            core: PortCore::new_unbound(),
             state: ConnectionState::disconnected(),
             notifier: LocalBlockNotifier::default(),
             tags: Vec::new(),
@@ -300,7 +300,7 @@ where
         Self {
             state: ConnectionState::disconnected(),
             finished: false,
-            core: PortCore::new_disconnected(),
+            core: PortCore::new_unbound(),
             notifier: LocalBlockNotifier::default(),
             tags: Vec::new(),
         }

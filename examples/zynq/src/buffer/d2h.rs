@@ -68,7 +68,7 @@ where
         Self {
             outbound: Arc::new(Mutex::new(VecDeque::new())),
             inbound: Arc::new(Mutex::new(Vec::new())),
-            core: PortCore::new_disconnected(),
+            core: PortCore::new_unbound(),
             state: ConnectionState::disconnected(),
             _p: PhantomData,
         }
@@ -212,7 +212,7 @@ where
             current: None,
             inbound: Arc::new(Mutex::new(VecDeque::new())),
             outbound: Arc::new(Mutex::new(Vec::new())),
-            core: PortCore::new_disconnected(),
+            core: PortCore::new_unbound(),
             state: ConnectionState::disconnected(),
             finished: false,
             _p: PhantomData,

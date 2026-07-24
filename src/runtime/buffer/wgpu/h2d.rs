@@ -113,7 +113,7 @@ where
             writable_ids: Arc::new(Mutex::new(Vec::new())),
             ready_ids: Arc::new(Mutex::new(VecDeque::new())),
             instance: None,
-            core: PortCore::new_disconnected(),
+            core: PortCore::new_unbound(),
             state: ConnectionState::disconnected(),
             tags: Vec::new(),
         }
@@ -447,7 +447,7 @@ where
             ready_ids: Arc::new(Mutex::new(VecDeque::new())),
             writable_ids: Arc::new(Mutex::new(Vec::new())),
             instance: None,
-            core: PortCore::new_disconnected(),
+            core: PortCore::new_unbound(),
             state: ConnectionState::disconnected(),
             finished: false,
         }

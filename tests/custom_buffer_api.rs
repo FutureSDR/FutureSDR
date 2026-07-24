@@ -22,7 +22,7 @@ struct CustomReader<T: CpuSample> {
 impl<T: CpuSample> Default for CustomReader<T> {
     fn default() -> Self {
         Self {
-            core: PortCore::new_disconnected(),
+            core: PortCore::new_unbound(),
             data: Vec::new(),
             tags: Vec::new(),
             finished: false,
@@ -101,7 +101,7 @@ struct CustomWriter<T: CpuSample> {
 impl<T: CpuSample> Default for CustomWriter<T> {
     fn default() -> Self {
         Self {
-            core: PortCore::new_disconnected(),
+            core: PortCore::new_unbound(),
             data: Vec::new(),
             tags: Vec::new(),
         }

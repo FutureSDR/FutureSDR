@@ -172,7 +172,7 @@ impl<D: CpuSample> H2DWriter<D> {
             writable_ids: Arc::new(Mutex::new(Vec::new())),
             ready_ids: Arc::new(Mutex::new(VecDeque::new())),
             context: None,
-            core: PortCore::new_disconnected(),
+            core: PortCore::new_unbound(),
             state: ConnectionState::disconnected(),
             tags: Vec::new(),
         }
@@ -500,7 +500,7 @@ impl<D: CpuSample> H2DReader<D> {
             ready_ids: Arc::new(Mutex::new(VecDeque::new())),
             writable_ids: Arc::new(Mutex::new(Vec::new())),
             context: None,
-            core: PortCore::new_disconnected(),
+            core: PortCore::new_unbound(),
             state: ConnectionState::disconnected(),
             finished: false,
         }
@@ -671,7 +671,7 @@ impl<D: CpuSample> D2HWriter<D> {
             inbound: Arc::new(Mutex::new(Vec::new())),
             outbound: Arc::new(Mutex::new(VecDeque::new())),
             context: None,
-            core: PortCore::new_disconnected(),
+            core: PortCore::new_unbound(),
             state: ConnectionState::disconnected(),
         }
     }
@@ -819,7 +819,7 @@ impl<D: CpuSample> D2HReader<D> {
             inbound: Arc::new(Mutex::new(VecDeque::new())),
             outbound: Arc::new(Mutex::new(Vec::new())),
             context: None,
-            core: PortCore::new_disconnected(),
+            core: PortCore::new_unbound(),
             state: ConnectionState::disconnected(),
             finished: false,
         }

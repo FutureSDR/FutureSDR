@@ -583,7 +583,7 @@ where
     /// Create a queue-backed CPU reader.
     pub fn new() -> Self {
         Self {
-            core: PortCore::new_disconnected(),
+            core: PortCore::new_unbound(),
             state: ConnectionState::disconnected(),
             current: None,
             tags: Vec::new(),

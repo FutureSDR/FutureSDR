@@ -92,7 +92,7 @@ where
 {
     pub fn new() -> Self {
         Self {
-            core: PortCore::new_disconnected(),
+            core: PortCore::new_unbound(),
             writer: None,
             readers: Vec::new(),
             reader_notifiers: Vec::new(),
@@ -404,7 +404,7 @@ where
             finished: false,
             writer: None,
             writer_notifier: BlockNotifier::new(),
-            core: PortCore::new_disconnected(),
+            core: PortCore::new_unbound(),
             notifier: BlockNotifier::new(),
             tags: Vec::new(),
             min_items: None,

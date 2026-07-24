@@ -161,7 +161,7 @@ where
 {
     pub fn new() -> Self {
         Self {
-            core: PortCore::new_disconnected(),
+            core: PortCore::new_unbound(),
             notifier: LocalBlockNotifier::default(),
             inbound: queue(),
             connected: None,
@@ -296,7 +296,7 @@ where
 {
     pub fn new() -> Self {
         Self {
-            core: PortCore::new_disconnected(),
+            core: PortCore::new_unbound(),
             notifier: LocalBlockNotifier::default(),
             connected: None,
             finished: false,
