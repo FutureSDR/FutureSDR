@@ -1,0 +1,25 @@
+[package]
+name = "web-spectrum"
+version = "0.1.0"
+edition = "2024"
+
+[workspace]
+
+[profile.release]
+debug = true
+strip = false
+
+[[bin]]
+name = "futuresdr_app"
+path = "src/main.rs"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+anyhow = "1.0"
+bytemuck = { version = "1.25", features = ["derive"] }
+console_error_panic_hook = "0.1"
+futuresdr = { path = "../..", default-features = false, features = ["wgpu"] }
+leptos = { version = "0.8", features = ["csr", "nightly"] }
+num-complex = { version = "0.4", features = ["bytemuck"] }
+prophecy = { path = "../../crates/prophecy" }
+wasm-bindgen-futures = "0.4"
+wgpu = "29.0"

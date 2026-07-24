@@ -1,0 +1,10 @@
+[build]
+target = "index-web.html"
+dist = "dist"
+filehash = false
+release = true
+# public_url = "/spectrum/"
+
+[serve.headers]
+"Cross-Origin-Opener-Policy" = "same-origin"
+"Cross-Origin-Embedder-Policy" = "require-corp"
