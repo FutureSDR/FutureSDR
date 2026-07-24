@@ -74,7 +74,9 @@ pub mod runtime;
 /// Custom block implementations should use [`crate::runtime::dev::prelude`]
 /// instead.
 pub mod prelude {
-    pub use futures::prelude::*;
+    pub use futures::future::FutureExt as _;
+    pub use futures::sink::SinkExt as _;
+    pub use futures::stream::StreamExt as _;
     pub use futuresdr::runtime::BlockId;
     pub use futuresdr::runtime::BlockRef;
     pub use futuresdr::runtime::Error;

@@ -1,8 +1,8 @@
 use anyhow::Result;
 use anyhow::anyhow;
 use anyhow::bail;
-use futuresdr::runtime::dev::prelude::*;
 use futuresdr::runtime::BlockStatus;
+use futuresdr::runtime::dev::prelude::*;
 use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
