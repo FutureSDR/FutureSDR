@@ -6,6 +6,7 @@ use futuresdr::blocks::MessageSource;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
 use futuresdr::prelude::*;
+use futuresdr::runtime::buffer::slab;
 use std::time::Duration;
 
 #[test]
@@ -99,6 +100,24 @@ fn stream_duplicate_input_is_rejected_at_startup() -> Result<()> {
 
     match Runtime::new().run(fg) {
         Err(Error::ValidationError(msg)) => assert!(msg.contains("more than one connection")),
+        Err(e) => panic!("Expected ValidationError got {e:?}"),
+        Ok(_) => panic!("Expected ValidationError got Ok(..)"),
+    }
+    Ok(())
+}
+
+#[test]
+fn single_reader_buffer_rejects_fanout_at_startup() -> Result<()> {
+    let mut fg = Flowgraph::new();
+    let src = fg.add(NullSource::<u8, slab::Writer<u8>>::new())?;
+    let snk0 = fg.add(NullSink::<u8, slab::Reader<u8>>::new())?;
+    let snk1 = fg.add(NullSink::<u8, slab::Reader<u8>>::new())?;
+
+    fg.stream(&src, |b| b.output(), &snk0, |b| b.input())?;
+    fg.stream(&src, |b| b.output(), &snk1, |b| b.input())?;
+
+    match Runtime::new().run(fg) {
+        Err(Error::ValidationError(msg)) => assert!(msg.contains("at most 1 reader")),
         Err(e) => panic!("Expected ValidationError got {e:?}"),
         Ok(_) => panic!("Expected ValidationError got Ok(..)"),
     }

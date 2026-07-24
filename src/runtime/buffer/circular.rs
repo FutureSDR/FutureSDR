@@ -143,10 +143,13 @@ where
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: I) {
         self.core.init(block_id, port_id, inbox);
     }
+
+    fn max_readers(&self) -> usize {
+        usize::MAX
+    }
+
     fn buffer_requirements(&self) -> BufferRequirements {
-        let mut requirements = self.core.requirements();
-        requirements.set_max_readers(usize::MAX);
-        requirements
+        self.core.requirements()
     }
     fn raise_buffer_requirements(&mut self, requirements: BufferRequirements) {
         self.core.raise_requirements(requirements);

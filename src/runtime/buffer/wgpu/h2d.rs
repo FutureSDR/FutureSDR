@@ -228,9 +228,7 @@ where
     }
 
     fn buffer_requirements(&self) -> BufferRequirements {
-        let mut requirements = self.core.requirements();
-        requirements.set_max_readers(1);
-        requirements
+        self.core.requirements()
     }
 
     fn raise_buffer_requirements(&mut self, requirements: BufferRequirements) {

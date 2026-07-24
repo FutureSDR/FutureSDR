@@ -112,10 +112,12 @@ impl<T: CpuSample> BufferWriter for CustomWriter<T> {
     type Inbox = BlockInbox;
     type Reader = CustomReader<T>;
 
+    fn max_readers(&self) -> usize {
+        usize::MAX
+    }
+
     fn buffer_requirements(&self) -> BufferRequirements {
-        let mut requirements = self.core.requirements();
-        requirements.set_max_readers(usize::MAX);
-        requirements
+        self.core.requirements()
     }
 
     fn raise_buffer_requirements(&mut self, requirements: BufferRequirements) {
@@ -175,11 +177,9 @@ fn custom_cpu_buffer_can_use_public_requirement_api() {
     let mut requirements = core.requirements();
     requirements.raise_min_items(4);
     requirements.raise_min_buffer_size_in_items(32);
-    requirements.set_max_readers(3);
 
     assert_eq!(requirements.min_items(), Some(4));
     assert_eq!(requirements.min_buffer_size_in_items(), Some(32));
-    assert_eq!(requirements.max_readers(), Some(3));
 
     core.raise_requirements(requirements);
     assert_eq!(core.min_items(), Some(4));
@@ -202,11 +202,10 @@ fn custom_cpu_buffer_can_publish_and_absorb_requirements() {
 
     assert_eq!(writer_requirements.min_items(), Some(8));
     assert_eq!(writer_requirements.min_buffer_size_in_items(), Some(64));
-    assert_eq!(writer_requirements.max_readers(), Some(usize::MAX));
+    assert_eq!(BufferWriter::max_readers(&writer), usize::MAX);
 
     BufferWriter::raise_buffer_requirements(&mut writer, writer_requirements);
     let raised = BufferWriter::buffer_requirements(&writer);
     assert_eq!(raised.min_items(), Some(8));
     assert_eq!(raised.min_buffer_size_in_items(), Some(64));
-    assert_eq!(raised.max_readers(), Some(usize::MAX));
 }

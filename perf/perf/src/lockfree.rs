@@ -136,6 +136,10 @@ where
     type Inbox = BlockInbox;
     type Reader = Reader<T, MAX_READERS>;
 
+    fn max_readers(&self) -> usize {
+        MAX_READERS
+    }
+
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
         self.block_id = block_id;
         self.port_id = port_id;

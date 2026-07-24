@@ -127,15 +127,10 @@ impl PortConfig {
 /// flowgraph merges peer requirements and passes them back through
 /// [`BufferReader::raise_buffer_requirements`] and
 /// [`BufferWriter::raise_buffer_requirements`].
-///
-/// `max_readers` is an output-side capability. Writers that support fanout
-/// should set it explicitly; the default writer requirement supports one
-/// downstream reader.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct BufferRequirements {
     min_items: Option<usize>,
     min_buffer_size_in_items: Option<usize>,
-    max_readers: Option<usize>,
 }
 
 impl BufferRequirements {
@@ -144,7 +139,6 @@ impl BufferRequirements {
         Self {
             min_items: None,
             min_buffer_size_in_items: None,
-            max_readers: None,
         }
     }
 
@@ -153,7 +147,6 @@ impl BufferRequirements {
         Self {
             min_items: config.min_items(),
             min_buffer_size_in_items: config.min_buffer_size_in_items(),
-            max_readers: None,
         }
     }
 
@@ -165,16 +158,6 @@ impl BufferRequirements {
     /// Minimum buffer capacity requested by the port, in items.
     pub const fn min_buffer_size_in_items(&self) -> Option<usize> {
         self.min_buffer_size_in_items
-    }
-
-    /// Maximum number of downstream readers supported by an output port.
-    pub const fn max_readers(&self) -> Option<usize> {
-        self.max_readers
-    }
-
-    /// Set the maximum number of downstream readers supported by an output port.
-    pub fn set_max_readers(&mut self, max_readers: usize) {
-        self.max_readers = Some(max_readers);
     }
 
     /// Raise the minimum item requirement to at least `min_items`.
@@ -189,9 +172,6 @@ impl BufferRequirements {
     }
 
     /// Merge item and buffer-size requirements, keeping the larger values.
-    ///
-    /// This does not merge `max_readers`; fanout capability belongs to the
-    /// source writer and is not a peer requirement.
     pub fn merge(&mut self, other: Self) {
         if let Some(min_items) = other.min_items {
             self.raise_min_items(min_items);
@@ -219,6 +199,7 @@ pub struct PortManifest {
     direction: PortDirection,
     concrete_type_id: TypeId,
     reader_type_id: Option<TypeId>,
+    max_readers: Option<usize>,
     requirements: BufferRequirements,
     thread_safe_connect: Option<Arc<dyn DynThreadSafeConnect>>,
 }
@@ -231,6 +212,7 @@ impl PortManifest {
             direction: PortDirection::Input,
             concrete_type_id: (&*port as &dyn Any).type_id(),
             reader_type_id: None,
+            max_readers: None,
             requirements: port.buffer_requirements(),
             thread_safe_connect: None,
         }
@@ -243,6 +225,7 @@ impl PortManifest {
             direction: PortDirection::Output,
             concrete_type_id: (&*port as &dyn Any).type_id(),
             reader_type_id: Some(port.reader_type_id()),
+            max_readers: Some(port.max_readers()),
             requirements: port.buffer_requirements(),
             thread_safe_connect: port.thread_safe_connect(),
         }
@@ -266,6 +249,10 @@ impl PortManifest {
 
     pub(crate) fn reader_type_id(&self) -> Option<TypeId> {
         self.reader_type_id
+    }
+
+    pub(crate) fn max_readers(&self) -> Option<usize> {
+        self.max_readers
     }
 
     pub(crate) fn requirements(&self) -> BufferRequirements {
@@ -446,10 +433,9 @@ mod tests {
 
         assert_eq!(writer_requirements.min_items(), Some(4));
         assert_eq!(writer_requirements.min_buffer_size_in_items(), Some(32));
-        assert_eq!(writer_requirements.max_readers(), Some(usize::MAX));
+        assert_eq!(BufferWriter::max_readers(&writer), usize::MAX);
         assert_eq!(reader_requirements.min_items(), Some(8));
         assert_eq!(reader_requirements.min_buffer_size_in_items(), Some(64));
-        assert_eq!(reader_requirements.max_readers(), None);
     }
 }
 
@@ -581,8 +567,7 @@ impl<I: BufferInbox> PortCore<I> {
     ///
     /// Custom buffer implementations can use this from
     /// [`BufferReader::buffer_requirements`] or
-    /// [`BufferWriter::buffer_requirements`], then add implementation-specific
-    /// capabilities such as [`BufferRequirements::set_max_readers`].
+    /// [`BufferWriter::buffer_requirements`].
     pub fn requirements(&self) -> BufferRequirements {
         BufferRequirements::from_port_config(self.config)
     }
@@ -940,6 +925,8 @@ where
 pub trait DynBufferWriter: Any {
     /// Concrete reader type identity expected by this writer.
     fn reader_type_id(&self) -> TypeId;
+    /// Maximum number of downstream readers supported by this writer.
+    fn max_readers(&self) -> usize;
     /// Buffer requirements configured on this port.
     fn buffer_requirements(&self) -> BufferRequirements;
     /// Raise this port's configured requirements.
@@ -965,6 +952,10 @@ where
 {
     fn reader_type_id(&self) -> TypeId {
         TypeId::of::<T::Reader>()
+    }
+
+    fn max_readers(&self) -> usize {
+        BufferWriter::max_readers(self)
     }
 
     fn buffer_requirements(&self) -> BufferRequirements {
@@ -1015,11 +1006,13 @@ pub trait BufferWriter: Any {
     type Inbox: BufferInbox;
     /// The corresponding matching reader.
     type Reader: BufferReader<Inbox = Self::Inbox>;
+    /// Maximum number of downstream readers supported by this writer.
+    fn max_readers(&self) -> usize {
+        1
+    }
     /// Buffer requirements configured on this port.
     fn buffer_requirements(&self) -> BufferRequirements {
-        let mut requirements = BufferRequirements::new();
-        requirements.set_max_readers(1);
-        requirements
+        BufferRequirements::new()
     }
     /// Raise this port's configured requirements.
     fn raise_buffer_requirements(&mut self, _requirements: BufferRequirements) {}

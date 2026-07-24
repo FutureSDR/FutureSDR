@@ -312,7 +312,9 @@ impl<'a> FlowgraphConnector<'a> {
         let src_manifest = self
             .flowgraph
             .stream_output_manifest(group.src_block, group.src_port)?;
-        let max_readers = src_manifest.requirements().max_readers().unwrap_or(1);
+        let max_readers = src_manifest.max_readers().ok_or_else(|| {
+            Error::ValidationError("stream output manifest missing reader limit".to_string())
+        })?;
         if group.dsts.len() > max_readers {
             return Err(Error::ValidationError(format!(
                 "stream output {:?}.{} supports at most {} reader(s)",
