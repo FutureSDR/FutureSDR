@@ -390,7 +390,15 @@ impl StoppedDomain {
 /// are run. Local-domain execution resources are created with the flowgraph's
 /// local domains and are orchestrated by a [`LocalScheduler`](super::LocalScheduler)
 /// inside the local-domain thread/worker.
-pub trait Scheduler: Clone + Send + 'static {
+///
+/// Scheduler values are required to be [`Send`] on native targets, where the
+/// runtime supervisor may run on the scheduler. On WASM, the supervisor stays
+/// on its originating thread so schedulers may own thread-local browser state.
+pub trait Scheduler: Clone + 'static
+where
+    #[cfg(not(target_arch = "wasm32"))]
+    Self: Send,
+{
     /// Start the implicit normal send-capable scheduling domain.
     fn start_normal_domain(&self, spec: NormalDomainSpec) -> Result<NormalRunningDomain, Error>;
 

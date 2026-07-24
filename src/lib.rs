@@ -3,6 +3,7 @@
 #![feature(return_type_notation)]
 #![feature(associated_type_defaults)]
 #![feature(specialization)]
+#![feature(where_clause_attrs)]
 #![recursion_limit = "512"]
 
 //! An experimental asynchronous SDR runtime for heterogeneous architectures that is:

@@ -9,6 +9,7 @@ use std::fmt;
 use std::panic::RefUnwindSafe;
 use std::panic::UnwindSafe;
 use std::pin::Pin;
+use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::atomic::AtomicBool;
@@ -83,12 +84,6 @@ pub(crate) fn reset_wasm_thread_metadata() {
 /// Web-worker handle used by the WASM scheduler and WASM local domains.
 pub(crate) struct WasmWorker(Worker);
 
-// Web workers are created and owned by the scheduler, but the scheduler itself
-// has to satisfy the generic `Scheduler: Send` bound. The actual worker handle
-// is only used to post the initial message and to terminate the worker at drop.
-unsafe impl Send for WasmWorker {}
-unsafe impl Sync for WasmWorker {}
-
 impl WasmWorker {
     pub(crate) fn terminate(self) {
         self.0.terminate();
@@ -118,12 +113,13 @@ pub fn futuresdr_wasm_scheduler_worker_entry(executor_id: usize, worker_index: u
 
 /// Web-worker-backed WASM scheduler.
 ///
-/// The scheduler always runs tasks on web workers, including the default and
-/// `WasmScheduler::new(1)` cases. The browser GUI thread is only used by the
-/// application code that creates and drives the runtime handles.
+/// Normal blocks and explicitly spawned sendable tasks run on web workers,
+/// including with `WasmScheduler::new(1)`. The flowgraph supervisor remains on
+/// the thread that started it so browser-local scheduler and domain owners do
+/// not cross threads.
 #[derive(Clone, Debug)]
 pub struct WasmScheduler {
-    inner: Arc<WasmSchedulerInner>,
+    inner: Rc<WasmSchedulerInner>,
 }
 
 struct WasmSchedulerInner {
@@ -189,7 +185,7 @@ impl WasmScheduler {
 
         debug!("WASM scheduler started {} web workers", workers.len());
         WasmScheduler {
-            inner: Arc::new(WasmSchedulerInner {
+            inner: Rc::new(WasmSchedulerInner {
                 executor_id,
                 executor,
                 workers,
@@ -240,10 +236,10 @@ impl Default for WasmScheduler {
 
 /// Main-thread WASM scheduler.
 ///
-/// This scheduler runs the runtime and all normal blocks on the browser main
-/// thread instead of FutureSDR scheduler web workers. It is useful for blocks
-/// that must create or own browser-main-thread APIs such as Web Audio through
-/// CPAL's WebAudio backend. CPU-heavy flowgraphs should prefer
+/// This scheduler runs normal blocks and explicitly spawned tasks on the
+/// browser main thread instead of FutureSDR scheduler web workers. It is useful
+/// for blocks that must create or own browser-main-thread APIs such as Web Audio
+/// through CPAL's WebAudio backend. CPU-heavy flowgraphs should prefer
 /// [`WasmScheduler`] to avoid blocking the UI thread.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct WasmMainScheduler;

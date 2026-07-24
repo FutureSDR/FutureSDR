@@ -315,32 +315,6 @@ impl FlowgraphRegistry {
     }
 }
 
-type RuntimeFlowgraphTask = Task<Result<TerminatedFlowgraph, Error>>;
-
-struct StartupFlowgraphTask {
-    task: Option<RuntimeFlowgraphTask>,
-}
-
-impl StartupFlowgraphTask {
-    fn new(task: RuntimeFlowgraphTask) -> Self {
-        Self { task: Some(task) }
-    }
-
-    fn into_inner(mut self) -> RuntimeFlowgraphTask {
-        self.task
-            .take()
-            .expect("startup flowgraph task already taken")
-    }
-}
-
-impl Drop for StartupFlowgraphTask {
-    fn drop(&mut self) {
-        if let Some(task) = self.task.take() {
-            task.detach();
-        }
-    }
-}
-
 async fn start_flowgraph<S: Scheduler>(
     scheduler: S,
     flowgraphs: Arc<Mutex<FlowgraphRegistry>>,
@@ -353,10 +327,11 @@ async fn start_flowgraph<S: Scheduler>(
     let (tx, rx) = oneshot::channel::<Result<(), Error>>();
     let (registry_tx, registry_rx) = oneshot::channel::<Arc<RunningFlowgraphRegistry>>();
     let (commit_tx, commit_rx) = oneshot::channel::<()>();
+    let (completion_tx, completion_rx) = oneshot::channel::<Result<TerminatedFlowgraph, Error>>();
     let cleanup_flowgraphs = flowgraphs.clone();
     let main_channel = fg_inbox.clone();
     let scheduler_clone = scheduler.clone();
-    let task = StartupFlowgraphTask::new(scheduler.spawn(async move {
+    let supervisor = async move {
         let result = run_flowgraph(
             fg,
             scheduler_clone,
@@ -368,8 +343,14 @@ async fn start_flowgraph<S: Scheduler>(
         )
         .await;
         cleanup_flowgraphs.lock().await.remove(id);
-        result
-    }));
+        let _ = completion_tx.send(result);
+    };
+
+    #[cfg(not(target_arch = "wasm32"))]
+    scheduler.spawn(supervisor).detach();
+
+    #[cfg(target_arch = "wasm32")]
+    wasm_bindgen_futures::spawn_local(supervisor);
 
     rx.await
         .map_err(|_| Error::RuntimeError("run_flowgraph panicked".to_string()))??;
@@ -382,7 +363,7 @@ async fn start_flowgraph<S: Scheduler>(
     let _ = commit_tx.send(());
     Ok(RunningFlowgraph::new(
         handle,
-        FlowgraphTask::new(task.into_inner()),
+        FlowgraphTask::new(completion_rx),
     ))
 }
 

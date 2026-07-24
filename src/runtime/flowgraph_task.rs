@@ -1,4 +1,3 @@
-use futures::FutureExt;
 use std::pin::Pin;
 use std::task;
 use std::task::Poll;
@@ -6,18 +5,18 @@ use std::task::Poll;
 use crate::runtime::Error;
 use crate::runtime::Result;
 use crate::runtime::TerminatedFlowgraph;
-use crate::runtime::scheduler::Task;
+use crate::runtime::channel::oneshot;
 
 enum TaskState {
-    Running(Task<Result<TerminatedFlowgraph, Error>>),
+    Running(oneshot::Receiver<Result<TerminatedFlowgraph, Error>>),
     Completed,
 }
 
 /// Completion future for a started [`Flowgraph`](crate::runtime::Flowgraph).
 ///
 /// A `FlowgraphTask` can be awaited to retrieve the terminated flowgraph after
-/// runtime execution completes. Dropping it before completion detaches the
-/// underlying runtime task so the flowgraph keeps running in the background.
+/// runtime execution completes. The runtime supervisor runs independently, so
+/// dropping this completion handle leaves the flowgraph running in the background.
 /// Keep and await this task when shutdown ordering or the final flowgraph state
 /// matters.
 pub struct FlowgraphTask {
@@ -25,9 +24,9 @@ pub struct FlowgraphTask {
 }
 
 impl FlowgraphTask {
-    pub(crate) fn new(task: Task<Result<TerminatedFlowgraph, Error>>) -> Self {
+    pub(crate) fn new(completion: oneshot::Receiver<Result<TerminatedFlowgraph, Error>>) -> Self {
         Self {
-            state: TaskState::Running(task),
+            state: TaskState::Running(completion),
         }
     }
 }
@@ -37,22 +36,18 @@ impl std::future::Future for FlowgraphTask {
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
         match &mut self.state {
-            TaskState::Running(task) => match task.poll_unpin(cx) {
+            TaskState::Running(completion) => match Pin::new(completion).poll(cx) {
                 Poll::Pending => Poll::Pending,
                 Poll::Ready(output) => {
                     self.state = TaskState::Completed;
-                    Poll::Ready(output)
+                    Poll::Ready(output.unwrap_or_else(|_| {
+                        Err(Error::RuntimeError(
+                            "flowgraph supervisor canceled".to_string(),
+                        ))
+                    }))
                 }
             },
             TaskState::Completed => panic!("FlowgraphTask polled after completion"),
-        }
-    }
-}
-
-impl Drop for FlowgraphTask {
-    fn drop(&mut self) {
-        if let TaskState::Running(task) = std::mem::replace(&mut self.state, TaskState::Completed) {
-            task.detach();
         }
     }
 }
