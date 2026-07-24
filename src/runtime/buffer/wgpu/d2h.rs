@@ -187,13 +187,11 @@ where
     }
 
     async fn notify_finished(&mut self) {
-        let _ = self
-            .state
-            .connected()
-            .reader
+        let reader = &self.state.connected().reader;
+        let _ = reader
             .inbox()
             .send(BlockMessage::StreamInputDone {
-                input_id: self.state.connected().reader.port_id(),
+                input_id: reader.port_id(),
             })
             .await;
     }
@@ -331,13 +329,11 @@ where
             return;
         }
 
-        let _ = self
-            .state
-            .connected()
-            .writer
+        let writer = &self.state.connected().writer;
+        let _ = writer
             .inbox()
             .send(BlockMessage::StreamOutputDone {
-                output_id: self.state.connected().writer.port_id(),
+                output_id: writer.port_id(),
             })
             .await;
     }

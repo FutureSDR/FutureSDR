@@ -337,12 +337,11 @@ where
         let reader_notifier = MyNotifier {
             notifier: BlockInbox::notifier(&token.reader.inbox()),
         };
-        let reader = self
-            .state
-            .connected_mut()
+        let connected = self.state.connected_mut();
+        let reader = connected
             .writer
             .add_reader(reader_notifier, writer_notifier);
-        self.state.connected_mut().readers.push(token.reader);
+        connected.readers.push(token.reader);
 
         ThreadSafeReturnToken {
             connected: ConnectedReader {
@@ -471,13 +470,8 @@ where
         }
     }
     async fn notify_finished(&mut self) {
-        let _ = self
-            .state
-            .connected()
-            .writer
-            .inbox()
-            .stream_output_done(self.state.connected().writer.port_id())
-            .await;
+        let writer = &self.state.connected().writer;
+        let _ = writer.inbox().stream_output_done(writer.port_id()).await;
     }
     fn finish(&mut self) {
         self.finished = true;

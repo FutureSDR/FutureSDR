@@ -285,12 +285,11 @@ where
             }
         }
 
-        self.state
-            .connected()
-            .reader
+        let reader = &self.state.connected().reader;
+        reader
             .inbox()
             .send(BlockMessage::StreamInputDone {
-                input_id: self.state.connected().reader.port_id(),
+                input_id: reader.port_id(),
             })
             .await
             .unwrap();
@@ -600,12 +599,11 @@ where
             return;
         }
 
-        self.state
-            .connected()
-            .writer
+        let writer = &self.state.connected().writer;
+        writer
             .inbox()
             .send(BlockMessage::StreamOutputDone {
-                output_id: self.state.connected().writer.port_id(),
+                output_id: writer.port_id(),
             })
             .await
             .unwrap();

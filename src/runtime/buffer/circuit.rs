@@ -335,16 +335,15 @@ where
     }
 
     async fn notify_finished(&mut self) {
+        let connected = self.state.connected();
         if let Some(b) = self.current.take() {
-            queue_push(&self.state.connected().outbound, b);
-            self.state.connected().reader.inbox().notify();
+            queue_push(&connected.outbound, b);
+            connected.reader.inbox().notify();
         }
-        let _ = self
-            .state
-            .connected()
+        let _ = connected
             .reader
             .inbox()
-            .stream_input_done(self.state.connected().reader.port_id())
+            .stream_input_done(connected.reader.port_id())
             .await;
     }
 
@@ -399,8 +398,9 @@ where
     type Buffer = Buffer<T, I>;
 
     fn put_full_buffer(&mut self, buffer: Self::Buffer) -> Result<(), Error> {
-        queue_push(&self.state.connected().outbound, buffer);
-        self.state.connected().reader.inbox().notify();
+        let connected = self.state.connected();
+        queue_push(&connected.outbound, buffer);
+        connected.reader.inbox().notify();
         Ok(())
     }
 
@@ -467,9 +467,9 @@ where
         storage.valid += n;
         if (storage.buffer.len() - storage.valid) < self.core.min_items().unwrap_or(1) {
             let c = self.current.take().unwrap();
-            queue_push(&self.state.connected().outbound, c);
-
-            self.state.connected().reader.inbox().notify();
+            let connected = self.state.connected();
+            queue_push(&connected.outbound, c);
+            connected.reader.inbox().notify();
 
             if !queue_is_empty(&self.inbound) {
                 self.core.inbox().notify();
@@ -566,13 +566,8 @@ where
     }
 
     async fn notify_finished(&mut self) {
-        let _ = self
-            .state
-            .connected()
-            .writer
-            .inbox()
-            .stream_output_done(self.state.connected().writer.port_id())
-            .await;
+        let writer = &self.state.connected().writer;
+        let _ = writer.inbox().stream_output_done(writer.port_id()).await;
     }
 
     fn finish(&mut self) {
