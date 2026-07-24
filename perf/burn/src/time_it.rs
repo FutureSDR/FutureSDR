@@ -1,15 +1,22 @@
 use burn::prelude::*;
+use bytemuck::Pod;
 use futuresdr::runtime::dev::prelude::*;
 use std::time::Instant;
 
 #[derive(Block)]
-pub struct TimeIt<B: Backend> {
+pub struct TimeIt<B: Backend>
+where
+    B::FloatElem: Pod,
+{
     start: Option<Instant>,
     #[input]
     input: burn_buffer::Reader<B>,
 }
 
-impl<B: Backend> TimeIt<B> {
+impl<B: Backend> TimeIt<B>
+where
+    B::FloatElem: Pod,
+{
     pub fn new() -> Self {
         Self {
             start: None,
@@ -18,13 +25,19 @@ impl<B: Backend> TimeIt<B> {
     }
 }
 
-impl<B: Backend> Default for TimeIt<B> {
+impl<B: Backend> Default for TimeIt<B>
+where
+    B::FloatElem: Pod,
+{
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<B: Backend> Kernel for TimeIt<B> {
+impl<B: Backend> Kernel for TimeIt<B>
+where
+    B::FloatElem: Pod,
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,

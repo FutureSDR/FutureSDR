@@ -9,9 +9,8 @@ use futuresdr::runtime::__private::SendKernelInterface;
 use futuresdr::runtime::dev::BufferWriter;
 use futuresdr::runtime::dev::CpuBufferReader;
 use futuresdr::runtime::dev::CpuBufferWriter;
-use futuresdr::runtime::dev::SendCpuBufferReader;
-use futuresdr::runtime::dev::SendCpuBufferWriter;
 use futuresdr::runtime::dev::SendKernel;
+use futuresdr::runtime::dev::ThreadSafeConnect;
 use futuresdr::runtime::dev::prelude::*;
 use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::scheduler::SmolScheduler;
@@ -35,7 +34,7 @@ struct Args {
 }
 
 pub trait BufferType {
-    type Writer<T: CpuSample>: CpuBufferWriter<Item = T> + SendCpuBufferWriter + 'static;
+    type Writer<T: CpuSample>: CpuBufferWriter<Item = T> + ThreadSafeConnect + 'static;
 }
 
 pub struct CircBuffer;
@@ -90,7 +89,7 @@ fn generate<B>(
 )>
 where
     B: BufferType,
-    ReaderOf<B, f32>: CpuBufferReader<Item = f32> + SendCpuBufferReader + 'static,
+    ReaderOf<B, f32>: CpuBufferReader<Item = f32> + 'static,
     NullSource<f32, B::Writer<f32>>: SendKernel + SendKernelInterface,
     Head<f32, ReaderOf<B, f32>, B::Writer<f32>>: SendKernel + SendKernelInterface,
     FirBlock<B>: SendKernel + SendKernelInterface,

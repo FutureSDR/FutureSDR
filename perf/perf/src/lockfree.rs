@@ -1,18 +1,17 @@
 use std::any::Any;
 use std::fmt;
-use std::mem::size_of;
 
 use futuresdr::runtime::BlockId;
 use futuresdr::runtime::Error;
 use futuresdr::runtime::PortId;
+use futuresdr::runtime::buffer::BlockInbox;
 use futuresdr::runtime::buffer::BufferReader;
 use futuresdr::runtime::buffer::BufferWriter;
 use futuresdr::runtime::buffer::CpuBufferReader;
 use futuresdr::runtime::buffer::CpuBufferWriter;
 use futuresdr::runtime::buffer::CpuSample;
 use futuresdr::runtime::buffer::Tags;
-use futuresdr::runtime::buffer::ThreadSafeMode;
-use futuresdr::runtime::dev::BlockInbox;
+use futuresdr::runtime::buffer::ThreadSafeConnect;
 use futuresdr::runtime::dev::BlockNotifier;
 use futuresdr::runtime::dev::ItemTag;
 use futuresdr::tracing::warn;
@@ -21,6 +20,29 @@ use vmcircbuffer::lockfree as vm_lockfree;
 
 struct TagMetadata {
     tags: Vec<ItemTag>,
+}
+
+pub struct ThreadSafeConnectToken<T, const MAX_READERS: usize>
+where
+    T: CpuSample,
+{
+    reader_inbox: BlockInbox,
+    reader_input_id: PortId,
+    reader_notifier: BlockNotifier,
+    reader_min_items: Option<usize>,
+    reader_min_buffer_size_in_items: Option<usize>,
+    _item: std::marker::PhantomData<fn() -> T>,
+}
+
+pub struct ThreadSafeReturnToken<T, const MAX_READERS: usize>
+where
+    T: CpuSample,
+{
+    reader: vm_lockfree::Reader<T, TagMetadata>,
+    writer_inbox: BlockInbox,
+    writer_output_id: PortId,
+    writer_notifier: BlockNotifier,
+    min_buffer_size_in_items: usize,
 }
 
 impl Metadata for TagMetadata {
@@ -112,7 +134,7 @@ impl<T, const MAX_READERS: usize> BufferWriter for Writer<T, MAX_READERS>
 where
     T: CpuSample,
 {
-    type Mode = ThreadSafeMode;
+    type Inbox = BlockInbox;
     type Reader = Reader<T, MAX_READERS>;
 
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
@@ -140,7 +162,7 @@ where
 
             let min_self = self.min_items.unwrap_or(1);
             let min_reader = dest.min_items.unwrap_or(1);
-            let mut min_bytes = (min_self + min_reader - 1) * size_of::<T>();
+            let mut min_bytes = (min_self + min_reader - 1) * T::SIZE.get();
 
             let buffer_size_configured =
                 self.min_buffer_size_in_items.is_some() || dest.min_buffer_size_in_items.is_some();
@@ -150,17 +172,17 @@ where
                 let min_reader = dest.min_buffer_size_in_items.unwrap_or(0);
                 std::cmp::max(
                     min_bytes,
-                    std::cmp::max(min_self, min_reader) * size_of::<T>(),
+                    std::cmp::max(min_self, min_reader) * T::SIZE.get(),
                 )
             } else {
                 std::cmp::max(min_bytes, futuresdr::runtime::config::config().buffer_size)
             };
 
-            while (buffer_size < min_bytes) || !buffer_size.is_multiple_of(size_of::<T>()) {
+            while (buffer_size < min_bytes) || !buffer_size.is_multiple_of(T::SIZE.get()) {
                 buffer_size += page_size;
             }
 
-            let capacity = buffer_size / size_of::<T>();
+            let capacity = buffer_size / T::SIZE.get();
             self.min_buffer_size_in_items = Some(capacity);
             dest.min_buffer_size_in_items = Some(capacity);
             self.writer = Some(
@@ -213,6 +235,102 @@ where
 
     fn port_id(&self) -> PortId {
         self.port_id.clone()
+    }
+}
+
+impl<T, const MAX_READERS: usize> ThreadSafeConnect for Writer<T, MAX_READERS>
+where
+    T: CpuSample,
+{
+    type ReaderToken = ThreadSafeConnectToken<T, MAX_READERS>;
+    type WriterToken = ThreadSafeReturnToken<T, MAX_READERS>;
+
+    fn take_reader_token(reader: &mut Reader<T, MAX_READERS>) -> Self::ReaderToken {
+        ThreadSafeConnectToken {
+            reader_inbox: reader.inbox.clone(),
+            reader_input_id: reader.port_id.clone(),
+            reader_notifier: reader.notifier.clone(),
+            reader_min_items: reader.min_items,
+            reader_min_buffer_size_in_items: reader.min_buffer_size_in_items,
+            _item: std::marker::PhantomData,
+        }
+    }
+
+    fn connect_reader(&mut self, token: Self::ReaderToken) -> Self::WriterToken {
+        let min_buffer_size_in_items = if self.writer.is_some() {
+            if self.min_buffer_size_in_items.unwrap_or(0)
+                < token.reader_min_buffer_size_in_items.unwrap_or(0)
+            {
+                warn!(
+                    "lockfree buffer is already created, size constraints of reader are not considered."
+                );
+            }
+            if self.min_buffer_size_in_items.unwrap_or(0) - self.min_items.unwrap_or(0) + 1
+                < token.reader_min_items.unwrap_or(1)
+            {
+                warn!(
+                    "lockfree buffer is already created, size constraints of reader are not considered."
+                );
+            }
+            self.min_buffer_size_in_items.unwrap_or(usize::MAX)
+        } else {
+            let page_size = vmcircbuffer::double_mapped_buffer::pagesize();
+            let mut buffer_size = page_size;
+            let min_self = self.min_items.unwrap_or(1);
+            let min_reader = token.reader_min_items.unwrap_or(1);
+            let mut min_bytes = (min_self + min_reader - 1) * T::SIZE.get();
+            let buffer_size_configured = self.min_buffer_size_in_items.is_some()
+                || token.reader_min_buffer_size_in_items.is_some();
+
+            min_bytes = if buffer_size_configured {
+                std::cmp::max(
+                    min_bytes,
+                    std::cmp::max(
+                        self.min_buffer_size_in_items.unwrap_or(0),
+                        token.reader_min_buffer_size_in_items.unwrap_or(0),
+                    ) * T::SIZE.get(),
+                )
+            } else {
+                std::cmp::max(min_bytes, futuresdr::runtime::config::config().buffer_size)
+            };
+            while (buffer_size < min_bytes) || !buffer_size.is_multiple_of(T::SIZE.get()) {
+                buffer_size += page_size;
+            }
+
+            let capacity = buffer_size / T::SIZE.get();
+            self.writer = Some(
+                vm_lockfree::Circular::with_capacity::<T, TagMetadata>(capacity, MAX_READERS)
+                    .expect("failed to allocate perf::lockfree buffer"),
+            );
+            self.min_buffer_size_in_items = Some(capacity);
+            capacity
+        };
+
+        let reader = self
+            .writer
+            .as_ref()
+            .expect("writer was initialized above")
+            .add_reader()
+            .expect("perf::lockfree reader limit exceeded");
+        self.readers
+            .push((token.reader_input_id, token.reader_inbox));
+        self.reader_notifiers.push(token.reader_notifier);
+
+        ThreadSafeReturnToken {
+            reader,
+            writer_inbox: self.inbox.clone(),
+            writer_output_id: self.port_id.clone(),
+            writer_notifier: self.notifier.clone(),
+            min_buffer_size_in_items,
+        }
+    }
+
+    fn finish_reader(reader: &mut Reader<T, MAX_READERS>, token: Self::WriterToken) {
+        reader.min_buffer_size_in_items = Some(token.min_buffer_size_in_items);
+        reader.reader = Some(token.reader);
+        reader.writer_output_id = token.writer_output_id;
+        reader.writer_inbox = token.writer_inbox;
+        reader.writer_notifier = token.writer_notifier;
     }
 }
 
@@ -330,7 +448,7 @@ impl<T, const MAX_READERS: usize> BufferReader for Reader<T, MAX_READERS>
 where
     T: CpuSample,
 {
-    type Mode = ThreadSafeMode;
+    type Inbox = BlockInbox;
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self

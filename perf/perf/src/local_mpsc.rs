@@ -1,6 +1,5 @@
 use std::any::Any;
 use std::fmt;
-use std::mem::size_of;
 
 use futuresdr::runtime::BlockId;
 use futuresdr::runtime::Error;
@@ -13,7 +12,7 @@ use futuresdr::runtime::buffer::ConnectionState;
 use futuresdr::runtime::buffer::CpuBufferReader;
 use futuresdr::runtime::buffer::CpuBufferWriter;
 use futuresdr::runtime::buffer::CpuSample;
-use futuresdr::runtime::buffer::LocalMode;
+use futuresdr::runtime::buffer::LocalBlockInbox;
 use futuresdr::runtime::buffer::PortCore;
 use futuresdr::runtime::buffer::PortEndpoint;
 use futuresdr::runtime::buffer::Tags;
@@ -59,7 +58,7 @@ pub struct Writer<T>
 where
     T: CpuSample,
 {
-    core: PortCore<LocalMode>,
+    core: PortCore<LocalBlockInbox>,
     state: ConnectionState<ConnectedWriter<T>>,
     tags: Vec<ItemTag>,
 }
@@ -70,10 +69,10 @@ where
 {
     writer: generic::Writer<
         T,
-        LocalNotifier<<LocalMode as futuresdr::runtime::buffer::BufferMode>::Notifier>,
+        LocalNotifier<<LocalBlockInbox as futuresdr::runtime::buffer::BufferInbox>::Notifier>,
         NoMetadata,
     >,
-    readers: Vec<PortEndpoint<LocalMode>>,
+    readers: Vec<PortEndpoint<LocalBlockInbox>>,
 }
 
 impl<T> Writer<T>
@@ -114,15 +113,10 @@ impl<T> BufferWriter for Writer<T>
 where
     T: CpuSample,
 {
-    type Mode = LocalMode;
+    type Inbox = LocalBlockInbox;
     type Reader = Reader<T>;
 
-    fn init(
-        &mut self,
-        block_id: BlockId,
-        port_id: PortId,
-        inbox: <LocalMode as futuresdr::runtime::buffer::BufferMode>::Inbox,
-    ) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: LocalBlockInbox) {
         self.core.init(block_id, port_id, inbox);
     }
 
@@ -159,7 +153,7 @@ where
 
             let min_self = self.core.min_items().unwrap_or(1);
             let min_reader = dest.core.min_items().unwrap_or(1);
-            let mut min_bytes = (min_self + min_reader - 1) * size_of::<T>();
+            let mut min_bytes = (min_self + min_reader - 1) * T::SIZE.get();
 
             let buffer_size_configured = self.core.min_buffer_size_in_items().is_some()
                 || dest.core.min_buffer_size_in_items().is_some();
@@ -169,17 +163,17 @@ where
                 let min_reader = dest.core.min_buffer_size_in_items().unwrap_or(0);
                 std::cmp::max(
                     min_bytes,
-                    std::cmp::max(min_self, min_reader) * size_of::<T>(),
+                    std::cmp::max(min_self, min_reader) * T::SIZE.get(),
                 )
             } else {
                 std::cmp::max(min_bytes, futuresdr::runtime::config::config().buffer_size)
             };
 
-            while (buffer_size < min_bytes) || !buffer_size.is_multiple_of(size_of::<T>()) {
+            while (buffer_size < min_bytes) || !buffer_size.is_multiple_of(T::SIZE.get()) {
                 buffer_size += page_size;
             }
 
-            let capacity = buffer_size / size_of::<T>();
+            let capacity = buffer_size / T::SIZE.get();
             self.core.set_min_buffer_size_in_items(capacity);
             dest.core.set_min_buffer_size_in_items(capacity);
 
@@ -274,7 +268,7 @@ where
 {
     state: ConnectionState<ConnectedReader<T>>,
     finished: bool,
-    core: PortCore<LocalMode>,
+    core: PortCore<LocalBlockInbox>,
     tags: Vec<ItemTag>,
 }
 
@@ -284,10 +278,10 @@ where
 {
     reader: generic::Reader<
         T,
-        LocalNotifier<<LocalMode as futuresdr::runtime::buffer::BufferMode>::Notifier>,
+        LocalNotifier<<LocalBlockInbox as futuresdr::runtime::buffer::BufferInbox>::Notifier>,
         NoMetadata,
     >,
-    writer: PortEndpoint<LocalMode>,
+    writer: PortEndpoint<LocalBlockInbox>,
 }
 
 impl<T> Reader<T>
@@ -332,18 +326,13 @@ impl<T> BufferReader for Reader<T>
 where
     T: CpuSample,
 {
-    type Mode = LocalMode;
+    type Inbox = LocalBlockInbox;
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
 
-    fn init(
-        &mut self,
-        block_id: BlockId,
-        port_id: PortId,
-        inbox: <LocalMode as futuresdr::runtime::buffer::BufferMode>::Inbox,
-    ) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: LocalBlockInbox) {
         self.core.init(block_id, port_id, inbox);
     }
 

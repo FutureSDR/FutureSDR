@@ -4,14 +4,13 @@ use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
 use futuresdr::runtime::__private::SendKernelInterface;
-use futuresdr::runtime::buffer::LocalMode;
+use futuresdr::runtime::buffer::LocalBlockInbox;
 use futuresdr::runtime::dev::BufferWriter;
 use futuresdr::runtime::dev::CpuBufferReader;
 use futuresdr::runtime::dev::CpuBufferWriter;
 use futuresdr::runtime::dev::LocalCpuWriter;
-use futuresdr::runtime::dev::SendCpuBufferReader;
-use futuresdr::runtime::dev::SendCpuBufferWriter;
 use futuresdr::runtime::dev::SendKernel;
+use futuresdr::runtime::dev::ThreadSafeConnect;
 use futuresdr::runtime::dev::prelude::*;
 use futuresdr::runtime::scheduler::BasicLocalScheduler;
 use futuresdr::runtime::scheduler::FlowScheduler;
@@ -40,7 +39,7 @@ struct Args {
 }
 
 pub trait BufferType {
-    type Writer<T: CpuSample>: CpuBufferWriter<Item = T> + SendCpuBufferWriter + 'static;
+    type Writer<T: CpuSample>: CpuBufferWriter<Item = T> + ThreadSafeConnect + 'static;
 }
 pub struct SlabBuffer;
 impl BufferType for SlabBuffer {
@@ -57,7 +56,7 @@ impl BufferType for SpscBuffer {
 }
 
 pub trait LocalBufferType {
-    type Writer<T: CpuSample>: CpuBufferWriter<Item = T, Mode = LocalMode> + 'static;
+    type Writer<T: CpuSample>: CpuBufferWriter<Item = T, Inbox = LocalBlockInbox> + 'static;
 }
 pub struct LocalSpscBuffer;
 impl LocalBufferType for LocalSpscBuffer {
@@ -84,7 +83,7 @@ fn generate<B>(
 )>
 where
     B: BufferType,
-    ReaderOf<B, f32>: CpuBufferReader<Item = f32> + SendCpuBufferReader + 'static,
+    ReaderOf<B, f32>: CpuBufferReader<Item = f32> + 'static,
     NullSource<f32, B::Writer<f32>>: SendKernel + SendKernelInterface,
     Head<f32, ReaderOf<B, f32>, B::Writer<f32>>: SendKernel + SendKernelInterface,
     CopyN<f32, ReaderOf<B, f32>, B::Writer<f32>>: SendKernel + SendKernelInterface,

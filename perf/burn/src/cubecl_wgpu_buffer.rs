@@ -1,10 +1,10 @@
 use std::any::Any;
 use std::collections::VecDeque;
 use std::marker::PhantomData;
-use std::mem::size_of;
 use std::sync::Arc;
 use std::sync::Mutex;
 
+use bytemuck::Pod;
 use cubecl::Runtime as _;
 use cubecl::client::ComputeClient;
 use cubecl::server::Handle;
@@ -19,6 +19,7 @@ use cubecl_runtime::storage::ManagedResource;
 use futuresdr::runtime::BlockId;
 use futuresdr::runtime::Error;
 use futuresdr::runtime::PortId;
+use futuresdr::runtime::buffer::BlockInbox;
 use futuresdr::runtime::buffer::BufferReader;
 use futuresdr::runtime::buffer::BufferWriter;
 use futuresdr::runtime::buffer::ConnectionState;
@@ -28,8 +29,7 @@ use futuresdr::runtime::buffer::CpuSample;
 use futuresdr::runtime::buffer::PortCore;
 use futuresdr::runtime::buffer::PortEndpoint;
 use futuresdr::runtime::buffer::Tags;
-use futuresdr::runtime::buffer::ThreadSafeMode;
-use futuresdr::runtime::dev::BlockInbox;
+use futuresdr::runtime::buffer::ThreadSafeConnect;
 use futuresdr::runtime::dev::ItemTag;
 use tracing::debug;
 use tracing::warn;
@@ -151,6 +151,20 @@ struct ConnectedWriter {
     reader: PortEndpoint,
 }
 
+pub struct H2DThreadSafeConnectToken<D: CpuSample> {
+    reader: PortEndpoint,
+    context: Option<CubeWgpuContext>,
+    _item: PhantomData<D>,
+}
+
+pub struct H2DThreadSafeReturnToken<D: CpuSample> {
+    slots: Arc<Mutex<Vec<UploadSlot<D>>>>,
+    writable_ids: Arc<Mutex<Vec<usize>>>,
+    ready_ids: Arc<Mutex<VecDeque<usize>>>,
+    context: Option<CubeWgpuContext>,
+    connected: ConnectedReader,
+}
+
 impl<D: CpuSample> H2DWriter<D> {
     pub fn new() -> Self {
         Self {
@@ -173,7 +187,7 @@ impl<D: CpuSample> H2DWriter<D> {
         let Some(context) = self.context.as_ref() else {
             panic!("CubeCL H2D writer: set_context() must be called before injecting buffers");
         };
-        let n_bytes = n_items * size_of::<D>();
+        let n_bytes = n_items * D::SIZE.get();
         assert_eq!(
             n_bytes % wgpu::COPY_BUFFER_ALIGNMENT as usize,
             0,
@@ -231,7 +245,7 @@ impl<D: CpuSample> H2DWriter<D> {
                 slot.staging.clone(),
                 slot.resource.buffer.clone(),
                 slot.resource.offset,
-                used_items * size_of::<D>(),
+                used_items * D::SIZE.get(),
             )
         };
 
@@ -270,7 +284,7 @@ impl<D: CpuSample> H2DWriter<D> {
                 "CubeCL H2D writer: acquired non-writable slot"
             );
             slot.written_items = 0;
-            let byte_len = (slot.capacity * size_of::<D>()) as u64;
+            let byte_len = (slot.capacity * D::SIZE.get()) as u64;
             (
                 slot.capacity,
                 slot.staging.slice(0..byte_len).get_mapped_range_mut(),
@@ -293,7 +307,7 @@ impl<D: CpuSample> Default for H2DWriter<D> {
 }
 
 impl<D: CpuSample> BufferWriter for H2DWriter<D> {
-    type Mode = ThreadSafeMode;
+    type Inbox = BlockInbox;
     type Reader = H2DReader<D>;
 
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
@@ -363,7 +377,46 @@ impl<D: CpuSample> BufferWriter for H2DWriter<D> {
     }
 }
 
-impl<D: CpuSample> CpuBufferWriter for H2DWriter<D> {
+impl<D: CpuSample> ThreadSafeConnect for H2DWriter<D> {
+    type ReaderToken = H2DThreadSafeConnectToken<D>;
+    type WriterToken = H2DThreadSafeReturnToken<D>;
+
+    fn take_reader_token(reader: &mut H2DReader<D>) -> Self::ReaderToken {
+        H2DThreadSafeConnectToken {
+            reader: PortEndpoint::new(reader.core.inbox(), reader.core.port_id()),
+            context: reader.context.clone(),
+            _item: PhantomData,
+        }
+    }
+
+    fn connect_reader(&mut self, token: Self::ReaderToken) -> Self::WriterToken {
+        if self.context.is_none() {
+            self.context = token.context;
+        }
+        self.state.set_connected(ConnectedWriter {
+            reader: token.reader,
+        });
+        H2DThreadSafeReturnToken {
+            slots: self.slots.clone(),
+            writable_ids: self.writable_ids.clone(),
+            ready_ids: self.ready_ids.clone(),
+            context: self.context.clone(),
+            connected: ConnectedReader {
+                writer: PortEndpoint::new(self.core.inbox(), self.core.port_id()),
+            },
+        }
+    }
+
+    fn finish_reader(reader: &mut H2DReader<D>, token: Self::WriterToken) {
+        reader.slots = token.slots;
+        reader.ready_ids = token.ready_ids;
+        reader.writable_ids = token.writable_ids;
+        reader.context = token.context;
+        reader.state.set_connected(token.connected);
+    }
+}
+
+impl<D: CpuSample + Pod> CpuBufferWriter for H2DWriter<D> {
     type Item = D;
 
     fn slice_with_tags(&mut self) -> (&mut [Self::Item], Tags<'_>) {
@@ -376,8 +429,8 @@ impl<D: CpuSample> CpuBufferWriter for H2DWriter<D> {
             let slots = self.slots.lock().unwrap();
             slots[current.slot_id].capacity
         };
-        let byte_offset = current.item_offset * size_of::<D>();
-        let byte_end = cap * size_of::<D>();
+        let byte_offset = current.item_offset * D::SIZE.get();
+        let byte_end = cap * D::SIZE.get();
         let mut tail_write_only = current.view.slice(byte_offset..byte_end);
         let tail = unsafe {
             std::slice::from_raw_parts_mut(
@@ -385,11 +438,8 @@ impl<D: CpuSample> CpuBufferWriter for H2DWriter<D> {
                 byte_end - byte_offset,
             )
         };
-        let (prefix, data, suffix) = unsafe { tail.align_to_mut::<D>() };
-        assert!(
-            prefix.is_empty() && suffix.is_empty(),
-            "CubeCL H2D writer: mapped buffer alignment invalid"
-        );
+        let data = bytemuck::try_cast_slice_mut(tail)
+            .expect("CubeCL H2D writer: mapped buffer alignment invalid");
         (data, Tags::new(&mut self.tags, 0))
     }
 
@@ -489,7 +539,7 @@ impl<D: CpuSample> H2DReader<D> {
         let writable_ids = self.writable_ids.clone();
         let slots_arc = self.slots.clone();
         let writer_inbox = self.state.connected().writer.inbox();
-        let byte_len = (capacity * size_of::<D>()) as u64;
+        let byte_len = (capacity * D::SIZE.get()) as u64;
         let slice = staging.slice(0..byte_len);
         slice.map_async(wgpu::MapMode::Write, move |result| match result {
             Ok(()) => {
@@ -541,7 +591,7 @@ impl<D: CpuSample> Default for H2DReader<D> {
 }
 
 impl<D: CpuSample> BufferReader for H2DReader<D> {
-    type Mode = ThreadSafeMode;
+    type Inbox = BlockInbox;
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
@@ -608,6 +658,18 @@ pub struct D2HWriter<D: CpuSample> {
     state: ConnectionState<ConnectedWriter>,
 }
 
+pub struct D2HThreadSafeConnectToken<D: CpuSample> {
+    reader: PortEndpoint,
+    _item: PhantomData<D>,
+}
+
+pub struct D2HThreadSafeReturnToken<D: CpuSample> {
+    inbound: Arc<Mutex<Vec<OutputBufferEmpty<D>>>>,
+    outbound: Arc<Mutex<VecDeque<OutputBufferFull<D>>>>,
+    context: Option<CubeWgpuContext>,
+    connected: ConnectedReader,
+}
+
 impl<D: CpuSample> D2HWriter<D> {
     pub fn new() -> Self {
         Self {
@@ -627,7 +689,7 @@ impl<D: CpuSample> D2HWriter<D> {
         let Some(context) = self.context.as_ref() else {
             panic!("CubeCL D2H writer: set_context() must be called before injecting buffers");
         };
-        let n_bytes = n_items * size_of::<D>();
+        let n_bytes = n_items * D::SIZE.get();
         let mut inbound = self.inbound.lock().unwrap();
         for _ in 0..n_buffers {
             inbound.push(OutputBufferEmpty {
@@ -661,7 +723,7 @@ impl<D: CpuSample> Default for D2HWriter<D> {
 }
 
 impl<D: CpuSample> BufferWriter for D2HWriter<D> {
-    type Mode = ThreadSafeMode;
+    type Inbox = BlockInbox;
     type Reader = D2HReader<D>;
 
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
@@ -706,6 +768,39 @@ impl<D: CpuSample> BufferWriter for D2HWriter<D> {
     }
 }
 
+impl<D: CpuSample> ThreadSafeConnect for D2HWriter<D> {
+    type ReaderToken = D2HThreadSafeConnectToken<D>;
+    type WriterToken = D2HThreadSafeReturnToken<D>;
+
+    fn take_reader_token(reader: &mut D2HReader<D>) -> Self::ReaderToken {
+        D2HThreadSafeConnectToken {
+            reader: PortEndpoint::new(reader.core.inbox(), reader.core.port_id()),
+            _item: PhantomData,
+        }
+    }
+
+    fn connect_reader(&mut self, token: Self::ReaderToken) -> Self::WriterToken {
+        self.state.set_connected(ConnectedWriter {
+            reader: token.reader,
+        });
+        D2HThreadSafeReturnToken {
+            inbound: self.inbound.clone(),
+            outbound: self.outbound.clone(),
+            context: self.context.clone(),
+            connected: ConnectedReader {
+                writer: PortEndpoint::new(self.core.inbox(), self.core.port_id()),
+            },
+        }
+    }
+
+    fn finish_reader(reader: &mut D2HReader<D>, token: Self::WriterToken) {
+        reader.inbound = token.outbound;
+        reader.outbound = token.inbound;
+        reader.context = token.context;
+        reader.state.set_connected(token.connected);
+    }
+}
+
 struct CurrentOutputBuffer<D: CpuSample> {
     buffer: OutputBufferFull<D>,
     byte_offset: usize,
@@ -747,7 +842,7 @@ impl<D: CpuSample> Default for D2HReader<D> {
 }
 
 impl<D: CpuSample> BufferReader for D2HReader<D> {
-    type Mode = ThreadSafeMode;
+    type Inbox = BlockInbox;
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
@@ -794,7 +889,7 @@ impl<D: CpuSample> BufferReader for D2HReader<D> {
     }
 }
 
-impl<D: CpuSample> CpuBufferReader for D2HReader<D> {
+impl<D: CpuSample + Pod> CpuBufferReader for D2HReader<D> {
     type Item = D;
 
     fn slice_with_tags(&mut self) -> (&[Self::Item], &Vec<ItemTag>) {
@@ -814,18 +909,10 @@ impl<D: CpuSample> CpuBufferReader for D2HReader<D> {
             });
         }
 
-        unsafe {
-            let buffer = self.buffer.as_ref().unwrap();
-            let byte_len = buffer.slice.len();
-            let ptr = buffer.slice.as_ptr();
-            (
-                std::slice::from_raw_parts(
-                    ptr.add(buffer.byte_offset) as *const D,
-                    (byte_len - buffer.byte_offset) / size_of::<D>(),
-                ),
-                &TAGS,
-            )
-        }
+        let buffer = self.buffer.as_ref().unwrap();
+        let data = bytemuck::try_cast_slice(&buffer.slice[buffer.byte_offset..])
+            .expect("CubeCL D2H reader: mapped buffer alignment invalid");
+        (data, &TAGS)
     }
 
     fn consume(&mut self, amount: usize) {
@@ -835,8 +922,8 @@ impl<D: CpuSample> CpuBufferReader for D2HReader<D> {
         debug_assert!(self.buffer.is_some());
         let buffer = self.buffer.as_mut().unwrap();
         let byte_len = buffer.slice.len();
-        debug_assert!(amount * size_of::<D>() + buffer.byte_offset <= byte_len);
-        buffer.byte_offset += amount * size_of::<D>();
+        debug_assert!(amount * D::SIZE.get() + buffer.byte_offset <= byte_len);
+        buffer.byte_offset += amount * D::SIZE.get();
         if buffer.byte_offset == byte_len {
             let CurrentOutputBuffer { buffer, slice, .. } = self.buffer.take().unwrap();
             drop(slice);
@@ -844,7 +931,7 @@ impl<D: CpuSample> CpuBufferReader for D2HReader<D> {
             full.buffer.unmap();
             self.outbound.lock().unwrap().push(OutputBufferEmpty {
                 buffer: full.buffer,
-                capacity: full.used_bytes / size_of::<D>(),
+                capacity: full.used_bytes / D::SIZE.get(),
                 _p: PhantomData,
             });
             self.state.connected().writer.inbox().notify();

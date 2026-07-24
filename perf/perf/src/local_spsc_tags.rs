@@ -2,7 +2,6 @@ use std::any::Any;
 use std::cell::Cell;
 use std::cell::RefCell;
 use std::fmt;
-use std::mem::size_of;
 use std::ptr;
 use std::rc::Rc;
 use std::slice;
@@ -16,10 +15,9 @@ use futuresdr::runtime::buffer::BufferWriter;
 use futuresdr::runtime::buffer::CpuBufferReader;
 use futuresdr::runtime::buffer::CpuBufferWriter;
 use futuresdr::runtime::buffer::CpuSample;
-use futuresdr::runtime::buffer::LocalMode;
+use futuresdr::runtime::buffer::LocalBlockInbox;
 use futuresdr::runtime::buffer::Tags;
 use futuresdr::runtime::dev::ItemTag;
-use futuresdr::runtime::dev::LocalBlockInbox;
 use futuresdr::runtime::dev::LocalBlockNotifier;
 use futuresdr::tracing::warn;
 use vmcircbuffer::double_mapped_buffer::DoubleMappedBuffer;
@@ -136,7 +134,7 @@ impl<T> BufferWriter for Writer<T>
 where
     T: CpuSample,
 {
-    type Mode = LocalMode;
+    type Inbox = LocalBlockInbox;
     type Reader = Reader<T>;
 
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: LocalBlockInbox) {
@@ -168,7 +166,7 @@ where
 
         let min_self = self.min_items.unwrap_or(1);
         let min_reader = dest.min_items.unwrap_or(1);
-        let mut min_bytes = (min_self + min_reader - 1) * size_of::<T>();
+        let mut min_bytes = (min_self + min_reader - 1) * T::SIZE.get();
 
         let buffer_size_configured =
             self.min_buffer_size_in_items.is_some() || dest.min_buffer_size_in_items.is_some();
@@ -178,17 +176,17 @@ where
             let min_reader = dest.min_buffer_size_in_items.unwrap_or(0);
             std::cmp::max(
                 min_bytes,
-                std::cmp::max(min_self, min_reader) * size_of::<T>(),
+                std::cmp::max(min_self, min_reader) * T::SIZE.get(),
             )
         } else {
             std::cmp::max(min_bytes, futuresdr::runtime::config::config().buffer_size)
         };
 
-        while (buffer_size < min_bytes) || !buffer_size.is_multiple_of(size_of::<T>()) {
+        while (buffer_size < min_bytes) || !buffer_size.is_multiple_of(T::SIZE.get()) {
             buffer_size += page_size;
         }
 
-        let buffer: DoubleMappedBuffer<T> = DoubleMappedBuffer::new(buffer_size / size_of::<T>())
+        let buffer: DoubleMappedBuffer<T> = DoubleMappedBuffer::new(buffer_size / T::SIZE.get())
             .expect("failed to allocate SPSC buffer");
         let capacity = buffer.capacity();
         let base = unsafe { buffer.slice().as_ptr().cast_mut() };
@@ -389,7 +387,7 @@ impl<T> BufferReader for Reader<T>
 where
     T: CpuSample,
 {
-    type Mode = LocalMode;
+    type Inbox = LocalBlockInbox;
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self

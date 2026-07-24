@@ -1,11 +1,15 @@
 use burn::prelude::*;
 use burn_buffer::Buffer;
+use bytemuck::Pod;
 use futuresdr::runtime::dev::prelude::*;
 
 use crate::FFT_SIZE;
 
 #[derive(Block)]
-pub struct Convert<B: Backend> {
+pub struct Convert<B: Backend>
+where
+    B::FloatElem: Pod,
+{
     #[input]
     input: circular::Reader<Complex32>,
     #[output]
@@ -14,7 +18,10 @@ pub struct Convert<B: Backend> {
     batch_size: usize,
 }
 
-impl<B: Backend> Convert<B> {
+impl<B: Backend> Convert<B>
+where
+    B::FloatElem: Pod,
+{
     pub fn new(batch_size: usize) -> Self {
         Self {
             input: Default::default(),
@@ -25,7 +32,10 @@ impl<B: Backend> Convert<B> {
     }
 }
 
-impl<B: Backend> Kernel for Convert<B> {
+impl<B: Backend> Kernel for Convert<B>
+where
+    B::FloatElem: Pod,
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,

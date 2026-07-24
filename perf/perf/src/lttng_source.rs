@@ -7,7 +7,7 @@ import_tracepoints!(concat!(env!("OUT_DIR"), "/tracepoints.rs"), tracepoints);
 #[derive(Block)]
 pub struct LttngSource<T, O = DefaultCpuWriter<T>>
 where
-    T: Send + Clone + 'static,
+    T: CpuSample,
     O: CpuBufferWriter<Item = T>,
 {
     #[output]
@@ -19,7 +19,7 @@ where
 
 impl<T, O> LttngSource<T, O>
 where
-    T: Send + Clone + 'static,
+    T: CpuSample,
     O: CpuBufferWriter<Item = T>,
 {
     /// Create LttngSource block
@@ -36,7 +36,7 @@ where
 #[doc(hidden)]
 impl<T, O> Kernel for LttngSource<T, O>
 where
-    T: Send + Clone + 'static,
+    T: CpuSample,
     O: CpuBufferWriter<Item = T>,
 {
     async fn init(&mut self, _mo: &mut MessageOutputs, meta: &BlockMeta) -> Result<()> {
@@ -52,7 +52,7 @@ where
         _meta: &BlockMeta,
     ) -> Result<()> {
         let o = self.output.slice();
-        o.fill(unsafe { std::mem::zeroed() });
+        o.fill(T::default());
 
         let before = self.n_produced / self.probe_granularity;
         let n = o.len();

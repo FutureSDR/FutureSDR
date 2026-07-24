@@ -1,6 +1,5 @@
 use std::any::Any;
 use std::fmt;
-use std::mem::size_of;
 use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
@@ -8,14 +7,14 @@ use std::sync::atomic::Ordering;
 use futuresdr::runtime::BlockId;
 use futuresdr::runtime::Error;
 use futuresdr::runtime::PortId;
+use futuresdr::runtime::buffer::BlockInbox;
 use futuresdr::runtime::buffer::BufferReader;
 use futuresdr::runtime::buffer::BufferWriter;
 use futuresdr::runtime::buffer::CpuBufferReader;
 use futuresdr::runtime::buffer::CpuBufferWriter;
 use futuresdr::runtime::buffer::CpuSample;
 use futuresdr::runtime::buffer::Tags;
-use futuresdr::runtime::buffer::ThreadSafeMode;
-use futuresdr::runtime::dev::BlockInbox;
+use futuresdr::runtime::buffer::ThreadSafeConnect;
 use futuresdr::runtime::dev::BlockNotifier;
 use futuresdr::runtime::dev::ItemTag;
 use futuresdr::tracing::warn;
@@ -50,6 +49,28 @@ struct Inner<T> {
     capacity: usize,
     write_pos: PaddedAtomicUsize,
     read_pos: PaddedAtomicUsize,
+}
+
+pub struct ThreadSafeConnectToken<T>
+where
+    T: CpuSample,
+{
+    reader_inbox: BlockInbox,
+    reader_input_id: PortId,
+    reader_notifier: BlockNotifier,
+    reader_min_items: Option<usize>,
+    reader_min_buffer_size_in_items: Option<usize>,
+    _item: std::marker::PhantomData<T>,
+}
+
+pub struct ThreadSafeReturnToken<T>
+where
+    T: CpuSample,
+{
+    inner: Arc<Inner<T>>,
+    writer_inbox: BlockInbox,
+    writer_output_id: PortId,
+    writer_notifier: BlockNotifier,
 }
 
 impl<T> Inner<T> {
@@ -145,7 +166,7 @@ impl<T> BufferWriter for Writer<T>
 where
     T: CpuSample,
 {
-    type Mode = ThreadSafeMode;
+    type Inbox = BlockInbox;
     type Reader = Reader<T>;
 
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
@@ -174,7 +195,7 @@ where
 
         let min_self = self.min_items.unwrap_or(1);
         let min_reader = dest.min_items.unwrap_or(1);
-        let mut min_bytes = (min_self + min_reader - 1) * size_of::<T>();
+        let mut min_bytes = (min_self + min_reader - 1) * T::SIZE.get();
 
         let buffer_size_configured =
             self.min_buffer_size_in_items.is_some() || dest.min_buffer_size_in_items.is_some();
@@ -184,17 +205,17 @@ where
             let min_reader = dest.min_buffer_size_in_items.unwrap_or(0);
             std::cmp::max(
                 min_bytes,
-                std::cmp::max(min_self, min_reader) * size_of::<T>(),
+                std::cmp::max(min_self, min_reader) * T::SIZE.get(),
             )
         } else {
             std::cmp::max(min_bytes, futuresdr::runtime::config::config().buffer_size)
         };
 
-        while (buffer_size < min_bytes) || !buffer_size.is_multiple_of(size_of::<T>()) {
+        while (buffer_size < min_bytes) || !buffer_size.is_multiple_of(T::SIZE.get()) {
             buffer_size += page_size;
         }
 
-        let buffer = DoubleMappedBuffer::new(buffer_size / size_of::<T>())
+        let buffer = DoubleMappedBuffer::new(buffer_size / T::SIZE.get())
             .expect("failed to allocate SPSC buffer");
         let capacity = buffer.capacity();
         let inner = Arc::new(Inner {
@@ -233,6 +254,87 @@ where
 
     fn port_id(&self) -> PortId {
         self.port_id.clone()
+    }
+}
+
+impl<T> ThreadSafeConnect for Writer<T>
+where
+    T: CpuSample,
+{
+    type ReaderToken = ThreadSafeConnectToken<T>;
+    type WriterToken = ThreadSafeReturnToken<T>;
+
+    fn take_reader_token(reader: &mut Reader<T>) -> Self::ReaderToken {
+        ThreadSafeConnectToken {
+            reader_inbox: reader.inbox.clone(),
+            reader_input_id: reader.port_id.clone(),
+            reader_notifier: reader.notifier.clone(),
+            reader_min_items: reader.min_items,
+            reader_min_buffer_size_in_items: reader.min_buffer_size_in_items,
+            _item: std::marker::PhantomData,
+        }
+    }
+
+    fn connect_reader(&mut self, token: Self::ReaderToken) -> Self::WriterToken {
+        assert!(!self.connected, "perf::spsc only supports one reader");
+        let page_size = pagesize();
+        let mut buffer_size = page_size;
+
+        let min_self = self.min_items.unwrap_or(1);
+        let min_reader = token.reader_min_items.unwrap_or(1);
+        let mut min_bytes = (min_self + min_reader - 1) * T::SIZE.get();
+
+        let buffer_size_configured = self.min_buffer_size_in_items.is_some()
+            || token.reader_min_buffer_size_in_items.is_some();
+        min_bytes = if buffer_size_configured {
+            std::cmp::max(
+                min_bytes,
+                std::cmp::max(
+                    self.min_buffer_size_in_items.unwrap_or(0),
+                    token.reader_min_buffer_size_in_items.unwrap_or(0),
+                ) * T::SIZE.get(),
+            )
+        } else {
+            std::cmp::max(min_bytes, futuresdr::runtime::config::config().buffer_size)
+        };
+
+        while (buffer_size < min_bytes) || !buffer_size.is_multiple_of(T::SIZE.get()) {
+            buffer_size += page_size;
+        }
+
+        let buffer = DoubleMappedBuffer::new(buffer_size / T::SIZE.get())
+            .expect("failed to allocate SPSC buffer");
+        let capacity = buffer.capacity();
+        let inner = Arc::new(Inner {
+            buffer,
+            capacity,
+            write_pos: PaddedAtomicUsize::new(0),
+            read_pos: PaddedAtomicUsize::new(0),
+        });
+
+        self.min_buffer_size_in_items = Some(capacity);
+        self.reader_inbox = token.reader_inbox;
+        self.reader_input_id = token.reader_input_id;
+        self.reader_notifier = token.reader_notifier;
+        self.inner = Some(inner.clone());
+        self.connected = true;
+        self.write_pos = 0;
+
+        ThreadSafeReturnToken {
+            inner,
+            writer_inbox: self.inbox.clone(),
+            writer_output_id: self.port_id.clone(),
+            writer_notifier: self.notifier.clone(),
+        }
+    }
+
+    fn finish_reader(reader: &mut Reader<T>, token: Self::WriterToken) {
+        reader.min_buffer_size_in_items = Some(token.inner.capacity);
+        reader.inner = Some(token.inner);
+        reader.writer_inbox = token.writer_inbox;
+        reader.writer_output_id = token.writer_output_id;
+        reader.writer_notifier = token.writer_notifier;
+        reader.read_pos = 0;
     }
 }
 
@@ -375,7 +477,7 @@ impl<T> BufferReader for Reader<T>
 where
     T: CpuSample,
 {
-    type Mode = ThreadSafeMode;
+    type Inbox = BlockInbox;
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self

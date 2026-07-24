@@ -13,10 +13,9 @@ use futuresdr::runtime::buffer::CpuSample;
 use futuresdr::runtime::buffer::InplaceBuffer;
 use futuresdr::runtime::buffer::InplaceReader;
 use futuresdr::runtime::buffer::InplaceWriter;
-use futuresdr::runtime::buffer::LocalMode;
+use futuresdr::runtime::buffer::LocalBlockInbox;
 use futuresdr::runtime::config::config;
 use futuresdr::runtime::dev::ItemTag;
-use futuresdr::runtime::dev::LocalBlockInbox;
 use futuresdr::runtime::dev::LocalBlockNotifier;
 
 type Queue<T> = Rc<RefCell<VecDeque<Buffer<T>>>>;
@@ -185,7 +184,7 @@ impl<T> BufferWriter for Writer<T>
 where
     T: CpuSample,
 {
-    type Mode = LocalMode;
+    type Inbox = LocalBlockInbox;
     type Reader = Reader<T>;
 
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: LocalBlockInbox) {
@@ -276,7 +275,7 @@ where
     }
 
     fn inject_buffers(&mut self, n_buffers: usize) {
-        let n_items = config().buffer_size / std::mem::size_of::<T>();
+        let n_items = config().buffer_size / T::SIZE.get();
         self.inject_buffers_with_items(n_buffers, n_items);
     }
 }
@@ -332,7 +331,7 @@ impl<T> BufferReader for Reader<T>
 where
     T: CpuSample,
 {
-    type Mode = LocalMode;
+    type Inbox = LocalBlockInbox;
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self

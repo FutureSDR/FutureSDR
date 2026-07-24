@@ -7,9 +7,8 @@ use futuresdr::runtime::__private::SendKernelInterface;
 use futuresdr::runtime::dev::BufferWriter;
 use futuresdr::runtime::dev::CpuBufferReader;
 use futuresdr::runtime::dev::CpuBufferWriter;
-use futuresdr::runtime::dev::SendCpuBufferReader;
-use futuresdr::runtime::dev::SendCpuBufferWriter;
 use futuresdr::runtime::dev::SendKernel;
+use futuresdr::runtime::dev::ThreadSafeConnect;
 use futuresdr::runtime::dev::prelude::*;
 use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::scheduler::SmolScheduler;
@@ -47,7 +46,7 @@ struct Args {
 }
 
 pub trait BufferType {
-    type Writer<T: CpuSample>: CpuBufferWriter<Item = T> + SendCpuBufferWriter + 'static;
+    type Writer<T: CpuSample>: CpuBufferWriter<Item = T> + ThreadSafeConnect + 'static;
 }
 
 pub struct SlabBuffer;
@@ -79,7 +78,7 @@ fn generate<B>(
 )>
 where
     B: BufferType,
-    ReaderOf<B, i32>: CpuBufferReader<Item = i32> + SendCpuBufferReader + 'static,
+    ReaderOf<B, i32>: CpuBufferReader<Item = i32> + 'static,
     NullSource<i32, B::Writer<i32>>: SendKernel + SendKernelInterface,
     Head<i32, ReaderOf<B, i32>, B::Writer<i32>>: SendKernel + SendKernelInterface,
     Add<ReaderOf<B, i32>, B::Writer<i32>>: SendKernel + SendKernelInterface,
@@ -154,15 +153,13 @@ fn generate_local(
             let head = ctx.add(
                 Head::<i32, local_spsc::Reader<i32>, local_spsc::Writer<i32>>::new(samples as u64),
             );
-            let mut last =
-                ctx.add(Add::<local_spsc::Reader<i32>, local_spsc::Writer<i32>>::new());
+            let mut last = ctx.add(Add::<local_spsc::Reader<i32>, local_spsc::Writer<i32>>::new());
 
             ctx.stream_local(&src, |b| b.output(), &head, |b| b.input())?;
             ctx.stream_local(&head, |b| b.output(), &last, |b| b.input())?;
 
             for _ in 1..stages {
-                let block =
-                    ctx.add(Add::<local_spsc::Reader<i32>, local_spsc::Writer<i32>>::new());
+                let block = ctx.add(Add::<local_spsc::Reader<i32>, local_spsc::Writer<i32>>::new());
                 ctx.stream_local(&last, |b| b.output(), &block, |b| b.input())?;
                 last = block;
             }
@@ -178,6 +175,7 @@ fn generate_local(
     Ok((fg, snks))
 }
 
+#[allow(clippy::type_complexity)]
 fn generate_inplace(
     pipes: usize,
     stages: usize,
@@ -247,9 +245,9 @@ fn generate_inplace_local(
 
         let snk = fg.with_local_domain(local, move |ctx| {
             let src = ctx.add({
-            let mut src = LocalIpSrc::new();
-            src.output().inject_buffers(1);
-            src
+                let mut src = LocalIpSrc::new();
+                src.output().inject_buffers(1);
+                src
             });
             let head = ctx.add(LocalIpHead::new(samples as u64));
             let mut last = ctx.add(LocalIpAdd::new());
