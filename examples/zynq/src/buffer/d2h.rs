@@ -1,7 +1,6 @@
 use std::any::Any;
 use std::collections::VecDeque;
 use std::marker::PhantomData;
-use std::mem::size_of;
 use std::sync::Arc;
 use std::sync::Mutex;
 use xilinx_dma::DmaBuffer;
@@ -11,6 +10,7 @@ use crate::buffer::BufferFull;
 use futuresdr::runtime::BlockId;
 use futuresdr::runtime::Error;
 use futuresdr::runtime::PortId;
+use futuresdr::runtime::buffer::BlockInbox;
 use futuresdr::runtime::buffer::BufferReader;
 use futuresdr::runtime::buffer::BufferWriter;
 use futuresdr::runtime::buffer::ConnectionState;
@@ -18,8 +18,7 @@ use futuresdr::runtime::buffer::CpuBufferReader;
 use futuresdr::runtime::buffer::CpuSample;
 use futuresdr::runtime::buffer::PortCore;
 use futuresdr::runtime::buffer::PortEndpoint;
-use futuresdr::runtime::buffer::ThreadSafeMode;
-use futuresdr::runtime::dev::BlockInbox;
+use futuresdr::runtime::buffer::ThreadSafeConnect;
 use futuresdr::runtime::dev::ItemTag;
 use futuresdr::tracing::warn;
 
@@ -45,6 +44,20 @@ where
 #[derive(Debug)]
 struct ConnectedWriter {
     reader: PortEndpoint,
+}
+
+pub struct ThreadSafeConnectToken<D>
+where
+    D: CpuSample,
+{
+    reader: PortEndpoint,
+    _item: PhantomData<D>,
+}
+
+pub struct ThreadSafeReturnToken {
+    inbound: Arc<Mutex<Vec<BufferEmpty>>>,
+    outbound: Arc<Mutex<VecDeque<BufferFull>>>,
+    connected: ConnectedReader,
 }
 
 impl<D> Writer<D>
@@ -94,7 +107,7 @@ impl<D> BufferWriter for Writer<D>
 where
     D: CpuSample,
 {
-    type Mode = ThreadSafeMode;
+    type Inbox = BlockInbox;
     type Reader = Reader<D>;
 
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
@@ -133,6 +146,40 @@ where
 
     fn port_id(&self) -> PortId {
         self.core.port_id()
+    }
+}
+
+impl<D> ThreadSafeConnect for Writer<D>
+where
+    D: CpuSample,
+{
+    type ReaderToken = ThreadSafeConnectToken<D>;
+    type WriterToken = ThreadSafeReturnToken;
+
+    fn take_reader_token(reader: &mut Reader<D>) -> Self::ReaderToken {
+        ThreadSafeConnectToken {
+            reader: PortEndpoint::new(reader.core.inbox(), reader.core.port_id()),
+            _item: PhantomData,
+        }
+    }
+
+    fn connect_reader(&mut self, token: Self::ReaderToken) -> Self::WriterToken {
+        self.state.set_connected(ConnectedWriter {
+            reader: token.reader,
+        });
+        ThreadSafeReturnToken {
+            inbound: self.inbound.clone(),
+            outbound: self.outbound.clone(),
+            connected: ConnectedReader {
+                writer: PortEndpoint::new(self.core.inbox(), self.core.port_id()),
+            },
+        }
+    }
+
+    fn finish_reader(reader: &mut Reader<D>, token: Self::WriterToken) {
+        reader.inbound = token.outbound;
+        reader.outbound = token.inbound;
+        reader.state.set_connected(token.connected);
     }
 }
 
@@ -187,7 +234,7 @@ impl<D> BufferReader for Reader<D>
 where
     D: CpuSample,
 {
-    type Mode = ThreadSafeMode;
+    type Inbox = BlockInbox;
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
@@ -233,7 +280,7 @@ where
 
 impl<D> CpuBufferReader for Reader<D>
 where
-    D: CpuSample,
+    D: CpuSample + bytemuck::Pod,
 {
     type Item = D;
 
@@ -252,15 +299,15 @@ where
 
         let current = self.current.as_mut().unwrap();
 
-        unsafe {
-            (
-                std::slice::from_raw_parts(
-                    (current.buffer.buffer() as *const u8).add(current.byte_offset) as *const D,
-                    (current.buffer.size() - current.byte_offset) / size_of::<D>(),
-                ),
-                &V,
+        let bytes = unsafe {
+            std::slice::from_raw_parts(
+                (current.buffer.buffer() as *const u8).add(current.byte_offset),
+                current.buffer.size() - current.byte_offset,
             )
-        }
+        };
+        let samples = bytemuck::try_cast_slice(bytes)
+            .expect("Zynq D2H buffer alignment invalid for sample type");
+        (samples, &V)
     }
 
     fn consume(&mut self, amount: usize) {
@@ -270,11 +317,11 @@ where
         debug_assert!(self.current.is_some());
 
         let current = self.current.as_mut().unwrap();
-        let byte_capacity = current.buffer.size() / size_of::<D>();
+        let byte_capacity = current.buffer.size();
 
-        debug_assert!(amount * size_of::<D>() + current.byte_offset <= byte_capacity);
+        debug_assert!(amount * D::SIZE.get() + current.byte_offset <= byte_capacity);
 
-        current.byte_offset += amount * size_of::<D>();
+        current.byte_offset += amount * D::SIZE.get();
         if current.byte_offset == byte_capacity {
             let buffer = self.current.take().unwrap().buffer;
             self.outbound.lock().unwrap().push(BufferEmpty { buffer });
