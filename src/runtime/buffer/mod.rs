@@ -674,12 +674,6 @@ pub trait BufferReader: Any {
             Self::Inbox::from_port_inboxes(inboxes),
         );
     }
-    /// Replace the inbox/wake handle for this already-bound reader.
-    fn set_inbox(&mut self, inbox: Self::Inbox) {
-        let block_id = self.block_id();
-        let port_index = self.port_id();
-        self.init(block_id, port_index, inbox);
-    }
     /// Validate that this reader is connected and ready to run.
     ///
     /// The runtime calls this during flowgraph startup before any block `init()`
@@ -901,12 +895,6 @@ pub trait BufferWriter: Any {
             port_index,
             Self::Inbox::from_port_inboxes(inboxes),
         );
-    }
-    /// Replace the inbox/wake handle for this already-bound writer.
-    fn set_inbox(&mut self, inbox: Self::Inbox) {
-        let block_id = self.block_id();
-        let port_index = self.port_id();
-        self.init(block_id, port_index, inbox);
     }
     /// Validate that this writer is connected and ready to run.
     fn validate(&self) -> Result<(), Error>;
