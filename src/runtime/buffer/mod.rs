@@ -55,69 +55,7 @@ use crate::runtime::dev::ItemTag;
 use crate::runtime::dev::LocalBlockNotifier;
 use crate::runtime::dev::Tag;
 
-/// Shared stream-port configuration collected before a port is connected.
-///
-/// Buffer implementations use this to remember constraints requested by blocks
-/// before the flowgraph has connected concrete peer endpoints.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct PortConfig {
-    min_items: Option<usize>,
-    min_buffer_size_in_items: Option<usize>,
-}
-
-impl PortConfig {
-    /// Create empty port configuration.
-    pub const fn new() -> Self {
-        Self {
-            min_items: None,
-            min_buffer_size_in_items: None,
-        }
-    }
-
-    /// Create port configuration with an initial `min_items`.
-    pub const fn with_min_items(min_items: usize) -> Self {
-        Self {
-            min_items: Some(min_items),
-            min_buffer_size_in_items: None,
-        }
-    }
-
-    /// Minimum number of items requested by the port.
-    ///
-    /// A scheduler should avoid calling the block until this many items are
-    /// available to read or write, unless the peer has finished.
-    pub const fn min_items(&self) -> Option<usize> {
-        self.min_items
-    }
-
-    /// Configure the minimum number of items required by the port.
-    pub fn set_min_items(&mut self, min_items: usize) {
-        self.min_items = Some(min_items);
-    }
-
-    /// Raise the minimum number of items to at least `min_items`.
-    pub fn raise_min_items(&mut self, min_items: usize) {
-        self.min_items = Some(self.min_items.unwrap_or(0).max(min_items));
-    }
-
-    /// Minimum configured buffer size in items.
-    pub const fn min_buffer_size_in_items(&self) -> Option<usize> {
-        self.min_buffer_size_in_items
-    }
-
-    /// Configure the minimum buffer size in items.
-    pub fn set_min_buffer_size_in_items(&mut self, min_items: usize) {
-        self.min_buffer_size_in_items = Some(min_items);
-    }
-
-    /// Raise the minimum buffer size to at least `min_items`.
-    pub fn raise_min_buffer_size_in_items(&mut self, min_items: usize) {
-        self.min_buffer_size_in_items =
-            Some(self.min_buffer_size_in_items.unwrap_or(0).max(min_items));
-    }
-}
-
-/// Stream-buffer constraints collected before connection setup.
+/// Stream-buffer constraints configured on a port and exchanged during connection setup.
 ///
 /// Blocks configure these constraints through buffer-specific APIs such as
 /// [`CpuBufferReader::set_min_items`] and [`CpuBufferWriter::set_min_items`].
@@ -141,11 +79,11 @@ impl BufferRequirements {
         }
     }
 
-    /// Create buffer requirements from pre-connection port configuration.
-    pub const fn from_port_config(config: PortConfig) -> Self {
+    /// Create buffer requirements with an initial `min_items`.
+    pub const fn with_min_items(min_items: usize) -> Self {
         Self {
-            min_items: config.min_items(),
-            min_buffer_size_in_items: config.min_buffer_size_in_items(),
+            min_items: Some(min_items),
+            min_buffer_size_in_items: None,
         }
     }
 
@@ -159,9 +97,19 @@ impl BufferRequirements {
         self.min_buffer_size_in_items
     }
 
+    /// Configure the minimum number of items required by the port.
+    pub fn set_min_items(&mut self, min_items: usize) {
+        self.min_items = Some(min_items);
+    }
+
     /// Raise the minimum item requirement to at least `min_items`.
     pub fn raise_min_items(&mut self, min_items: usize) {
         self.min_items = Some(self.min_items.unwrap_or(0).max(min_items));
+    }
+
+    /// Configure the minimum buffer size in items.
+    pub fn set_min_buffer_size_in_items(&mut self, min_items: usize) {
+        self.min_buffer_size_in_items = Some(min_items);
     }
 
     /// Raise the minimum buffer capacity requirement to at least `min_items`.
@@ -376,20 +324,20 @@ pub enum PortBinding<I: BufferInbox = BlockInbox> {
 #[derive(Debug, Clone)]
 pub struct PortCore<I: BufferInbox = BlockInbox> {
     binding: PortBinding<I>,
-    config: PortConfig,
+    requirements: BufferRequirements,
 }
 
 impl<I: BufferInbox> PortCore<I> {
-    /// Create an unbound port with empty configuration.
+    /// Create an unbound port with empty buffer requirements.
     pub const fn new_disconnected() -> Self {
-        Self::with_config(PortConfig::new())
+        Self::with_requirements(BufferRequirements::new())
     }
 
-    /// Create an unbound port with the provided configuration.
-    pub const fn with_config(config: PortConfig) -> Self {
+    /// Create an unbound port with the provided buffer requirements.
+    pub const fn with_requirements(requirements: BufferRequirements) -> Self {
         Self {
             binding: PortBinding::Unbound,
-            config,
+            requirements,
         }
     }
 
@@ -462,22 +410,22 @@ impl<I: BufferInbox> PortCore<I> {
 
     /// Minimum number of items requested by the port.
     pub fn min_items(&self) -> Option<usize> {
-        self.config.min_items()
+        self.requirements.min_items()
     }
 
     /// Configure the minimum number of items required by the port.
     pub fn set_min_items(&mut self, min_items: usize) {
-        self.config.set_min_items(min_items);
+        self.requirements.set_min_items(min_items);
     }
 
     /// Raise the minimum number of items required by the port.
     pub fn raise_min_items(&mut self, min_items: usize) {
-        self.config.raise_min_items(min_items);
+        self.requirements.raise_min_items(min_items);
     }
 
     /// Minimum configured buffer size in items.
     pub fn min_buffer_size_in_items(&self) -> Option<usize> {
-        self.config.min_buffer_size_in_items()
+        self.requirements.min_buffer_size_in_items()
     }
 
     /// Return the buffer requirements configured on this port.
@@ -486,7 +434,7 @@ impl<I: BufferInbox> PortCore<I> {
     /// [`BufferReader::buffer_requirements`] or
     /// [`BufferWriter::buffer_requirements`].
     pub fn requirements(&self) -> BufferRequirements {
-        BufferRequirements::from_port_config(self.config)
+        self.requirements
     }
 
     /// Raise this port's configured requirements to at least `requirements`.
@@ -496,22 +444,17 @@ impl<I: BufferInbox> PortCore<I> {
     /// [`BufferWriter::raise_buffer_requirements`] before allocating or
     /// connecting their backend state.
     pub fn raise_requirements(&mut self, requirements: BufferRequirements) {
-        if let Some(min_items) = requirements.min_items() {
-            self.config.raise_min_items(min_items);
-        }
-        if let Some(min_items) = requirements.min_buffer_size_in_items() {
-            self.config.raise_min_buffer_size_in_items(min_items);
-        }
+        self.requirements.merge(requirements);
     }
 
     /// Configure the minimum buffer size in items.
     pub fn set_min_buffer_size_in_items(&mut self, min_items: usize) {
-        self.config.set_min_buffer_size_in_items(min_items);
+        self.requirements.set_min_buffer_size_in_items(min_items);
     }
 
     /// Raise the minimum buffer size in items.
     pub fn raise_min_buffer_size_in_items(&mut self, min_items: usize) {
-        self.config.raise_min_buffer_size_in_items(min_items);
+        self.requirements.raise_min_buffer_size_in_items(min_items);
     }
 
     /// Create a validation error for an unconnected port.

@@ -170,9 +170,9 @@ impl<T: CpuSample> CpuBufferWriter for CustomWriter<T> {
 
 #[test]
 fn custom_cpu_buffer_can_use_public_requirement_api() {
-    let mut core = PortCore::<BlockInbox>::new_disconnected();
-    core.set_min_items(2);
-    core.set_min_buffer_size_in_items(16);
+    let mut initial = BufferRequirements::with_min_items(2);
+    initial.set_min_buffer_size_in_items(16);
+    let mut core = PortCore::<BlockInbox>::with_requirements(initial);
 
     let mut requirements = core.requirements();
     requirements.raise_min_items(4);

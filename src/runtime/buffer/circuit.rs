@@ -22,7 +22,6 @@ use crate::runtime::buffer::CpuSample;
 use crate::runtime::buffer::InplaceBuffer;
 use crate::runtime::buffer::InplaceReader;
 use crate::runtime::buffer::InplaceWriter;
-use crate::runtime::buffer::PortConfig;
 use crate::runtime::buffer::PortCore;
 use crate::runtime::buffer::PortEndpoint;
 use crate::runtime::buffer::Tags;
@@ -273,7 +272,7 @@ where
     /// Create circuit buffer writer
     pub fn new() -> Self {
         Self {
-            core: PortCore::with_config(PortConfig::with_min_items(1)),
+            core: PortCore::with_requirements(BufferRequirements::with_min_items(1)),
             state: ConnectionState::disconnected(),
             inbound: Arc::new(queue_new()),
             buffer_size_in_items: config().buffer_size / T::SIZE.get(),

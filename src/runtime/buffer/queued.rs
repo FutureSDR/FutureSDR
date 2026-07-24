@@ -91,7 +91,6 @@ use crate::runtime::buffer::ConnectionState;
 use crate::runtime::buffer::CpuBufferReader;
 use crate::runtime::buffer::CpuBufferWriter;
 use crate::runtime::buffer::CpuSample;
-use crate::runtime::buffer::PortConfig;
 use crate::runtime::buffer::PortCore;
 use crate::runtime::buffer::PortEndpoint;
 use crate::runtime::buffer::Tags;
@@ -254,7 +253,7 @@ where
     /// Create a queue-backed CPU writer.
     pub fn new() -> Self {
         Self {
-            core: PortCore::with_config(PortConfig::with_min_items(1)),
+            core: PortCore::with_requirements(BufferRequirements::with_min_items(1)),
             state: ConnectionState::disconnected(),
             current: None,
             tags: Vec::new(),
