@@ -6,14 +6,21 @@ use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
 use futuresdr::blocks::VectorSource;
 use futuresdr::prelude::*;
+use futuresdr::runtime::buffer::BlockInbox;
 use futuresdr::runtime::buffer::BufferReader;
+use futuresdr::runtime::buffer::BufferRequirements;
+use futuresdr::runtime::buffer::BufferWriter;
 use futuresdr::runtime::buffer::CpuBufferReader;
 use futuresdr::runtime::buffer::CpuBufferWriter;
 use futuresdr::runtime::buffer::DefaultCpuReader;
 use futuresdr::runtime::buffer::DefaultCpuWriter;
 use futuresdr::runtime::buffer::LocalCpuReader;
 use futuresdr::runtime::buffer::LocalCpuWriter;
+use futuresdr::runtime::buffer::Tags;
+use futuresdr::runtime::buffer::ThreadSafeConnect;
+use futuresdr::runtime::buffer::slab;
 use futuresdr::runtime::dev::BlockMeta;
+use futuresdr::runtime::dev::ItemTag;
 use futuresdr::runtime::dev::Kernel;
 use futuresdr::runtime::dev::MessageOutputs;
 use futuresdr::runtime::dev::WorkIo;
@@ -24,6 +31,218 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
+
+type SlabReaderToken = <slab::Writer<u8> as ThreadSafeConnect>::ReaderToken;
+type SlabWriterToken = <slab::Writer<u8> as ThreadSafeConnect>::WriterToken;
+
+struct NonSendReaderToken {
+    inner: SlabReaderToken,
+    reader_thread: std::thread::ThreadId,
+}
+
+struct NonSendWriterToken {
+    inner: SlabWriterToken,
+    reader_thread: std::thread::ThreadId,
+    writer_thread: std::thread::ThreadId,
+}
+
+#[derive(Debug)]
+struct NonSendReader {
+    inner: slab::Reader<u8>,
+    _local: Rc<()>,
+}
+
+impl Default for NonSendReader {
+    fn default() -> Self {
+        Self {
+            inner: slab::Reader::default(),
+            _local: Rc::new(()),
+        }
+    }
+}
+
+impl BufferReader for NonSendReader {
+    type Inbox = BlockInbox;
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+    fn buffer_requirements(&self) -> BufferRequirements {
+        self.inner.buffer_requirements()
+    }
+
+    fn raise_buffer_requirements(&mut self, requirements: BufferRequirements) {
+        self.inner.raise_buffer_requirements(requirements);
+    }
+
+    fn init(
+        &mut self,
+        block_id: futuresdr::runtime::BlockId,
+        port_id: futuresdr::runtime::PortId,
+        inbox: BlockInbox,
+    ) {
+        self.inner.init(block_id, port_id, inbox);
+    }
+
+    fn validate(&self) -> std::result::Result<(), futuresdr::runtime::Error> {
+        self.inner.validate()
+    }
+
+    async fn notify_finished(&mut self) {
+        self.inner.notify_finished().await;
+    }
+
+    fn finish(&mut self) {
+        self.inner.finish();
+    }
+
+    fn finished(&self) -> bool {
+        self.inner.finished()
+    }
+
+    fn block_id(&self) -> futuresdr::runtime::BlockId {
+        self.inner.block_id()
+    }
+
+    fn port_id(&self) -> futuresdr::runtime::PortId {
+        self.inner.port_id()
+    }
+}
+
+impl CpuBufferReader for NonSendReader {
+    type Item = u8;
+
+    fn slice_with_tags(&mut self) -> (&[Self::Item], &Vec<ItemTag>) {
+        self.inner.slice_with_tags()
+    }
+
+    fn consume(&mut self, n: usize) {
+        self.inner.consume(n);
+    }
+
+    fn set_min_items(&mut self, n: usize) {
+        self.inner.set_min_items(n);
+    }
+
+    fn set_min_buffer_size_in_items(&mut self, n: usize) {
+        self.inner.set_min_buffer_size_in_items(n);
+    }
+
+    fn max_items(&self) -> usize {
+        self.inner.max_items()
+    }
+}
+
+#[derive(Debug)]
+struct NonSendWriter {
+    inner: slab::Writer<u8>,
+    _local: Rc<()>,
+}
+
+impl Default for NonSendWriter {
+    fn default() -> Self {
+        Self {
+            inner: slab::Writer::default(),
+            _local: Rc::new(()),
+        }
+    }
+}
+
+impl BufferWriter for NonSendWriter {
+    type Inbox = BlockInbox;
+    type Reader = NonSendReader;
+
+    fn buffer_requirements(&self) -> BufferRequirements {
+        self.inner.buffer_requirements()
+    }
+
+    fn raise_buffer_requirements(&mut self, requirements: BufferRequirements) {
+        self.inner.raise_buffer_requirements(requirements);
+    }
+
+    fn init(
+        &mut self,
+        block_id: futuresdr::runtime::BlockId,
+        port_id: futuresdr::runtime::PortId,
+        inbox: BlockInbox,
+    ) {
+        self.inner.init(block_id, port_id, inbox);
+    }
+
+    fn validate(&self) -> std::result::Result<(), futuresdr::runtime::Error> {
+        self.inner.validate()
+    }
+
+    fn connect(&mut self, dest: &mut Self::Reader) {
+        self.inner.connect(&mut dest.inner);
+    }
+
+    async fn notify_finished(&mut self) {
+        self.inner.notify_finished().await;
+    }
+
+    fn block_id(&self) -> futuresdr::runtime::BlockId {
+        self.inner.block_id()
+    }
+
+    fn port_id(&self) -> futuresdr::runtime::PortId {
+        self.inner.port_id()
+    }
+}
+
+impl ThreadSafeConnect for NonSendWriter {
+    type ReaderToken = NonSendReaderToken;
+    type WriterToken = NonSendWriterToken;
+
+    fn take_reader_token(reader: &mut NonSendReader) -> Self::ReaderToken {
+        NonSendReaderToken {
+            inner: <slab::Writer<u8> as ThreadSafeConnect>::take_reader_token(&mut reader.inner),
+            reader_thread: std::thread::current().id(),
+        }
+    }
+
+    fn connect_reader(&mut self, token: Self::ReaderToken) -> Self::WriterToken {
+        let writer_thread = std::thread::current().id();
+        assert_ne!(writer_thread, token.reader_thread);
+        NonSendWriterToken {
+            inner: self.inner.connect_reader(token.inner),
+            reader_thread: token.reader_thread,
+            writer_thread,
+        }
+    }
+
+    fn finish_reader(reader: &mut NonSendReader, token: Self::WriterToken) {
+        let current_thread = std::thread::current().id();
+        assert_eq!(current_thread, token.reader_thread);
+        assert_ne!(current_thread, token.writer_thread);
+        <slab::Writer<u8> as ThreadSafeConnect>::finish_reader(&mut reader.inner, token.inner);
+    }
+}
+
+impl CpuBufferWriter for NonSendWriter {
+    type Item = u8;
+
+    fn slice_with_tags(&mut self) -> (&mut [Self::Item], Tags<'_>) {
+        self.inner.slice_with_tags()
+    }
+
+    fn produce(&mut self, n: usize) {
+        self.inner.produce(n);
+    }
+
+    fn set_min_items(&mut self, n: usize) {
+        self.inner.set_min_items(n);
+    }
+
+    fn set_min_buffer_size_in_items(&mut self, n: usize) {
+        self.inner.set_min_buffer_size_in_items(n);
+    }
+
+    fn max_items(&self) -> usize {
+        self.inner.max_items()
+    }
+}
 
 fn assert_validation_contains(
     result: std::result::Result<(), futuresdr::runtime::Error>,
@@ -488,7 +707,7 @@ fn local_context_uses_normal_buffers_inside_local_domain() -> Result<()> {
 }
 
 #[test]
-fn stream_connects_same_domain_local_blocks_with_send_buffer() -> Result<()> {
+fn stream_connects_same_domain_local_blocks_with_thread_safe_buffer() -> Result<()> {
     let rt = Runtime::new();
     let mut fg = Flowgraph::new();
 
@@ -509,7 +728,7 @@ fn stream_connects_same_domain_local_blocks_with_send_buffer() -> Result<()> {
 }
 
 #[test]
-fn stream_connects_different_local_domains_with_send_buffer() -> Result<()> {
+fn stream_connects_different_local_domains_with_thread_safe_tokens() -> Result<()> {
     let rt = Runtime::new();
     let mut fg = Flowgraph::new();
 
@@ -527,7 +746,55 @@ fn stream_connects_different_local_domains_with_send_buffer() -> Result<()> {
 }
 
 #[test]
-fn stream_dyn_connects_different_local_domains_with_send_buffer() -> Result<()> {
+fn non_send_buffer_endpoints_connect_across_local_domains() -> Result<()> {
+    let rt = Runtime::new();
+    let mut fg = Flowgraph::new();
+
+    let source_domain = fg.local_domain()?;
+    let sink_domain = fg.local_domain()?;
+    let src = fg.with_local_domain(source_domain, |ctx| {
+        Ok(ctx.add(VectorSource::<u8, NonSendWriter>::new(vec![1, 2, 3, 4])))
+    })?;
+    let snk = fg.with_local_domain(sink_domain, |ctx| {
+        Ok(ctx.add(NullSink::<u8, NonSendReader>::new()))
+    })?;
+
+    fg.stream(&src, |b| b.output(), &snk, |b| b.input())?;
+
+    let fg = rt.run(fg)?;
+    assert_eq!(fg.with(&snk, |b| b.n_received())?, 4);
+
+    Ok(())
+}
+
+#[test]
+fn circular_writer_fanout_connects_across_local_domains() -> Result<()> {
+    let rt = Runtime::new();
+    let mut fg = Flowgraph::new();
+
+    let source_domain = fg.local_domain()?;
+    let first_sink_domain = fg.local_domain()?;
+    let second_sink_domain = fg.local_domain()?;
+    let src = fg.with_local_domain(source_domain, |ctx| {
+        Ok(ctx.add(VectorSource::<u8>::new(vec![1, 2, 3, 4])))
+    })?;
+    let first =
+        fg.with_local_domain(first_sink_domain, |ctx| Ok(ctx.add(NullSink::<u8>::new())))?;
+    let second =
+        fg.with_local_domain(second_sink_domain, |ctx| Ok(ctx.add(NullSink::<u8>::new())))?;
+
+    fg.stream(&src, |b| b.output(), &first, |b| b.input())?;
+    fg.stream(&src, |b| b.output(), &second, |b| b.input())?;
+
+    let fg = rt.run(fg)?;
+    assert_eq!(fg.with(&first, |b| b.n_received())?, 4);
+    assert_eq!(fg.with(&second, |b| b.n_received())?, 4);
+
+    Ok(())
+}
+
+#[test]
+fn stream_dyn_connects_different_local_domains_with_thread_safe_tokens() -> Result<()> {
     let rt = Runtime::new();
     let mut fg = Flowgraph::new();
 
@@ -545,7 +812,7 @@ fn stream_dyn_connects_different_local_domains_with_send_buffer() -> Result<()> 
 }
 
 #[test]
-fn stream_dyn_connects_different_local_domains_with_generic_send_buffer() -> Result<()> {
+fn stream_dyn_connects_different_local_domains_with_default_buffer() -> Result<()> {
     let rt = Runtime::new();
     let mut fg = Flowgraph::new();
 
@@ -640,7 +907,10 @@ fn local_streams_reject_different_domains() -> Result<()> {
     })?;
 
     fg.stream_dyn(src, "output", snk, "input")?;
-    assert_validation_contains(Runtime::new().run(fg).map(drop), "not send-capable");
+    assert_validation_contains(
+        Runtime::new().run(fg).map(drop),
+        "does not provide thread-safe connection tokens",
+    );
 
     Ok(())
 }

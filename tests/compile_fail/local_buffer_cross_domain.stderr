@@ -1,0 +1,23 @@
+error[E0277]: the trait bound `futuresdr::runtime::buffer::queued::Writer<u8, futuresdr::runtime::buffer::queued::LocalState<u8>, LocalBlockInbox>: ThreadSafeConnect` is not satisfied
+  --> tests/compile_fail/local_buffer_cross_domain.rs:18:8
+   |
+18 |     fg.stream(&src, |b| b.output(), &snk, |b| b.input())?;
+   |        ^^^^^^ unsatisfied trait bound
+   |
+   = help: the trait `ThreadSafeConnect` is not implemented for `futuresdr::runtime::buffer::queued::Writer<u8, futuresdr::runtime::buffer::queued::LocalState<u8>, LocalBlockInbox>`
+help: the trait `ThreadSafeConnect` is implemented for `futuresdr::runtime::buffer::queued::Writer<D, S>`
+  --> src/runtime/buffer/queued.rs
+   |
+   | / impl<D, S> ThreadSafeConnect for Writer<D, S, BlockInbox>
+   | | where
+   | |     D: CpuSample,
+   | |     S: SharedState<D> + Send,
+   | |_____________________________^
+note: required by a bound in `runtime::flowgraph::stream_api::<impl futuresdr::runtime::Flowgraph>::stream`
+  --> src/runtime/flowgraph/stream_api.rs
+   |
+   |     pub fn stream<KS, KD, B, FS, FD>(
+   |            ------ required by a bound in this associated function
+...
+   |         B: ThreadSafeConnect + 'static,
+   |            ^^^^^^^^^^^^^^^^^ required by this bound in `runtime::flowgraph::stream_api::<impl Flowgraph>::stream`

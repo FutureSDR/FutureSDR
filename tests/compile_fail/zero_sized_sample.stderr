@@ -1,0 +1,11 @@
+error[E0080]: evaluation panicked: sample types must not be zero-sized
+ --> src/runtime/buffer/mod.rs
+  |
+  |         NonZeroUsize::new(size_of::<Self>()).expect("sample types must not be zero-sized");
+  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ evaluation of `<() as futuresdr::runtime::buffer::CpuSample>::SIZE` failed here
+
+note: erroneous constant encountered
+ --> tests/compile_fail/zero_sized_sample.rs:3:21
+  |
+3 | const SIZE: usize = <() as CpuSample>::SIZE.get();
+  |                     ^^^^^^^^^^^^^^^^^^^^^^^

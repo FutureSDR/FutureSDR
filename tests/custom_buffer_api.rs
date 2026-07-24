@@ -3,7 +3,7 @@ use std::any::Any;
 use futuresdr::runtime::BlockId;
 use futuresdr::runtime::Error;
 use futuresdr::runtime::PortId;
-use futuresdr::runtime::buffer::BufferMode;
+use futuresdr::runtime::buffer::BlockInbox;
 use futuresdr::runtime::buffer::BufferReader;
 use futuresdr::runtime::buffer::BufferRequirements;
 use futuresdr::runtime::buffer::BufferWriter;
@@ -12,7 +12,6 @@ use futuresdr::runtime::buffer::CpuBufferWriter;
 use futuresdr::runtime::buffer::CpuSample;
 use futuresdr::runtime::buffer::PortCore;
 use futuresdr::runtime::buffer::Tags;
-use futuresdr::runtime::buffer::ThreadSafeMode;
 use futuresdr::runtime::dev::ItemTag;
 
 struct CustomReader<T: CpuSample> {
@@ -34,7 +33,7 @@ impl<T: CpuSample> Default for CustomReader<T> {
 }
 
 impl<T: CpuSample> BufferReader for CustomReader<T> {
-    type Mode = ThreadSafeMode;
+    type Inbox = BlockInbox;
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
@@ -48,12 +47,7 @@ impl<T: CpuSample> BufferReader for CustomReader<T> {
         self.core.raise_requirements(requirements);
     }
 
-    fn init(
-        &mut self,
-        block_id: BlockId,
-        port_id: PortId,
-        inbox: <ThreadSafeMode as BufferMode>::Inbox,
-    ) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
         self.core.init(block_id, port_id, inbox);
     }
 
@@ -121,7 +115,7 @@ impl<T: CpuSample> Default for CustomWriter<T> {
 }
 
 impl<T: CpuSample> BufferWriter for CustomWriter<T> {
-    type Mode = ThreadSafeMode;
+    type Inbox = BlockInbox;
     type Reader = CustomReader<T>;
 
     fn buffer_requirements(&self) -> BufferRequirements {
@@ -134,12 +128,7 @@ impl<T: CpuSample> BufferWriter for CustomWriter<T> {
         self.core.raise_requirements(requirements);
     }
 
-    fn init(
-        &mut self,
-        block_id: BlockId,
-        port_id: PortId,
-        inbox: <ThreadSafeMode as BufferMode>::Inbox,
-    ) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
         self.core.init(block_id, port_id, inbox);
     }
 
@@ -185,7 +174,7 @@ impl<T: CpuSample> CpuBufferWriter for CustomWriter<T> {
 
 #[test]
 fn custom_cpu_buffer_can_use_public_requirement_api() {
-    let mut core = PortCore::<ThreadSafeMode>::new_disconnected();
+    let mut core = PortCore::<BlockInbox>::new_disconnected();
     core.set_min_items(2);
     core.set_min_buffer_size_in_items(16);
 
