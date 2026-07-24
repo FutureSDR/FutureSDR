@@ -53,7 +53,7 @@ where
         self.fft_plan = FftPlanner::new().plan_fft_forward(self.m_samples_per_symbol);
         self.base_downchirp = build_upchirp(0, sf, 1, false)
             .into_iter()
-            .map(|x| c64(x.re, x.im))
+            .map(|x| Complex64::new(x.re.into(), x.im.into()))
             .collect();
     }
 
@@ -279,7 +279,7 @@ where
                 m_samples_per_symbol,
                 base_downchirp: build_upchirp(0, sf_initial, 1, false)
                     .into_iter()
-                    .map(|x| c64(x.re, x.im).conj())
+                    .map(|x| Complex64::new(x.re.into(), x.im.into()).conj())
                     .collect(),
                 m_downchirp: vec![],
                 out: Vec::with_capacity(8),

@@ -77,7 +77,6 @@ pub mod prelude {
     pub use futures::prelude::*;
     pub use futuresdr::runtime::BlockId;
     pub use futuresdr::runtime::BlockRef;
-    pub use futuresdr::runtime::BlockStatus;
     pub use futuresdr::runtime::Error;
     pub use futuresdr::runtime::Flowgraph;
     pub use futuresdr::runtime::FlowgraphBlockHandle;
@@ -104,5 +103,7 @@ pub mod prelude {
     pub use futuresdr::tracing::info;
     pub use futuresdr::tracing::trace;
     pub use futuresdr::tracing::warn;
-    pub use num_complex::*;
+    pub use num_complex::Complex;
+    pub use num_complex::Complex32;
+    pub use num_complex::Complex64;
 }
