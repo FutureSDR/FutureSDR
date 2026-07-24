@@ -240,14 +240,15 @@ where
             .writer
             .add_reader(reader_notifier, writer_notifier);
 
-        connected
-            .readers
-            .push(PortEndpoint::new(dest.core.inbox(), dest.core.port_id()));
+        connected.readers.push(PortEndpoint::new(
+            dest.core.inbox().clone(),
+            dest.core.port_id(),
+        ));
         self.state.set_connected(connected);
 
         dest.state.set_connected(ConnectedReader {
             reader,
-            writer: PortEndpoint::new(self.core.inbox(), self.core.port_id()),
+            writer: PortEndpoint::new(self.core.inbox().clone(), self.core.port_id()),
         });
     }
     async fn notify_finished(&mut self) {
@@ -272,7 +273,7 @@ where
 
     fn take_reader_token(reader: &mut Reader<D, BlockInbox>) -> Self::ReaderToken {
         ThreadSafeConnectToken {
-            reader: PortEndpoint::new(reader.core.inbox(), reader.core.port_id()),
+            reader: PortEndpoint::new(reader.core.inbox().clone(), reader.core.port_id()),
             reader_min_items: reader.core.min_items(),
             reader_min_buffer_size: reader.core.min_buffer_size_in_items(),
             _item: std::marker::PhantomData,
@@ -335,7 +336,7 @@ where
             notifier: self.core.notifier(),
         };
         let reader_notifier = MyNotifier {
-            notifier: BlockInbox::notifier(&token.reader.inbox()),
+            notifier: BlockInbox::notifier(token.reader.inbox()),
         };
         let connected = self.state.connected_mut();
         let reader = connected
@@ -346,7 +347,7 @@ where
         ThreadSafeReturnToken {
             connected: ConnectedReader {
                 reader,
-                writer: PortEndpoint::new(self.core.inbox(), self.core.port_id()),
+                writer: PortEndpoint::new(self.core.inbox().clone(), self.core.port_id()),
             },
             min_buffer_size,
         }

@@ -324,12 +324,12 @@ where
         let inbound = Arc::new(queue_new());
 
         self.state.set_connected(ConnectedWriter {
-            reader: PortEndpoint::new(dest.core.inbox(), dest.core.port_id()),
+            reader: PortEndpoint::new(dest.core.inbox().clone(), dest.core.port_id()),
             outbound: inbound.clone(),
         });
 
         dest.state.set_connected(ConnectedReader {
-            writer: PortEndpoint::new(self.core.inbox(), self.core.port_id()),
+            writer: PortEndpoint::new(self.core.inbox().clone(), self.core.port_id()),
             inbound,
         });
     }
@@ -365,7 +365,7 @@ where
 
     fn take_reader_token(reader: &mut Reader<T, BlockInbox>) -> Self::ReaderToken {
         ThreadSafeConnectToken {
-            reader: PortEndpoint::new(reader.core.inbox(), reader.core.port_id()),
+            reader: PortEndpoint::new(reader.core.inbox().clone(), reader.core.port_id()),
             _item: std::marker::PhantomData,
         }
     }
@@ -378,7 +378,7 @@ where
         });
         ThreadSafeReturnToken {
             connected: ConnectedReader {
-                writer: PortEndpoint::new(self.core.inbox(), self.core.port_id()),
+                writer: PortEndpoint::new(self.core.inbox().clone(), self.core.port_id()),
                 inbound,
             },
         }
@@ -409,7 +409,10 @@ where
             let storage = buffer.storage_mut();
             storage.valid = storage.buffer.len();
             storage.tags.clear();
-            buffer.arm(CircuitReturn::new(self.core.inbox(), self.inbound.clone()));
+            buffer.arm(CircuitReturn::new(
+                self.core.inbox().clone(),
+                self.inbound.clone(),
+            ));
             buffer
         })
     }
@@ -438,7 +441,10 @@ where
             match queue_pop_back(&self.inbound) {
                 Some(mut buffer) => {
                     buffer.storage_mut().reset();
-                    buffer.arm(CircuitReturn::new(self.core.inbox(), self.inbound.clone()));
+                    buffer.arm(CircuitReturn::new(
+                        self.core.inbox().clone(),
+                        self.inbound.clone(),
+                    ));
                     self.current = Some(buffer);
                 }
                 None => {

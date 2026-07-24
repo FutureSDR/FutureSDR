@@ -116,11 +116,11 @@ where
         dest.outbound = self.inbound.clone();
 
         self.state.set_connected(ConnectedWriter {
-            reader: PortEndpoint::new(dest.core.inbox(), dest.core.port_id()),
+            reader: PortEndpoint::new(dest.core.inbox().clone(), dest.core.port_id()),
         });
 
         dest.state.set_connected(ConnectedReader {
-            writer: PortEndpoint::new(self.core.inbox(), self.core.port_id()),
+            writer: PortEndpoint::new(self.core.inbox().clone(), self.core.port_id()),
         });
     }
 
@@ -161,7 +161,7 @@ where
 
     fn take_reader_token(reader: &mut Reader<D>) -> Self::ReaderToken {
         ThreadSafeConnectToken {
-            reader: PortEndpoint::new(reader.core.inbox(), reader.core.port_id()),
+            reader: PortEndpoint::new(reader.core.inbox().clone(), reader.core.port_id()),
             _item: PhantomData,
         }
     }
@@ -174,7 +174,7 @@ where
             inbound: self.inbound.clone(),
             outbound: self.outbound.clone(),
             connected: ConnectedReader {
-                writer: PortEndpoint::new(self.core.inbox(), self.core.port_id()),
+                writer: PortEndpoint::new(self.core.inbox().clone(), self.core.port_id()),
             },
         }
     }

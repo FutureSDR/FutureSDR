@@ -51,6 +51,7 @@ where
 struct CurrentSlot {
     slot_id: usize,
     item_offset: usize,
+    capacity: usize,
     view: BufferViewMut,
 }
 
@@ -199,6 +200,7 @@ where
         self.current = Some(CurrentSlot {
             slot_id,
             item_offset: 0,
+            capacity,
             view,
         });
 
@@ -258,11 +260,11 @@ where
         dest.instance = self.instance.clone();
 
         self.state.set_connected(ConnectedWriter {
-            reader: PortEndpoint::new(dest.core.inbox(), dest.core.port_id()),
+            reader: PortEndpoint::new(dest.core.inbox().clone(), dest.core.port_id()),
         });
 
         dest.state.set_connected(ConnectedReader {
-            writer: PortEndpoint::new(self.core.inbox(), self.core.port_id()),
+            writer: PortEndpoint::new(self.core.inbox().clone(), self.core.port_id()),
         });
     }
 
@@ -314,7 +316,7 @@ where
 
     fn take_reader_token(reader: &mut Reader<D>) -> Self::ReaderToken {
         ThreadSafeConnectToken {
-            reader: PortEndpoint::new(reader.core.inbox(), reader.core.port_id()),
+            reader: PortEndpoint::new(reader.core.inbox().clone(), reader.core.port_id()),
             instance: reader.instance.clone(),
             _item: PhantomData,
         }
@@ -333,7 +335,7 @@ where
             ready_ids: self.ready_ids.clone(),
             instance: self.instance.clone(),
             connected: ConnectedReader {
-                writer: PortEndpoint::new(self.core.inbox(), self.core.port_id()),
+                writer: PortEndpoint::new(self.core.inbox().clone(), self.core.port_id()),
             },
         }
     }
@@ -359,12 +361,8 @@ where
         }
 
         let current = self.current.as_mut().unwrap();
-        let cap = {
-            let slots = self.slots.lock().unwrap();
-            slots[current.slot_id].capacity
-        };
         let byte_offset = current.item_offset * D::SIZE.get();
-        let byte_end = cap * D::SIZE.get();
+        let byte_end = current.capacity * D::SIZE.get();
         let mut tail_write_only = current.view.slice(byte_offset..byte_end);
         let tail = unsafe {
             std::slice::from_raw_parts_mut(
@@ -383,10 +381,7 @@ where
         }
 
         let current = self.current.as_mut().unwrap();
-        let item_capacity = {
-            let slots = self.slots.lock().unwrap();
-            slots[current.slot_id].capacity
-        };
+        let item_capacity = current.capacity;
         assert!(
             amount + current.item_offset <= item_capacity,
             "H2D writer overflow: produce {} at offset {} exceeds capacity {}",
@@ -475,15 +470,16 @@ where
     /// This is the explicit reusable-resource return path for WGPU H2D
     /// handoff buffers. These tokens are not in-place circuit buffers.
     pub fn submit(&mut self, buffer: BufferEmpty<D>) {
-        let Some(instance) = self.instance.clone() else {
+        if self.instance.is_none() {
             panic!("H2D reader: set_instance() must be called before submit");
-        };
+        }
 
         let slot_id = if buffer.slot_id == UNMANAGED_SLOT_ID {
             self.install_unmanaged_slot(&buffer)
         } else {
             buffer.slot_id
         };
+        let instance = self.instance.as_ref().unwrap();
 
         let (buffer_for_map, capacity) = {
             let mut slots = self.slots.lock().unwrap();
@@ -504,7 +500,7 @@ where
 
         let writable_ids = self.writable_ids.clone();
         let slots_arc = self.slots.clone();
-        let writer_inbox = self.state.connected().writer.inbox();
+        let writer_inbox = self.state.connected().writer.inbox().clone();
         let byte_len = (capacity * D::SIZE.get()) as u64;
         let slice = buffer_for_map.slice(0..byte_len);
         slice.map_async(wgpu::MapMode::Write, move |result| match result {

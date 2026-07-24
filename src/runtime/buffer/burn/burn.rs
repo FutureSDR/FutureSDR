@@ -287,7 +287,7 @@ where
     }
 
     fn permit_return(&self) -> PermitReturn {
-        CircuitReturn::new(self.core.inbox(), self.permits.clone())
+        CircuitReturn::new(self.core.inbox().clone(), self.permits.clone())
     }
 
     fn new_armed_buffer<S>(&self) -> Option<Buffer<B, E, S>>
@@ -353,12 +353,12 @@ where
         let inbound = Arc::new(Mutex::new(VecDeque::new()));
 
         self.state.set_connected(ConnectedWriter {
-            reader: PortEndpoint::new(dest.core.inbox(), dest.core.port_id()),
+            reader: PortEndpoint::new(dest.core.inbox().clone(), dest.core.port_id()),
             outbound: inbound.clone(),
         });
 
         dest.state.set_connected(ConnectedReader {
-            writer: PortEndpoint::new(self.core.inbox(), self.core.port_id()),
+            writer: PortEndpoint::new(self.core.inbox().clone(), self.core.port_id()),
             inbound,
         });
     }
@@ -394,7 +394,7 @@ where
 
     fn take_reader_token(reader: &mut Reader<B, E, SR>) -> Self::ReaderToken {
         ThreadSafeConnectToken {
-            reader: PortEndpoint::new(reader.core.inbox(), reader.core.port_id()),
+            reader: PortEndpoint::new(reader.core.inbox().clone(), reader.core.port_id()),
             _marker: PhantomData,
         }
     }
@@ -407,7 +407,7 @@ where
         });
         ThreadSafeReturnToken {
             connected: ConnectedReader {
-                writer: PortEndpoint::new(self.core.inbox(), self.core.port_id()),
+                writer: PortEndpoint::new(self.core.inbox().clone(), self.core.port_id()),
                 inbound,
             },
         }

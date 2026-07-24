@@ -178,11 +178,11 @@ where
         dest.instance = self.instance.clone();
 
         self.state.set_connected(ConnectedWriter {
-            reader: PortEndpoint::new(dest.core.inbox(), dest.core.port_id()),
+            reader: PortEndpoint::new(dest.core.inbox().clone(), dest.core.port_id()),
         });
 
         dest.state.set_connected(ConnectedReader {
-            writer: PortEndpoint::new(self.core.inbox(), self.core.port_id()),
+            writer: PortEndpoint::new(self.core.inbox().clone(), self.core.port_id()),
         });
     }
 
@@ -215,7 +215,7 @@ where
 
     fn take_reader_token(reader: &mut Reader<D>) -> Self::ReaderToken {
         ThreadSafeConnectToken {
-            reader: PortEndpoint::new(reader.core.inbox(), reader.core.port_id()),
+            reader: PortEndpoint::new(reader.core.inbox().clone(), reader.core.port_id()),
             _item: PhantomData,
         }
     }
@@ -229,7 +229,7 @@ where
             outbound: self.outbound.clone(),
             instance: self.instance.clone(),
             connected: ConnectedReader {
-                writer: PortEndpoint::new(self.core.inbox(), self.core.port_id()),
+                writer: PortEndpoint::new(self.core.inbox().clone(), self.core.port_id()),
             },
         }
     }
@@ -363,7 +363,6 @@ where
 
     fn slice_with_tags(&mut self) -> (&[Self::Item], &Vec<ItemTag>) {
         static V: Vec<ItemTag> = vec![];
-        debug!("D2H reader bytes");
         if self.buffer.is_none() {
             if let Some(buffer) = self.inbound.lock().unwrap().pop_front() {
                 let slice = buffer
@@ -376,11 +375,9 @@ where
                     slice,
                 });
             } else {
-                debug!("D2H reader return empty slice");
                 return (&[], &V);
             }
         }
-        debug!("D2H reader buffer available");
 
         let buffer = self.buffer.as_ref().unwrap();
         let data = bytemuck::try_cast_slice(&buffer.slice[buffer.byte_offset..])
@@ -396,10 +393,6 @@ where
 
         let buffer = self.buffer.as_mut().unwrap();
         let byte_len = buffer.slice.len();
-        info!(
-            "Consume -- byte_len: {}, offset: {}",
-            byte_len, buffer.byte_offset
-        );
         debug_assert!(amount * D::SIZE.get() + buffer.byte_offset <= byte_len);
 
         buffer.byte_offset += amount * D::SIZE.get();

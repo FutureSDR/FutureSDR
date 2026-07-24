@@ -335,10 +335,10 @@ impl<D: CpuSample> BufferWriter for H2DWriter<D> {
         dest.context = self.context.clone();
 
         self.state.set_connected(ConnectedWriter {
-            reader: PortEndpoint::new(dest.core.inbox(), dest.core.port_id()),
+            reader: PortEndpoint::new(dest.core.inbox().clone(), dest.core.port_id()),
         });
         dest.state.set_connected(ConnectedReader {
-            writer: PortEndpoint::new(self.core.inbox(), self.core.port_id()),
+            writer: PortEndpoint::new(self.core.inbox().clone(), self.core.port_id()),
         });
     }
 
@@ -382,7 +382,7 @@ impl<D: CpuSample> ThreadSafeConnect for H2DWriter<D> {
 
     fn take_reader_token(reader: &mut H2DReader<D>) -> Self::ReaderToken {
         H2DThreadSafeConnectToken {
-            reader: PortEndpoint::new(reader.core.inbox(), reader.core.port_id()),
+            reader: PortEndpoint::new(reader.core.inbox().clone(), reader.core.port_id()),
             context: reader.context.clone(),
             _item: PhantomData,
         }
@@ -401,7 +401,7 @@ impl<D: CpuSample> ThreadSafeConnect for H2DWriter<D> {
             ready_ids: self.ready_ids.clone(),
             context: self.context.clone(),
             connected: ConnectedReader {
-                writer: PortEndpoint::new(self.core.inbox(), self.core.port_id()),
+                writer: PortEndpoint::new(self.core.inbox().clone(), self.core.port_id()),
             },
         }
     }
@@ -537,7 +537,7 @@ impl<D: CpuSample> H2DReader<D> {
 
         let writable_ids = self.writable_ids.clone();
         let slots_arc = self.slots.clone();
-        let writer_inbox = self.state.connected().writer.inbox();
+        let writer_inbox = self.state.connected().writer.inbox().clone();
         let byte_len = (capacity * D::SIZE.get()) as u64;
         let slice = staging.slice(0..byte_len);
         slice.map_async(wgpu::MapMode::Write, move |result| match result {
@@ -742,10 +742,10 @@ impl<D: CpuSample> BufferWriter for D2HWriter<D> {
         dest.outbound = self.inbound.clone();
         dest.context = self.context.clone();
         self.state.set_connected(ConnectedWriter {
-            reader: PortEndpoint::new(dest.core.inbox(), dest.core.port_id()),
+            reader: PortEndpoint::new(dest.core.inbox().clone(), dest.core.port_id()),
         });
         dest.state.set_connected(ConnectedReader {
-            writer: PortEndpoint::new(self.core.inbox(), self.core.port_id()),
+            writer: PortEndpoint::new(self.core.inbox().clone(), self.core.port_id()),
         });
     }
 
@@ -769,7 +769,7 @@ impl<D: CpuSample> ThreadSafeConnect for D2HWriter<D> {
 
     fn take_reader_token(reader: &mut D2HReader<D>) -> Self::ReaderToken {
         D2HThreadSafeConnectToken {
-            reader: PortEndpoint::new(reader.core.inbox(), reader.core.port_id()),
+            reader: PortEndpoint::new(reader.core.inbox().clone(), reader.core.port_id()),
             _item: PhantomData,
         }
     }
@@ -783,7 +783,7 @@ impl<D: CpuSample> ThreadSafeConnect for D2HWriter<D> {
             outbound: self.outbound.clone(),
             context: self.context.clone(),
             connected: ConnectedReader {
-                writer: PortEndpoint::new(self.core.inbox(), self.core.port_id()),
+                writer: PortEndpoint::new(self.core.inbox().clone(), self.core.port_id()),
             },
         }
     }

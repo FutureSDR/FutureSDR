@@ -392,10 +392,10 @@ impl<I: BufferInbox> PortCore<I> {
         }
     }
 
-    /// Get the bound inbox.
-    pub fn inbox(&self) -> I {
+    /// Borrow the bound inbox.
+    pub fn inbox(&self) -> &I {
         match &self.binding {
-            PortBinding::Bound { inbox, .. } => inbox.clone(),
+            PortBinding::Bound { inbox, .. } => inbox,
             PortBinding::Unbound => panic!("port is not bound to a flowgraph"),
         }
     }
@@ -495,9 +495,9 @@ impl<I: BufferInbox> PortEndpoint<I> {
         Self { inbox, port_id }
     }
 
-    /// Get the peer inbox.
-    pub fn inbox(&self) -> I {
-        self.inbox.clone()
+    /// Borrow the peer inbox.
+    pub fn inbox(&self) -> &I {
+        &self.inbox
     }
 
     /// Get the peer port index.

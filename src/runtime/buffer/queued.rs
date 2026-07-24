@@ -340,13 +340,13 @@ where
         self.state.set_connected(ConnectedWriter {
             state: state.clone(),
             reserved_items,
-            reader: PortEndpoint::new(dest.core.inbox(), dest.core.port_id()),
+            reader: PortEndpoint::new(dest.core.inbox().clone(), dest.core.port_id()),
             _marker: PhantomData,
         });
         dest.state.set_connected(ConnectedReader {
             state,
             reserved_items,
-            writer: PortEndpoint::new(self.core.inbox(), self.core.port_id()),
+            writer: PortEndpoint::new(self.core.inbox().clone(), self.core.port_id()),
             _marker: PhantomData,
         });
     }
@@ -397,7 +397,7 @@ where
 
     fn take_reader_token(reader: &mut Reader<D, S, BlockInbox>) -> Self::ReaderToken {
         ThreadSafeConnectToken {
-            reader: PortEndpoint::new(reader.core.inbox(), reader.core.port_id()),
+            reader: PortEndpoint::new(reader.core.inbox().clone(), reader.core.port_id()),
             reader_min_items: reader.core.min_items(),
             reader_min_buffer_size: reader.core.min_buffer_size_in_items(),
             _state: PhantomData,
@@ -445,7 +445,7 @@ where
             connected: ConnectedReader {
                 state,
                 reserved_items,
-                writer: PortEndpoint::new(self.core.inbox(), self.core.port_id()),
+                writer: PortEndpoint::new(self.core.inbox().clone(), self.core.port_id()),
                 _marker: PhantomData,
             },
             min_buffer_size,
@@ -776,18 +776,13 @@ where
             if has_reader_input {
                 self.core.inbox().notify();
             }
-        } else {
-            // This reader still has immediately readable data in its current
-            // buffer. Wake the owning block again; otherwise a block that had
-            // to stop early because an output buffer was full can go to sleep
-            // even though unread input remains in this slab chunk.
+        } else if c.end_offset - c.offset <= reserved_items
+            && connected.state.with(|state| !state.reader_input.is_empty())
+        {
+            // The notification for the queued chunk may have been consumed
+            // before the current chunk reached its overlap region. Re-arm the
+            // block now that the next slice can stitch both chunks together.
             self.core.inbox().notify();
-
-            if c.end_offset - c.offset <= reserved_items
-                && connected.state.with(|state| !state.reader_input.is_empty())
-            {
-                self.core.inbox().notify();
-            }
         }
     }
 
@@ -872,6 +867,38 @@ mod tests {
 
         let input = CpuBufferReader::slice(&mut reader);
         assert_eq!(input, &[9, 8, 7]);
+
+        Ok(())
+    }
+
+    #[test]
+    fn local_cpu_reader_notifies_at_queued_overlap() -> Result<(), Error> {
+        let mut writer = local::Writer::<u8>::default();
+        let mut reader = local::Reader::<u8>::default();
+        let (writer_inbox, _writer_rx) = LocalBlockInboxReader::pair();
+        let (reader_inbox, reader_rx) = LocalBlockInboxReader::pair();
+
+        BufferWriter::init(&mut writer, BlockId(0), PortIndex::new(0), writer_inbox);
+        BufferReader::init(&mut reader, BlockId(1), PortIndex::new(0), reader_inbox);
+
+        CpuBufferWriter::set_min_buffer_size_in_items(&mut writer, 4);
+        CpuBufferReader::set_min_items(&mut reader, 2);
+        BufferWriter::connect(&mut writer, &mut reader);
+
+        for values in [[1, 2, 3, 4], [5, 6, 7, 8]] {
+            let output = CpuBufferWriter::slice(&mut writer);
+            output[..values.len()].copy_from_slice(&values);
+            CpuBufferWriter::produce(&mut writer, values.len());
+        }
+
+        assert!(reader_rx.take_pending());
+        assert_eq!(CpuBufferReader::slice(&mut reader), &[1, 2, 3, 4]);
+
+        CpuBufferReader::consume(&mut reader, 1);
+        assert!(!reader_rx.take_pending());
+
+        CpuBufferReader::consume(&mut reader, 1);
+        assert!(reader_rx.take_pending());
 
         Ok(())
     }
