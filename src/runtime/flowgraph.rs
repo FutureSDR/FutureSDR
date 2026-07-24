@@ -294,6 +294,31 @@ impl Flowgraph {
         })
     }
 
+    /// Create a local scheduling domain on the browser main thread.
+    ///
+    /// Unlike [`Flowgraph::local_domain`], this does not create a Web Worker.
+    /// It is intended for non-`Send` browser APIs such as WebUSB, WebGPU, and
+    /// Web Audio when the application uses the main-thread WASM scheduler.
+    #[cfg(target_arch = "wasm32")]
+    pub fn main_thread_local_domain(&mut self) -> Result<LocalDomain, Error> {
+        self.main_thread_local_domain_with_scheduler::<BasicLocalScheduler>()
+    }
+
+    /// Create a main-thread local domain with a custom local scheduler type.
+    #[cfg(target_arch = "wasm32")]
+    pub fn main_thread_local_domain_with_scheduler<LS: LocalScheduler>(
+        &mut self,
+    ) -> Result<LocalDomain<LS>, Error> {
+        let domain_id = self
+            .domains
+            .push_local(LocalDomainRuntime::new_main_thread::<LS>()?);
+        Ok(LocalDomain {
+            flowgraph_id: self.id,
+            domain_id,
+            _marker: PhantomData,
+        })
+    }
+
     /// Create a local scheduling domain pinned to a logical CPU.
     ///
     /// `cpuid` is the operating-system logical CPU ID, not a zero-based index

@@ -71,8 +71,8 @@ struct LocalDomainContextInner<'a> {
 
 /// Builder context for constructing blocks directly inside a local domain.
 ///
-/// Blocks added through this context are constructed on the local-domain
-/// thread/worker, so their state does not have to be `Send`.
+/// Blocks added through this context are constructed in the local domain's
+/// execution context, so their state does not have to be `Send`.
 pub struct LocalDomainContext<'a, LS = BasicLocalScheduler> {
     inner: RefCell<LocalDomainContextInner<'a>>,
     scheduler: &'a LS,

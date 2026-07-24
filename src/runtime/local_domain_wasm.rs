@@ -33,6 +33,12 @@ impl LocalDomainRuntime {
     pub(crate) fn new<LS: LocalScheduler>() -> Result<Self, Error> {
         Ok(Self::from_controller(LocalDomainController::new::<LS>()?))
     }
+
+    pub(crate) fn new_main_thread<LS: LocalScheduler>() -> Result<Self, Error> {
+        Ok(Self::from_controller(
+            LocalDomainController::new_main_thread::<LS>()?,
+        ))
+    }
 }
 
 pub(crate) struct LocalDomainController {
@@ -52,7 +58,7 @@ impl LocalDomainController {
             rx,
             key,
             terminate: terminate.clone(),
-            runner: run_domain_worker_boxed::<LS>,
+            runner: run_domain_boxed::<LS>,
         };
         let domain_id = WASM_LOCAL_DOMAINS.lock().unwrap().insert(init);
         let worker_script = default_worker_script();
@@ -72,6 +78,27 @@ impl LocalDomainController {
             terminate,
             worker: Some(worker),
             domain_id: Some(domain_id),
+        })
+    }
+
+    pub(crate) fn new_main_thread<LS: LocalScheduler>() -> Result<Self, Error> {
+        let (tx, rx) = mpsc::channel(config().queue_size);
+        let key = LocalDomainKey::new();
+        let terminate = Arc::new(AtomicBool::new(false));
+        let init = WasmLocalDomainInit {
+            rx,
+            key,
+            terminate: terminate.clone(),
+            runner: run_domain_boxed::<LS>,
+        };
+        wasm_bindgen_futures::spawn_local((init.runner)(init));
+
+        Ok(Self {
+            tx,
+            key,
+            terminate,
+            worker: None,
+            domain_id: None,
         })
     }
 }
@@ -132,13 +159,13 @@ pub fn futuresdr_wasm_local_domain_worker_entry(domain_id: usize) {
     }
 }
 
-fn run_domain_worker_boxed<LS: LocalScheduler>(
+fn run_domain_boxed<LS: LocalScheduler>(
     init: WasmLocalDomainInit,
 ) -> Pin<Box<dyn Future<Output = ()>>> {
-    Box::pin(run_domain_worker::<LS>(init))
+    Box::pin(run_domain::<LS>(init))
 }
 
-async fn run_domain_worker<LS: LocalScheduler>(init: WasmLocalDomainInit) {
+async fn run_domain<LS: LocalScheduler>(init: WasmLocalDomainInit) {
     let WasmLocalDomainInit {
         mut rx,
         key,
