@@ -5,21 +5,25 @@ use crate::runtime::Result;
 use crate::runtime::dev::BlockMeta;
 use crate::runtime::dev::MessageOutputs;
 use crate::runtime::dev::WorkIo;
+use crate::runtime::kernel_interface::KernelInterface;
 
 /// Send-capable marker for normal runtime blocks.
 ///
 /// This keeps verbose return-type-notation bounds in one place: normal blocks
 /// must have a `Send` value, `Send` block-on future, and `Send` futures returned
-/// from the kernel lifecycle methods.
+/// from the kernel lifecycle methods and generated block interface.
 #[doc(hidden)]
-pub trait SendKernel: Kernel<BlockOn: Send> + Send
+pub trait SendKernel: Kernel<BlockOn: Send> + KernelInterface + Send
 where
     Self: Kernel<work(..): Send, init(..): Send, deinit(..): Send>,
+    Self: KernelInterface<stream_ports_notify_finished(..): Send, call_handler(..): Send>,
 {
 }
 
 impl<T> SendKernel for T where
-    T: Kernel<BlockOn: Send, work(..): Send, init(..): Send, deinit(..): Send> + Send
+    T: Kernel<BlockOn: Send, work(..): Send, init(..): Send, deinit(..): Send>
+        + KernelInterface<stream_ports_notify_finished(..): Send, call_handler(..): Send>
+        + Send
 {
 }
 

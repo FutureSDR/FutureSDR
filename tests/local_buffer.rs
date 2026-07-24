@@ -5,7 +5,6 @@ use futuresdr::prelude::Result;
 use futuresdr::prelude::Runtime;
 use futuresdr::prelude::connect;
 use futuresdr::runtime::__private::KernelInterface;
-use futuresdr::runtime::__private::SendKernelInterface;
 use futuresdr::runtime::buffer::CpuBufferReader;
 use futuresdr::runtime::buffer::CpuBufferWriter;
 use futuresdr::runtime::buffer::DefaultCpuReader;
@@ -16,12 +15,7 @@ use futuresdr::runtime::buffer::LocalCpuReader;
 use futuresdr::runtime::buffer::LocalCpuWriter;
 use futuresdr::runtime::buffer::ThreadSafeConnect;
 use futuresdr::runtime::buffer::circuit;
-use futuresdr::runtime::dev::Kernel;
 use futuresdr::runtime::dev::SendKernel;
-
-struct TestKernel;
-
-impl Kernel for TestKernel {}
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum PlainSample {
@@ -34,7 +28,6 @@ fn assert_send_kernel<T: SendKernel>() {}
 fn assert_send<T: Send>() {}
 fn assert_thread_safe_connect<T: ThreadSafeConnect>() {}
 fn assert_kernel_interface<T: KernelInterface>() {}
-fn assert_send_kernel_interface<T: SendKernelInterface>() {}
 fn assert_local_cpu_reader<T: CpuBufferReader>() {}
 fn assert_local_cpu_writer<T: CpuBufferWriter>() {}
 fn assert_inplace_reader<T: InplaceReader>() {}
@@ -42,7 +35,6 @@ fn assert_inplace_writer<T: InplaceWriter>() {}
 
 #[test]
 fn normal_and_local_types_use_the_same_traits() {
-    assert_send_kernel::<TestKernel>();
     assert_send::<DefaultCpuReader<u8>>();
     assert_send::<DefaultCpuWriter<u8>>();
     assert_thread_safe_connect::<DefaultCpuWriter<u8>>();
@@ -62,7 +54,7 @@ fn normal_and_local_types_use_the_same_traits() {
 #[test]
 fn derived_block_interface_supports_local_buffers() {
     assert_kernel_interface::<VectorSource<u8, LocalCpuWriter<u8>>>();
-    assert_send_kernel_interface::<VectorSource<u8, DefaultCpuWriter<u8>>>();
+    assert_send_kernel::<VectorSource<u8, DefaultCpuWriter<u8>>>();
 }
 
 #[test]

@@ -3,7 +3,6 @@ use clap::Parser;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
-use futuresdr::runtime::__private::SendKernelInterface;
 use futuresdr::runtime::dev::BufferWriter;
 use futuresdr::runtime::dev::CpuBufferReader;
 use futuresdr::runtime::dev::CpuBufferWriter;
@@ -79,10 +78,10 @@ fn generate<B>(
 where
     B: BufferType,
     ReaderOf<B, i32>: CpuBufferReader<Item = i32> + 'static,
-    NullSource<i32, B::Writer<i32>>: SendKernel + SendKernelInterface,
-    Head<i32, ReaderOf<B, i32>, B::Writer<i32>>: SendKernel + SendKernelInterface,
-    Add<ReaderOf<B, i32>, B::Writer<i32>>: SendKernel + SendKernelInterface,
-    NullSink<i32, ReaderOf<B, i32>>: SendKernel + SendKernelInterface,
+    NullSource<i32, B::Writer<i32>>: SendKernel,
+    Head<i32, ReaderOf<B, i32>, B::Writer<i32>>: SendKernel,
+    Add<ReaderOf<B, i32>, B::Writer<i32>>: SendKernel,
+    NullSink<i32, ReaderOf<B, i32>>: SendKernel,
 {
     let mut fg = Flowgraph::new();
     let mut snks = Vec::new();

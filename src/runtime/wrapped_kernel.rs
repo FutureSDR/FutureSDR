@@ -30,7 +30,6 @@ use crate::runtime::dev::MessageOutputs;
 use crate::runtime::dev::SendKernel;
 use crate::runtime::dev::WorkIo;
 use crate::runtime::kernel_interface::KernelInterface;
-use crate::runtime::kernel_interface::SendKernelInterface;
 use crate::runtime::kernel_interface::stream_input;
 use crate::runtime::kernel_interface::stream_input_finish;
 use crate::runtime::kernel_interface::stream_output;
@@ -518,7 +517,7 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox + 'static> BlockObject
 #[async_trait::async_trait]
 impl<K> Block for WrappedKernel<K>
 where
-    K: SendKernel + SendKernelInterface + 'static,
+    K: SendKernel + 'static,
 {
     async fn run(&mut self, main_inbox: Sender<FlowgraphMessage>) {
         match KernelWrapper::run(self, main_inbox.clone()).await {

@@ -134,7 +134,6 @@ pub mod __private {
 
     use super::PortId;
     pub use super::kernel_interface::KernelInterface;
-    pub use super::kernel_interface::SendKernelInterface;
 
     #[doc(hidden)]
     pub fn port_id_matches(port_id: &PortId, index: usize, name: &str) -> bool {

@@ -21,7 +21,6 @@ use crate::runtime::buffer::PortManifest;
 use crate::runtime::dev::Kernel;
 use crate::runtime::dev::SendKernel;
 use crate::runtime::kernel_interface::KernelInterface;
-use crate::runtime::kernel_interface::SendKernelInterface;
 use crate::runtime::kernel_interface::stream_input_manifest;
 use crate::runtime::kernel_interface::stream_output_manifest;
 use crate::runtime::local_domain::LocalDomainRuntime;
@@ -467,7 +466,7 @@ impl Flowgraph {
     #[cfg(not(target_arch = "wasm32"))]
     pub fn add<K>(&mut self, block: K) -> Result<BlockRef<K>, Error>
     where
-        K: SendKernel + SendKernelInterface + 'static,
+        K: SendKernel + 'static,
     {
         block_on(self.add_async(block))
     }
@@ -478,7 +477,7 @@ impl Flowgraph {
     /// for manual flowgraph construction.
     pub async fn add_async<K>(&mut self, block: K) -> Result<BlockRef<K>, Error>
     where
-        K: SendKernel + SendKernelInterface + 'static,
+        K: SendKernel + 'static,
     {
         if <K as KernelInterface>::is_blocking() {
             let domain = self.local_domain()?;
@@ -492,7 +491,7 @@ impl Flowgraph {
 
     fn add_normal_kernel<K>(&mut self, block: K) -> BlockRef<K>
     where
-        K: SendKernel + SendKernelInterface + 'static,
+        K: SendKernel + 'static,
     {
         let block_id = BlockId(self.blocks.len());
         let mut b = WrappedKernel::new(block, block_id);
