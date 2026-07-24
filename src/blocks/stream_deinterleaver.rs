@@ -24,7 +24,7 @@ use crate::runtime::dev::prelude::*;
 #[derive(Block)]
 pub struct StreamDeinterleaver<T, I = DefaultCpuReader<T>, O = DefaultCpuWriter<T>>
 where
-    T: Copy + Send + Sync + 'static,
+    T: CpuSample,
     I: CpuBufferReader<Item = T>,
     O: CpuBufferWriter<Item = T>,
 {
@@ -37,7 +37,7 @@ where
 
 impl<T, I, O> StreamDeinterleaver<T, I, O>
 where
-    T: Copy + Send + Sync + 'static,
+    T: CpuSample,
     I: CpuBufferReader<Item = T>,
     O: CpuBufferWriter<Item = T>,
 {
@@ -54,7 +54,7 @@ where
 #[doc(hidden)]
 impl<T, I, O> Kernel for StreamDeinterleaver<T, I, O>
 where
-    T: Copy + Send + Sync + 'static,
+    T: CpuSample,
     I: CpuBufferReader<Item = T>,
     O: CpuBufferWriter<Item = T>,
 {

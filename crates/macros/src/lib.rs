@@ -892,10 +892,6 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
             where_clause
                 .predicates
                 .push(parse_quote!(#ty: ::futuresdr::runtime::buffer::BufferWriter));
-            where_clause.predicates.push(parse_quote!(
-                <#ty as ::futuresdr::runtime::buffer::BufferWriter>::Mode:
-                    ::futuresdr::runtime::buffer::BufferWriterTokenPolicy<#ty>
-            ));
         }
     }
     let (kernel_interface_impl_generics, _, kernel_interface_where_clause) =

@@ -21,7 +21,7 @@ use crate::runtime::dev::prelude::*;
 #[derive(Block)]
 pub struct SubSource<T, O = DefaultCpuWriter<T>>
 where
-    T: Send + 'static,
+    T: CpuSample + bytemuck::Pod,
     O: CpuBufferWriter<Item = T>,
 {
     #[output]
@@ -32,7 +32,7 @@ where
 
 impl<T, O> SubSource<T, O>
 where
-    T: Send + 'static,
+    T: CpuSample + bytemuck::Pod,
     O: CpuBufferWriter<Item = T>,
 {
     /// Create SubSource block
@@ -48,7 +48,7 @@ where
 #[doc(hidden)]
 impl<T, O> Kernel for SubSource<T, O>
 where
-    T: Send + 'static,
+    T: CpuSample + bytemuck::Pod,
     O: CpuBufferWriter<Item = T>,
 {
     async fn work(
@@ -58,13 +58,11 @@ where
         _meta: &BlockMeta,
     ) -> Result<()> {
         let o = self.output.slice();
-        let ptr = o.as_ptr() as *mut u8;
-        let byte_len = std::mem::size_of_val(o);
-        let buffer = unsafe { std::slice::from_raw_parts_mut(ptr, byte_len) };
+        let buffer = bytemuck::cast_slice_mut(o);
 
         let n_bytes = self.receiver.as_mut().unwrap().recv_into(buffer, 0)?;
-        debug_assert_eq!(o.len() % std::mem::size_of::<T>(), 0);
-        let n = n_bytes / std::mem::size_of::<T>();
+        debug_assert_eq!(n_bytes % T::SIZE.get(), 0);
+        let n = n_bytes / T::SIZE.get();
         debug!("SubSource received {}", n);
         self.output.produce(n);
 
@@ -87,7 +85,7 @@ where
 /// Build a ZeroMQ [SubSource].
 pub struct SubSourceBuilder<T, O = DefaultCpuWriter<T>>
 where
-    T: Send + 'static,
+    T: CpuSample + bytemuck::Pod,
     O: CpuBufferWriter<Item = T>,
 {
     address: String,
@@ -96,7 +94,7 @@ where
 
 impl<T, O> SubSourceBuilder<T, O>
 where
-    T: Send + 'static,
+    T: CpuSample + bytemuck::Pod,
     O: CpuBufferWriter<Item = T>,
 {
     /// Create SubSource builder
@@ -122,7 +120,7 @@ where
 
 impl<T, O> Default for SubSourceBuilder<T, O>
 where
-    T: Send + 'static,
+    T: CpuSample + bytemuck::Pod,
     O: CpuBufferWriter<Item = T>,
 {
     fn default() -> Self {

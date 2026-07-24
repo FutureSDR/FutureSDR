@@ -32,9 +32,9 @@ pub struct Combine<
     OUT = DefaultCpuWriter<C>,
 > where
     F: FnMut(&A, &B) -> C + Send + 'static,
-    A: Send + 'static,
-    B: Send + 'static,
-    C: Send + 'static,
+    A: CpuSample,
+    B: CpuSample,
+    C: CpuSample,
     INA: CpuBufferReader<Item = A>,
     INB: CpuBufferReader<Item = B>,
     OUT: CpuBufferWriter<Item = C>,
@@ -67,9 +67,9 @@ where
 impl<F, A, B, C, INA, INB, OUT> Combine<F, A, B, C, INA, INB, OUT>
 where
     F: FnMut(&A, &B) -> C + Send + 'static,
-    A: Send + 'static,
-    B: Send + 'static,
-    C: Send + 'static,
+    A: CpuSample,
+    B: CpuSample,
+    C: CpuSample,
     INA: CpuBufferReader<Item = A>,
     INB: CpuBufferReader<Item = B>,
     OUT: CpuBufferWriter<Item = C>,
@@ -92,9 +92,9 @@ where
 impl<F, A, B, C, INA, INB, OUT> Kernel for Combine<F, A, B, C, INA, INB, OUT>
 where
     F: FnMut(&A, &B) -> C + Send + 'static,
-    A: Send + 'static,
-    B: Send + 'static,
-    C: Send + 'static,
+    A: CpuSample,
+    B: CpuSample,
+    C: CpuSample,
     INA: CpuBufferReader<Item = A>,
     INB: CpuBufferReader<Item = B>,
     OUT: CpuBufferWriter<Item = C>,

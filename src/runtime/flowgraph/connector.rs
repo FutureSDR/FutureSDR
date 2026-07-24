@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use std::sync::Mutex;
 
 use crate::runtime::BlockId;
 use crate::runtime::BlockPortCtx;
@@ -12,8 +11,10 @@ use crate::runtime::block::BlockObject;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferRequirements;
 use crate::runtime::buffer::BufferWriter;
-use crate::runtime::buffer::DynSendBufferWriterToken;
+use crate::runtime::buffer::DynThreadSafeConnect;
+use crate::runtime::buffer::DynThreadSafeToken;
 use crate::runtime::buffer::PortManifest;
+use crate::runtime::buffer::ThreadSafeConnect;
 
 use super::Flowgraph;
 use super::prepare::ResolvedEdge;
@@ -37,42 +38,6 @@ impl ResolvedStreamGroup {
 
     fn push(&mut self, dst_block: BlockId, dst_port: PortIndex) {
         self.dsts.push((dst_block, dst_port));
-    }
-}
-
-struct StreamOutputSendTokenLease {
-    location: BlockLocation,
-    port_id: PortId,
-    token: Arc<Mutex<Option<Box<dyn DynSendBufferWriterToken>>>>,
-}
-
-impl StreamOutputSendTokenLease {
-    fn new(
-        location: BlockLocation,
-        port_id: PortId,
-        token: Box<dyn DynSendBufferWriterToken>,
-    ) -> Self {
-        Self {
-            location,
-            port_id,
-            token: Arc::new(Mutex::new(Some(token))),
-        }
-    }
-
-    fn shared_token(&self) -> Arc<Mutex<Option<Box<dyn DynSendBufferWriterToken>>>> {
-        Arc::clone(&self.token)
-    }
-
-    fn into_parts(
-        self,
-    ) -> Result<(BlockLocation, PortId, Box<dyn DynSendBufferWriterToken>), Error> {
-        let token = self
-            .token
-            .lock()
-            .map_err(|_| Error::LockError)?
-            .take()
-            .ok_or(Error::LockError)?;
-        Ok((self.location, self.port_id, token))
     }
 }
 
@@ -165,7 +130,7 @@ impl<'a> FlowgraphConnector<'a> {
     where
         KS: 'static,
         KD: 'static,
-        B: BufferWriter,
+        B: ThreadSafeConnect,
         FS: FnOnce(&mut KS) -> &mut B + Send + 'static,
         FD: FnOnce(&mut KD) -> &mut B::Reader + Send + 'static,
     {
@@ -210,51 +175,24 @@ impl<'a> FlowgraphConnector<'a> {
             .await
     }
 
-    async fn lease_stream_output_send_token(
+    async fn take_stream_input_connect_token(
         &mut self,
         location: BlockLocation,
         port: PortIndex,
         requirements: BufferRequirements,
-    ) -> Result<StreamOutputSendTokenLease, Error> {
+        connect: Arc<dyn DynThreadSafeConnect>,
+    ) -> Result<DynThreadSafeToken, Error> {
         let port_id = PortId::Index(port);
-        let port_id_for_block = port_id.clone();
-        let token = self
-            .flowgraph
-            .with_block_mut(location, move |block| {
-                let writer = block
-                    .stream_output(&port_id_for_block)
-                    .map_err(|e| match e {
-                        Error::InvalidStreamPort(_, port) => {
-                            Error::InvalidStreamPort(BlockPortCtx::Id(location.block_id), port)
-                        }
-                        o => o,
-                    })?;
-                writer.raise_buffer_requirements(requirements);
-                writer.take_send_token().map_err(|e| match e {
-                    Error::InvalidStreamPort(_, port) => {
-                        Error::InvalidStreamPort(BlockPortCtx::Id(location.block_id), port)
-                    }
-                    o => o,
-                })
-            })
-            .await?;
-        Ok(StreamOutputSendTokenLease::new(location, port_id, token))
-    }
-
-    async fn restore_stream_output_send_token(
-        &mut self,
-        lease: StreamOutputSendTokenLease,
-    ) -> Result<(), Error> {
-        let (location, port_id, token) = lease.into_parts()?;
         self.flowgraph
             .with_block_mut(location, move |block| {
-                let writer = block.stream_output(&port_id).map_err(|e| match e {
+                let reader = block.stream_input(&port_id).map_err(|e| match e {
                     Error::InvalidStreamPort(_, port) => {
                         Error::InvalidStreamPort(BlockPortCtx::Id(location.block_id), port)
                     }
                     o => o,
                 })?;
-                writer.replace_send_token(token).map_err(|e| match e {
+                reader.raise_buffer_requirements(requirements);
+                connect.take_reader(reader).map_err(|e| match e {
                     Error::InvalidStreamPort(_, port) => {
                         Error::InvalidStreamPort(BlockPortCtx::Id(location.block_id), port)
                     }
@@ -264,30 +202,53 @@ impl<'a> FlowgraphConnector<'a> {
             .await
     }
 
-    async fn connect_send_token_to_input(
+    async fn connect_stream_output_token(
         &mut self,
-        lease: &StreamOutputSendTokenLease,
-        src_block_id: BlockId,
-        dst: BlockLocation,
-        dst_port: PortIndex,
-        dst_requirements: BufferRequirements,
-    ) -> Result<(), Error> {
-        let token = lease.shared_token();
+        location: BlockLocation,
+        port: PortIndex,
+        requirements: BufferRequirements,
+        token: DynThreadSafeToken,
+        connect: Arc<dyn DynThreadSafeConnect>,
+    ) -> Result<DynThreadSafeToken, Error> {
+        let port_id = PortId::Index(port);
         self.flowgraph
-            .with_block_mut(dst, move |dst_block| {
-                let mut token = token.lock().map_err(|_| Error::LockError)?;
-                let token = token.as_mut().ok_or(Error::LockError)?;
-                let dst_port_id = PortId::Index(dst_port);
-                let reader = dst_block.stream_input(&dst_port_id).map_err(|e| match e {
+            .with_block_mut(location, move |block| {
+                let writer = block.stream_output(&port_id).map_err(|e| match e {
                     Error::InvalidStreamPort(_, port) => {
-                        Error::InvalidStreamPort(BlockPortCtx::Id(dst.block_id), port)
+                        Error::InvalidStreamPort(BlockPortCtx::Id(location.block_id), port)
                     }
                     o => o,
                 })?;
-                reader.raise_buffer_requirements(dst_requirements);
-                token.connect_dyn(reader).map_err(|e| match e {
+                writer.raise_buffer_requirements(requirements);
+                connect.connect_reader(writer, token).map_err(|e| match e {
                     Error::InvalidStreamPort(_, port) => {
-                        Error::InvalidStreamPort(BlockPortCtx::Id(src_block_id), port)
+                        Error::InvalidStreamPort(BlockPortCtx::Id(location.block_id), port)
+                    }
+                    o => o,
+                })
+            })
+            .await
+    }
+
+    async fn finish_stream_input_connect(
+        &mut self,
+        token: DynThreadSafeToken,
+        location: BlockLocation,
+        port: PortIndex,
+        connect: Arc<dyn DynThreadSafeConnect>,
+    ) -> Result<(), Error> {
+        self.flowgraph
+            .with_block_mut(location, move |block| {
+                let port_id = PortId::Index(port);
+                let reader = block.stream_input(&port_id).map_err(|e| match e {
+                    Error::InvalidStreamPort(_, port) => {
+                        Error::InvalidStreamPort(BlockPortCtx::Id(location.block_id), port)
+                    }
+                    o => o,
+                })?;
+                connect.finish_reader(reader, token).map_err(|e| match e {
+                    Error::InvalidStreamPort(_, port) => {
+                        Error::InvalidStreamPort(BlockPortCtx::Id(location.block_id), port)
                     }
                     o => o,
                 })
@@ -301,31 +262,30 @@ impl<'a> FlowgraphConnector<'a> {
         src_port: PortIndex,
         src_requirements: BufferRequirements,
         dsts: &[(BlockLocation, PortIndex, BufferRequirements)],
+        connect: Arc<dyn DynThreadSafeConnect>,
     ) -> Result<(), Error> {
-        let src_block_id = src.block_id;
-        let lease = self
-            .lease_stream_output_send_token(src, src_port, src_requirements)
-            .await?;
-
-        let mut connect_result = Ok(());
         for (dst, dst_port, dst_requirements) in dsts {
-            if let Err(e) = self
-                .connect_send_token_to_input(
-                    &lease,
-                    src_block_id,
+            let token = self
+                .take_stream_input_connect_token(
                     *dst,
                     *dst_port,
                     *dst_requirements,
+                    connect.clone(),
                 )
-                .await
-            {
-                connect_result = Err(e);
-                break;
-            }
+                .await?;
+            let return_token = self
+                .connect_stream_output_token(
+                    src,
+                    src_port,
+                    src_requirements,
+                    token,
+                    connect.clone(),
+                )
+                .await?;
+            self.finish_stream_input_connect(return_token, *dst, *dst_port, connect.clone())
+                .await?;
         }
-
-        self.restore_stream_output_send_token(lease).await?;
-        connect_result
+        Ok(())
     }
 
     fn stream_groups(edges: &[ResolvedEdge]) -> Vec<ResolvedStreamGroup> {
@@ -370,9 +330,7 @@ impl<'a> FlowgraphConnector<'a> {
             let dst_manifest = self
                 .flowgraph
                 .stream_input_manifest(*dst_block, *dst_port)?;
-            if src_reader_type != dst_manifest.concrete_type_id()
-                || src_manifest.mode_type_id() != dst_manifest.mode_type_id()
-            {
+            if src_reader_type != dst_manifest.concrete_type_id() {
                 return Err(Error::ValidationError(
                     "dyn BufferReader has wrong type".to_string(),
                 ));
@@ -448,8 +406,24 @@ impl<'a> FlowgraphConnector<'a> {
             }
             Ok(())
         } else {
-            self.connect_cross_domain_stream_dyn_async(src, group.src_port, src_requirements, &dsts)
-                .await
+            let connect = self
+                .flowgraph
+                .stream_output_manifest(group.src_block, group.src_port)
+                .ok()
+                .and_then(PortManifest::thread_safe_connect)
+                .ok_or_else(|| {
+                    Error::ValidationError(
+                        "stream buffer does not provide thread-safe connection tokens".to_string(),
+                    )
+                })?;
+            self.connect_cross_domain_stream_dyn_async(
+                src,
+                group.src_port,
+                src_requirements,
+                &dsts,
+                connect,
+            )
+            .await
         }
     }
 

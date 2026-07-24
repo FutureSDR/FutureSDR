@@ -22,7 +22,7 @@ use crate::runtime::dev::prelude::*;
 /// let src = VectorSource::<u8>::new(vec![1, 2, 3]);
 /// ```
 #[derive(Block)]
-pub struct VectorSource<T: Send, O: CpuBufferWriter<Item = T> = DefaultCpuWriter<T>> {
+pub struct VectorSource<T: CpuSample, O: CpuBufferWriter<Item = T> = DefaultCpuWriter<T>> {
     items: Vec<T>,
     n_copied: usize,
     #[output]
@@ -31,7 +31,7 @@ pub struct VectorSource<T: Send, O: CpuBufferWriter<Item = T> = DefaultCpuWriter
 
 impl<T, O> VectorSource<T, O>
 where
-    T: Send + 'static,
+    T: CpuSample,
     O: CpuBufferWriter<Item = T>,
 {
     /// Create VectorSource block
@@ -47,7 +47,7 @@ where
 #[doc(hidden)]
 impl<T, O> Kernel for VectorSource<T, O>
 where
-    T: Send + 'static,
+    T: CpuSample,
     O: CpuBufferWriter<Item = T>,
 {
     async fn work(

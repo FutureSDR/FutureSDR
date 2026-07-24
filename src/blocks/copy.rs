@@ -18,7 +18,7 @@ use crate::runtime::dev::prelude::*;
 /// ```
 #[derive(Block)]
 pub struct Copy<
-    T: Send + Sync + 'static,
+    T: CpuSample,
     I: CpuBufferReader<Item = T> = DefaultCpuReader<T>,
     O: CpuBufferWriter<Item = T> = DefaultCpuWriter<T>,
 > {
@@ -30,7 +30,7 @@ pub struct Copy<
 
 impl<T, I, O> Copy<T, I, O>
 where
-    T: Send + Sync + 'static,
+    T: CpuSample,
     I: CpuBufferReader<Item = T>,
     O: CpuBufferWriter<Item = T>,
 {
@@ -45,7 +45,7 @@ where
 
 impl<T, I, O> Default for Copy<T, I, O>
 where
-    T: Send + Sync + 'static,
+    T: CpuSample,
     I: CpuBufferReader<Item = T>,
     O: CpuBufferWriter<Item = T>,
 {
@@ -57,7 +57,7 @@ where
 #[doc(hidden)]
 impl<T, I, O> Kernel for Copy<T, I, O>
 where
-    T: std::marker::Copy + Send + Sync + 'static,
+    T: CpuSample,
     I: CpuBufferReader<Item = T>,
     O: CpuBufferWriter<Item = T>,
 {

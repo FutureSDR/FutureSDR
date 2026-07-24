@@ -22,7 +22,7 @@ use crate::runtime::dev::prelude::*;
 #[derive(Block)]
 pub struct PubSink<T, I = DefaultCpuReader<T>>
 where
-    T: Send + 'static,
+    T: CpuSample + bytemuck::Pod,
     I: CpuBufferReader<Item = T>,
 {
     #[input]
@@ -34,7 +34,7 @@ where
 
 impl<T, I> PubSink<T, I>
 where
-    T: Send + 'static,
+    T: CpuSample + bytemuck::Pod,
     I: CpuBufferReader<Item = T>,
 {
     /// Create PubSink
@@ -51,7 +51,7 @@ where
 #[doc(hidden)]
 impl<T, I> Kernel for PubSink<T, I>
 where
-    T: Send + 'static,
+    T: CpuSample + bytemuck::Pod,
     I: CpuBufferReader<Item = T>,
 {
     async fn work(
@@ -65,9 +65,7 @@ where
         let n = i.len();
         if n > 0 && n > self.min_item {
             let i = self.input.slice();
-            let ptr = i.as_ptr() as *const u8;
-            let byte_len = std::mem::size_of_val(i);
-            let data = unsafe { std::slice::from_raw_parts(ptr, byte_len) };
+            let data = bytemuck::cast_slice(i);
             self.publisher.as_mut().unwrap().send(data, 0).unwrap();
             self.input.consume(n);
         }
@@ -93,7 +91,7 @@ where
 /// Build a ZeroMQ [PubSink].
 pub struct PubSinkBuilder<T, I = DefaultCpuReader<T>>
 where
-    T: Send + 'static,
+    T: CpuSample + bytemuck::Pod,
     I: CpuBufferReader<Item = T>,
 {
     address: String,
@@ -104,7 +102,7 @@ where
 
 impl<T, I> PubSinkBuilder<T, I>
 where
-    T: Send + 'static,
+    T: CpuSample + bytemuck::Pod,
     I: CpuBufferReader<Item = T>,
 {
     /// Create PubSink builder
@@ -137,7 +135,7 @@ where
 
 impl<T, I> Default for PubSinkBuilder<T, I>
 where
-    T: Send + 'static,
+    T: CpuSample + bytemuck::Pod,
     I: CpuBufferReader<Item = T>,
 {
     fn default() -> Self {

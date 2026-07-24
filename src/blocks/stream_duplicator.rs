@@ -32,7 +32,7 @@ pub struct StreamDuplicator<
 
 impl<T, const N: usize, I, O> StreamDuplicator<T, N, I, O>
 where
-    T: Copy + Send + Sync + 'static,
+    T: CpuSample,
     I: CpuBufferReader<Item = T>,
     O: CpuBufferWriter<Item = T>,
 {
@@ -59,7 +59,7 @@ where
 
 impl<T, const N: usize, I, O> Default for StreamDuplicator<T, N, I, O>
 where
-    T: Copy + Send + Sync + 'static,
+    T: CpuSample,
     I: CpuBufferReader<Item = T>,
     O: CpuBufferWriter<Item = T>,
 {
@@ -71,7 +71,7 @@ where
 #[doc(hidden)]
 impl<T, const N: usize, I, O> Kernel for StreamDuplicator<T, N, I, O>
 where
-    T: Copy + Send + Sync + 'static,
+    T: CpuSample,
     I: CpuBufferReader<Item = T>,
     O: CpuBufferWriter<Item = T>,
 {

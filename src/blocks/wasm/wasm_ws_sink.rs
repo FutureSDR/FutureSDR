@@ -30,7 +30,7 @@ use crate::runtime::dev::prelude::*;
 #[derive(Block)]
 pub struct WasmWsSink<T>
 where
-    T: CpuSample,
+    T: CpuSample + bytemuck::Pod,
 {
     #[input]
     input: slab::Reader<T>,
@@ -43,7 +43,7 @@ where
 
 impl<T> WasmWsSink<T>
 where
-    T: CpuSample,
+    T: CpuSample + bytemuck::Pod,
 {
     /// Create WASM Websocket Sink block
     pub fn new(url: String, iterations_per_send: usize) -> Self {
@@ -95,7 +95,7 @@ where
 #[doc(hidden)]
 impl<T> Kernel for WasmWsSink<T>
 where
-    T: CpuSample,
+    T: CpuSample + bytemuck::Pod,
 {
     async fn work(
         &mut self,
@@ -120,18 +120,17 @@ where
 
         // Do not process data until at least `items_to_process_per_run` are in the input buffer.
         if items_to_process_per_run <= i_len {
-            let len_bytes = items_to_process_per_run * std::mem::size_of::<T>();
-            let s = unsafe { std::slice::from_raw_parts(i.as_ptr() as *const u8, len_bytes) };
+            let s = bytemuck::cast_slice(&i[..items_to_process_per_run]);
             self.data_storage.extend_from_slice(s);
 
             self.input.consume(items_to_process_per_run);
 
             // Send data only if the `iterations_per_send` is reached.
             if self.data_storage.len()
-                >= items_to_process_per_run * self.iterations_per_send * std::mem::size_of::<T>()
+                >= items_to_process_per_run * self.iterations_per_send * T::SIZE.get()
             {
                 let mut movable_vector = Vec::with_capacity(
-                    items_to_process_per_run * self.iterations_per_send * std::mem::size_of::<T>(),
+                    items_to_process_per_run * self.iterations_per_send * T::SIZE.get(),
                 );
                 std::mem::swap(&mut self.data_storage, &mut movable_vector);
                 // If send fails, we cannot gracefully recover so we panic.

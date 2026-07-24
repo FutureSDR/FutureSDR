@@ -39,7 +39,7 @@ struct LocalDomainPlan {
     block_ids: Vec<BlockId>,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone)]
 pub(super) struct ResolvedEdge {
     pub(super) src_block: BlockId,
     pub(super) src_port: PortIndex,
@@ -62,7 +62,16 @@ impl ResolvedEdge {
         }
     }
 
-    fn from_indexed_edge(edge: Edge) -> Self {
+    fn from_indexed_stream_edge(edge: Edge) -> Self {
+        Self {
+            src_block: edge.src_block,
+            src_port: edge.src_port.index_value(),
+            dst_block: edge.dst_block,
+            dst_port: edge.dst_port.index_value(),
+        }
+    }
+
+    fn from_indexed_message_edge(edge: Edge) -> Self {
         Self::new(
             edge.src_block,
             edge.src_port.index_value(),
@@ -71,6 +80,17 @@ impl ResolvedEdge {
         )
     }
 }
+
+impl PartialEq for ResolvedEdge {
+    fn eq(&self, other: &Self) -> bool {
+        self.src_block == other.src_block
+            && self.src_port == other.src_port
+            && self.dst_block == other.dst_block
+            && self.dst_port == other.dst_port
+    }
+}
+
+impl Eq for ResolvedEdge {}
 
 struct GraphPlan {
     registry: Arc<RunningFlowgraphRegistry>,
@@ -587,12 +607,13 @@ impl FlowgraphCompiler {
             .iter()
             .map(|edge| flowgraph.named_stream_edge(edge))
             .collect::<Result<Vec<_>, _>>()?;
-        let stream_edges = stream_edges_public
+        let indexed_stream_edges = stream_edges_public
             .iter()
             .map(|edge| flowgraph.indexed_stream_edge(edge))
-            .collect::<Result<Vec<_>, _>>()?
+            .collect::<Result<Vec<_>, _>>()?;
+        let stream_edges = indexed_stream_edges
             .into_iter()
-            .map(ResolvedEdge::from_indexed_edge)
+            .map(ResolvedEdge::from_indexed_stream_edge)
             .collect::<Vec<_>>();
         let message_edges_public = flowgraph.message_edges.clone();
         let message_edges = message_edges_public
@@ -600,7 +621,7 @@ impl FlowgraphCompiler {
             .map(|edge| flowgraph.indexed_message_edge(edge))
             .collect::<Result<Vec<_>, _>>()?
             .into_iter()
-            .map(ResolvedEdge::from_indexed_edge)
+            .map(ResolvedEdge::from_indexed_message_edge)
             .collect::<Vec<_>>();
         let block_locations = flowgraph.block_locations()?;
 

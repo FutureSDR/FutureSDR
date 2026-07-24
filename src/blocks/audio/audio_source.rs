@@ -1,4 +1,3 @@
-use crate::runtime::buffer::SendBufferWriter;
 use crate::runtime::dev::prelude::*;
 use cpal::BufferSize;
 use cpal::Stream;
@@ -40,10 +39,6 @@ where
     rx: Option<mpsc::Receiver<Vec<f32>>>,
     buff: Option<(Vec<f32>, usize)>,
 }
-
-// cpal::Stream is !Send
-#[allow(clippy::non_send_fields_in_send_ty)]
-unsafe impl<O> Send for AudioSource<O> where O: CpuBufferWriter<Item = f32> + SendBufferWriter {}
 
 const QUEUE_SIZE: usize = 5;
 

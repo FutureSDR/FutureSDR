@@ -20,7 +20,7 @@ use crate::runtime::dev::prelude::*;
 pub struct Sink<F, A, I = DefaultCpuReader<A>>
 where
     F: FnMut(&A) + Send + 'static,
-    A: Send + 'static,
+    A: CpuSample,
     I: CpuBufferReader<Item = A>,
 {
     #[input]
@@ -42,7 +42,7 @@ where
 impl<F, A, I> Sink<F, A, I>
 where
     F: FnMut(&A) + Send + 'static,
-    A: Send + 'static,
+    A: CpuSample,
     I: CpuBufferReader<Item = A>,
 {
     /// Create Sink block with a custom stream buffer.
@@ -58,7 +58,7 @@ where
 impl<F, A, I> Kernel for Sink<F, A, I>
 where
     F: FnMut(&A) + Send + 'static,
-    A: Send + 'static,
+    A: CpuSample,
     I: CpuBufferReader<Item = A>,
 {
     async fn work(

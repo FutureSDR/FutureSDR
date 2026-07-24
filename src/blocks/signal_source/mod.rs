@@ -29,7 +29,7 @@ use std::marker::PhantomData;
 #[derive(Block)]
 pub struct SignalSource<A, F, O = DefaultCpuWriter<A>>
 where
-    A: Send + 'static,
+    A: CpuSample,
     F: FnMut(FixedPointPhase) -> A + Send + 'static,
     O: CpuBufferWriter<Item = A>,
 {
@@ -42,7 +42,7 @@ where
 
 impl<A, F> SignalSource<A, F, DefaultCpuWriter<A>>
 where
-    A: CpuSample + Copy + std::ops::Mul<Output = A> + std::ops::Add<Output = A>,
+    A: CpuSample + std::ops::Mul<Output = A> + std::ops::Add<Output = A>,
     F: FnMut(FixedPointPhase) -> A + Send + 'static,
 {
     /// Create SignalSource block with the default stream buffer.
@@ -53,7 +53,7 @@ where
 
 impl<A, F, O> SignalSource<A, F, O>
 where
-    A: Copy + Send + 'static + std::ops::Mul<Output = A> + std::ops::Add<Output = A>,
+    A: CpuSample + std::ops::Mul<Output = A> + std::ops::Add<Output = A>,
     F: FnMut(FixedPointPhase) -> A + Send + 'static,
     O: CpuBufferWriter<Item = A>,
 {
@@ -76,9 +76,7 @@ where
 #[doc(hidden)]
 impl<A, F, O> Kernel for SignalSource<A, F, O>
 where
-    A: Copy
-        + Send
-        + 'static
+    A: CpuSample
         + std::ops::Mul<f32, Output = A>
         + std::ops::Mul<Output = A>
         + std::ops::Add<Output = A>,

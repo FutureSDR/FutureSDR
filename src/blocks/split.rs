@@ -32,9 +32,9 @@ pub struct Split<
     O1 = DefaultCpuWriter<C>,
 > where
     F: FnMut(&A) -> (B, C) + Send + 'static,
-    A: Send + 'static,
-    B: Send + 'static,
-    C: Send + 'static,
+    A: CpuSample,
+    B: CpuSample,
+    C: CpuSample,
     I: CpuBufferReader<Item = A>,
     O0: CpuBufferWriter<Item = B>,
     O1: CpuBufferWriter<Item = C>,
@@ -51,9 +51,9 @@ pub struct Split<
 impl<F, A, B, C, I, O0, O1> Split<F, A, B, C, I, O0, O1>
 where
     F: FnMut(&A) -> (B, C) + Send + 'static,
-    A: Send + 'static,
-    B: Send + 'static,
-    C: Send + 'static,
+    A: CpuSample,
+    B: CpuSample,
+    C: CpuSample,
     I: CpuBufferReader<Item = A>,
     O0: CpuBufferWriter<Item = B>,
     O1: CpuBufferWriter<Item = C>,
@@ -85,9 +85,9 @@ where
 impl<F, A, B, C, I, O1, O2> Kernel for Split<F, A, B, C, I, O1, O2>
 where
     F: FnMut(&A) -> (B, C) + Send + 'static,
-    A: Send + 'static,
-    B: Send + 'static,
-    C: Send + 'static,
+    A: CpuSample,
+    B: CpuSample,
+    C: CpuSample,
     I: CpuBufferReader<Item = A>,
     O1: CpuBufferWriter<Item = B>,
     O2: CpuBufferWriter<Item = C>,

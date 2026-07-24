@@ -24,7 +24,7 @@ use crate::runtime::dev::prelude::*;
 #[derive(Block)]
 pub struct TagDebug<T, I = DefaultCpuReader<T>>
 where
-    T: Send + 'static,
+    T: CpuSample,
     I: CpuBufferReader<Item = T>,
 {
     #[input]
@@ -35,7 +35,7 @@ where
 
 impl<T, I> TagDebug<T, I>
 where
-    T: Send + 'static,
+    T: CpuSample,
     I: CpuBufferReader<Item = T>,
 {
     /// Create Tag Debug block
@@ -51,7 +51,7 @@ where
 #[doc(hidden)]
 impl<T, I> Kernel for TagDebug<T, I>
 where
-    T: Send + 'static,
+    T: CpuSample,
     I: CpuBufferReader<Item = T>,
 {
     async fn work(

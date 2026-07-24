@@ -10,16 +10,15 @@ use crate::runtime::Error;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
 use crate::runtime::block_on;
+use crate::runtime::buffer::BlockInbox;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::CpuBufferReader;
 use crate::runtime::buffer::CpuBufferWriter;
 use crate::runtime::buffer::CpuSample;
 use crate::runtime::buffer::Tags;
-use crate::runtime::buffer::ThreadSafeMode;
 use crate::runtime::channel::mpsc::Receiver;
 use crate::runtime::channel::mpsc::unbounded;
-use crate::runtime::dev::BlockInbox;
 use crate::runtime::dev::BlockMeta;
 use crate::runtime::dev::BlockNotifier;
 use crate::runtime::dev::ItemTag;
@@ -252,7 +251,7 @@ impl<T: Debug + Send + 'static> Default for Reader<T> {
 }
 
 impl<T: Debug + Send + 'static> BufferReader for Reader<T> {
-    type Mode = ThreadSafeMode;
+    type Inbox = BlockInbox;
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
@@ -362,7 +361,7 @@ impl<T: Clone + Debug + Send + 'static> Writer<T> {
 }
 
 impl<T: Clone + Debug + Send + 'static> BufferWriter for Writer<T> {
-    type Mode = ThreadSafeMode;
+    type Inbox = BlockInbox;
     type Reader = Reader<T>;
 
     fn init(&mut self, block_id: BlockId, port_id: PortId, _inbox: BlockInbox) {

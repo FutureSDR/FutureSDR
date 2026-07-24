@@ -42,8 +42,8 @@ pub struct ApplyNM<
     O = DefaultCpuWriter<B>,
 > where
     F: FnMut(&[A], &mut [B]) + Send + 'static,
-    A: Send + 'static,
-    B: Send + 'static,
+    A: CpuSample,
+    B: CpuSample,
     I: CpuBufferReader<Item = A>,
     O: CpuBufferWriter<Item = B>,
 {
@@ -70,8 +70,8 @@ where
 impl<F, A, B, const N: usize, const M: usize, I, O> ApplyNM<F, A, B, N, M, I, O>
 where
     F: FnMut(&[A], &mut [B]) + Send + 'static,
-    A: Send + 'static,
-    B: Send + 'static,
+    A: CpuSample,
+    B: CpuSample,
     I: CpuBufferReader<Item = A>,
     O: CpuBufferWriter<Item = B>,
 {
@@ -89,8 +89,8 @@ where
 impl<F, A, B, const N: usize, const M: usize, I, O> Kernel for ApplyNM<F, A, B, N, M, I, O>
 where
     F: FnMut(&[A], &mut [B]) + Send + 'static,
-    A: Send + 'static,
-    B: Send + 'static,
+    A: CpuSample,
+    B: CpuSample,
     I: CpuBufferReader<Item = A>,
     O: CpuBufferWriter<Item = B>,
 {
@@ -108,7 +108,9 @@ where
         // on auto-vectorization of these types of functions.
         let m = std::cmp::min(i.len() / N, o.len() / M);
         if m > 0 {
-            for (v, r) in i.chunks_exact(N).zip(o.chunks_exact_mut(M)) {
+            let (input_chunks, _) = i.as_chunks::<N>();
+            let (output_chunks, _) = o.as_chunks_mut::<M>();
+            for (v, r) in input_chunks.iter().zip(output_chunks.iter_mut()) {
                 (self.f)(v, r);
             }
 

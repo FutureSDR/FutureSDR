@@ -28,9 +28,9 @@ pub struct ApplyIntoIter<
     O = DefaultCpuWriter<<B as IntoIterator>::Item>,
 > where
     F: FnMut(&A) -> B + Send + 'static,
-    A: Send + Sync + 'static,
+    A: CpuSample,
     B: Send + 'static + IntoIterator,
-    <B as IntoIterator>::Item: Send + Sync + 'static,
+    <B as IntoIterator>::Item: CpuSample,
     I: CpuBufferReader<Item = A>,
     O: CpuBufferWriter<Item = B::Item>,
 {
@@ -63,9 +63,9 @@ where
 impl<F, A, B, I, O> ApplyIntoIter<F, A, B, I, O>
 where
     F: FnMut(&A) -> B + Send + 'static,
-    A: Send + Sync + 'static,
+    A: CpuSample,
     B: Send + 'static + IntoIterator,
-    <B as IntoIterator>::Item: Send + Sync + 'static,
+    <B as IntoIterator>::Item: CpuSample,
     <B as IntoIterator>::IntoIter: Send,
     I: CpuBufferReader<Item = A>,
     O: CpuBufferWriter<Item = B::Item>,
@@ -88,9 +88,9 @@ where
 impl<F, A, B, I, O> Kernel for ApplyIntoIter<F, A, B, I, O>
 where
     F: FnMut(&A) -> B + Send + 'static,
-    A: Send + Sync + 'static,
+    A: CpuSample,
     B: Send + Sync + 'static + IntoIterator,
-    <B as IntoIterator>::Item: Send + Sync + 'static,
+    <B as IntoIterator>::Item: CpuSample,
     <B as IntoIterator>::IntoIter: Send,
     I: CpuBufferReader<Item = A>,
     O: CpuBufferWriter<Item = B::Item>,

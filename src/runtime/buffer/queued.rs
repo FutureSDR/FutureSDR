@@ -3,7 +3,6 @@ use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::marker::PhantomData;
-use std::mem::size_of;
 use std::rc::Rc;
 use std::sync::Arc;
 #[cfg(not(target_arch = "wasm32"))]
@@ -84,8 +83,8 @@ mod wasm_spin {
 use crate::runtime::BlockId;
 use crate::runtime::Error;
 use crate::runtime::PortId;
+use crate::runtime::buffer::BlockInbox;
 use crate::runtime::buffer::BufferInbox;
-use crate::runtime::buffer::BufferMode;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferRequirements;
 use crate::runtime::buffer::BufferWriter;
@@ -97,7 +96,7 @@ use crate::runtime::buffer::PortConfig;
 use crate::runtime::buffer::PortCore;
 use crate::runtime::buffer::PortEndpoint;
 use crate::runtime::buffer::Tags;
-use crate::runtime::buffer::ThreadSafeMode;
+use crate::runtime::buffer::ThreadSafeConnect;
 use crate::runtime::config;
 use crate::runtime::dev::ItemTag;
 
@@ -197,36 +196,61 @@ impl<D: CpuSample> SharedState<D> for SendState<D> {
 
 /// Queue-backed CPU writer.
 #[derive(Debug)]
-pub struct Writer<D, S, M = ThreadSafeMode>
+pub struct Writer<D, S, I = BlockInbox>
 where
     D: CpuSample,
     S: SharedState<D>,
-    M: BufferMode,
+    I: BufferInbox,
 {
-    core: PortCore<M>,
-    state: ConnectionState<ConnectedWriter<D, S, M>>,
+    core: PortCore<I>,
+    state: ConnectionState<ConnectedWriter<D, S, I>>,
     current: Option<CurrentBuffer<D>>,
     tags: Vec<ItemTag>,
 }
 
 #[derive(Debug)]
-struct ConnectedWriter<D, S, M>
+struct ConnectedWriter<D, S, I>
 where
     D: CpuSample,
     S: SharedState<D>,
-    M: BufferMode,
+    I: BufferInbox,
 {
     state: S,
     reserved_items: usize,
-    reader: PortEndpoint<M>,
+    reader: PortEndpoint<I>,
     _marker: PhantomData<D>,
 }
 
-impl<D, S, M> Writer<D, S, M>
+/// Reader offer for a queue-backed cross-domain connection.
+#[doc(hidden)]
+pub struct ThreadSafeConnectToken<D, S>
+where
+    D: CpuSample,
+    S: SharedState<D> + Send,
+{
+    reader: PortEndpoint<BlockInbox>,
+    reader_min_items: Option<usize>,
+    reader_min_buffer_size: Option<usize>,
+    _state: PhantomData<fn() -> S>,
+    _item: PhantomData<D>,
+}
+
+/// Reader installation returned by the queue-backed writer.
+#[doc(hidden)]
+pub struct ThreadSafeReturnToken<D, S>
+where
+    D: CpuSample,
+    S: SharedState<D> + Send,
+{
+    connected: ConnectedReader<D, S, BlockInbox>,
+    min_buffer_size: usize,
+}
+
+impl<D, S, I> Writer<D, S, I>
 where
     D: CpuSample,
     S: SharedState<D>,
-    M: BufferMode,
+    I: BufferInbox,
 {
     /// Create a queue-backed CPU writer.
     pub fn new() -> Self {
@@ -239,27 +263,27 @@ where
     }
 }
 
-impl<D, S, M> Default for Writer<D, S, M>
+impl<D, S, I> Default for Writer<D, S, I>
 where
     D: CpuSample,
     S: SharedState<D>,
-    M: BufferMode,
+    I: BufferInbox,
 {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<D, S, M> BufferWriter for Writer<D, S, M>
+impl<D, S, I> BufferWriter for Writer<D, S, I>
 where
     D: CpuSample,
     S: SharedState<D>,
-    M: BufferMode,
+    I: BufferInbox,
 {
-    type Mode = M;
-    type Reader = Reader<D, S, M>;
+    type Inbox = I;
+    type Reader = Reader<D, S, I>;
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: M::Inbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: I) {
         self.core.init(block_id, port_id, inbox);
     }
 
@@ -295,7 +319,7 @@ where
             // requested usable size in addition to the reserved prefix.
             reserved_items + std::cmp::max(min_self, min_reader)
         } else {
-            config::config().buffer_size / size_of::<D>()
+            config::config().buffer_size / D::SIZE.get()
         };
 
         min_items = std::cmp::max(min_items, reserved_items + 1);
@@ -367,11 +391,84 @@ where
     }
 }
 
-impl<D, S, M> CpuBufferWriter for Writer<D, S, M>
+impl<D, S> ThreadSafeConnect for Writer<D, S, BlockInbox>
+where
+    D: CpuSample,
+    S: SharedState<D> + Send,
+{
+    type ReaderToken = ThreadSafeConnectToken<D, S>;
+    type WriterToken = ThreadSafeReturnToken<D, S>;
+
+    fn take_reader_token(reader: &mut Reader<D, S, BlockInbox>) -> Self::ReaderToken {
+        ThreadSafeConnectToken {
+            reader: PortEndpoint::new(reader.core.inbox(), reader.core.port_id()),
+            reader_min_items: reader.core.min_items(),
+            reader_min_buffer_size: reader.core.min_buffer_size_in_items(),
+            _state: PhantomData,
+            _item: PhantomData,
+        }
+    }
+
+    fn connect_reader(&mut self, token: Self::ReaderToken) -> Self::WriterToken {
+        let buffer_size_configured = self.core.min_buffer_size_in_items().is_some()
+            || token.reader_min_buffer_size.is_some();
+        let reserved_items = token.reader_min_items.unwrap_or(0);
+
+        let mut min_items = if buffer_size_configured {
+            let min_self = self.core.min_buffer_size_in_items().unwrap_or(0);
+            let min_reader = token.reader_min_buffer_size.unwrap_or(0);
+            reserved_items + std::cmp::max(min_self, min_reader)
+        } else {
+            config::config().buffer_size / D::SIZE.get()
+        };
+
+        min_items = std::cmp::max(min_items, reserved_items + 1);
+        let min_buffer_size = min_items - reserved_items;
+
+        let state = S::new(State {
+            writer_input: VecDeque::new(),
+            reader_input: VecDeque::new(),
+        });
+        state.with_mut(|state| {
+            for _ in 0..2 {
+                state.writer_input.push_back(BufferEmpty {
+                    buffer: vec![D::default(); min_items].into_boxed_slice(),
+                });
+            }
+        });
+
+        self.core.set_min_buffer_size_in_items(min_buffer_size);
+        self.state.set_connected(ConnectedWriter {
+            state: state.clone(),
+            reserved_items,
+            reader: token.reader,
+            _marker: PhantomData,
+        });
+
+        ThreadSafeReturnToken {
+            connected: ConnectedReader {
+                state,
+                reserved_items,
+                writer: PortEndpoint::new(self.core.inbox(), self.core.port_id()),
+                _marker: PhantomData,
+            },
+            min_buffer_size,
+        }
+    }
+
+    fn finish_reader(reader: &mut Reader<D, S, BlockInbox>, token: Self::WriterToken) {
+        reader
+            .core
+            .set_min_buffer_size_in_items(token.min_buffer_size);
+        reader.state.set_connected(token.connected);
+    }
+}
+
+impl<D, S, I> CpuBufferWriter for Writer<D, S, I>
 where
     D: CpuSample,
     S: SharedState<D>,
-    M: BufferMode,
+    I: BufferInbox,
 {
     type Item = D;
 
@@ -455,37 +552,37 @@ where
 
 /// Queue-backed CPU reader.
 #[derive(Debug)]
-pub struct Reader<D, S, M = ThreadSafeMode>
+pub struct Reader<D, S, I = BlockInbox>
 where
     D: CpuSample,
     S: SharedState<D>,
-    M: BufferMode,
+    I: BufferInbox,
 {
-    core: PortCore<M>,
-    state: ConnectionState<ConnectedReader<D, S, M>>,
+    core: PortCore<I>,
+    state: ConnectionState<ConnectedReader<D, S, I>>,
     current: Option<CurrentBuffer<D>>,
     tags: Vec<ItemTag>,
     finished: bool,
 }
 
 #[derive(Debug)]
-struct ConnectedReader<D, S, M>
+struct ConnectedReader<D, S, I>
 where
     D: CpuSample,
     S: SharedState<D>,
-    M: BufferMode,
+    I: BufferInbox,
 {
     state: S,
     reserved_items: usize,
-    writer: PortEndpoint<M>,
+    writer: PortEndpoint<I>,
     _marker: PhantomData<D>,
 }
 
-impl<D, S, M> Reader<D, S, M>
+impl<D, S, I> Reader<D, S, I>
 where
     D: CpuSample,
     S: SharedState<D>,
-    M: BufferMode,
+    I: BufferInbox,
 {
     /// Create a queue-backed CPU reader.
     pub fn new() -> Self {
@@ -499,29 +596,29 @@ where
     }
 }
 
-impl<D, S, M> Default for Reader<D, S, M>
+impl<D, S, I> Default for Reader<D, S, I>
 where
     D: CpuSample,
     S: SharedState<D>,
-    M: BufferMode,
+    I: BufferInbox,
 {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<D, S, M> BufferReader for Reader<D, S, M>
+impl<D, S, I> BufferReader for Reader<D, S, I>
 where
     D: CpuSample,
     S: SharedState<D>,
-    M: BufferMode,
+    I: BufferInbox,
 {
-    type Mode = M;
+    type Inbox = I;
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: M::Inbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: I) {
         self.core.init(block_id, port_id, inbox);
     }
 
@@ -571,11 +668,11 @@ where
     }
 }
 
-impl<D, S, M> CpuBufferReader for Reader<D, S, M>
+impl<D, S, I> CpuBufferReader for Reader<D, S, I>
 where
     D: CpuSample,
     S: SharedState<D>,
-    M: BufferMode,
+    I: BufferInbox,
 {
     type Item = D;
 

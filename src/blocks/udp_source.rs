@@ -22,7 +22,7 @@ use crate::runtime::dev::prelude::*;
 #[derive(Block)]
 pub struct UdpSource<T, O = DefaultCpuWriter<T>>
 where
-    T: Send + 'static,
+    T: CpuSample + bytemuck::Pod,
     O: CpuBufferWriter<Item = T>,
 {
     #[output]
@@ -34,7 +34,7 @@ where
 
 impl<T, O> UdpSource<T, O>
 where
-    T: Send + 'static,
+    T: CpuSample + bytemuck::Pod,
     O: CpuBufferWriter<Item = T>,
 {
     /// Create UDP Source block
@@ -51,7 +51,7 @@ where
 #[doc(hidden)]
 impl<T, O> Kernel for UdpSource<T, O>
 where
-    T: Send + 'static,
+    T: CpuSample + bytemuck::Pod,
     O: CpuBufferWriter<Item = T>,
 {
     async fn work(
@@ -61,9 +61,8 @@ where
         _meta: &BlockMeta,
     ) -> Result<()> {
         let out = self.output.slice();
-        let ptr = out.as_mut_ptr() as *mut u8;
-        let byte_len = std::mem::size_of_val(out);
-        let data = unsafe { std::slice::from_raw_parts_mut(ptr, byte_len) };
+        let data = bytemuck::cast_slice_mut(out);
+        let byte_len = data.len();
 
         if byte_len < self.max_packet_bytes {
             return Ok(());
@@ -78,7 +77,7 @@ where
         {
             Ok((s, _)) => {
                 debug!("udp source read bytes {}", s);
-                self.output.produce(s / std::mem::size_of::<T>());
+                self.output.produce(s / T::SIZE.get());
             }
             Err(_) => {
                 debug!("udp source socket closed");

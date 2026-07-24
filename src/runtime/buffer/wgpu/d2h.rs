@@ -1,7 +1,7 @@
+use bytemuck::Pod;
 use std::any::Any;
 use std::collections::VecDeque;
 use std::marker::PhantomData;
-use std::mem::size_of;
 use std::sync::Arc;
 use std::sync::Mutex;
 use wgpu::BufferView;
@@ -10,6 +10,7 @@ use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
 use crate::runtime::Error;
 use crate::runtime::PortId;
+use crate::runtime::buffer::BlockInbox;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferRequirements;
 use crate::runtime::buffer::BufferWriter;
@@ -18,10 +19,10 @@ use crate::runtime::buffer::CpuBufferReader;
 use crate::runtime::buffer::CpuSample;
 use crate::runtime::buffer::PortCore;
 use crate::runtime::buffer::PortEndpoint;
-use crate::runtime::buffer::ThreadSafeMode;
+#[cfg(not(target_arch = "wasm32"))]
+use crate::runtime::buffer::ThreadSafeConnect;
 use crate::runtime::buffer::wgpu::OutputBufferEmpty as BufferEmpty;
 use crate::runtime::buffer::wgpu::OutputBufferFull as BufferFull;
-use crate::runtime::dev::BlockInbox;
 use crate::runtime::dev::ItemTag;
 
 #[derive(Debug)]
@@ -47,6 +48,30 @@ pub struct Writer<D: CpuSample> {
 #[derive(Debug)]
 struct ConnectedWriter {
     reader: PortEndpoint,
+}
+
+/// Reader offer for a native WGPU D2H cross-domain connection.
+#[cfg(not(target_arch = "wasm32"))]
+#[doc(hidden)]
+pub struct ThreadSafeConnectToken<D>
+where
+    D: CpuSample,
+{
+    reader: PortEndpoint,
+    _item: PhantomData<D>,
+}
+
+/// Reader installation returned by the native WGPU D2H writer.
+#[cfg(not(target_arch = "wasm32"))]
+#[doc(hidden)]
+pub struct ThreadSafeReturnToken<D>
+where
+    D: CpuSample,
+{
+    inbound: Arc<Mutex<Vec<BufferEmpty<D>>>>,
+    outbound: Arc<Mutex<VecDeque<BufferFull<D>>>>,
+    instance: Option<super::Instance>,
+    connected: ConnectedReader,
 }
 
 impl<D> Writer<D>
@@ -83,7 +108,7 @@ where
         let Some(instance) = self.instance.as_ref() else {
             panic!("D2H writer: set_instance() must be called before injecting buffers");
         };
-        let n_bytes = (n_items * size_of::<D>()) as u64;
+        let n_bytes = (n_items * D::SIZE.get()) as u64;
         let mut inbound = self.inbound.lock().unwrap();
         for _ in 0..n_buffers {
             inbound.push(BufferEmpty {
@@ -121,7 +146,7 @@ impl<D> BufferWriter for Writer<D>
 where
     D: CpuSample,
 {
-    type Mode = ThreadSafeMode;
+    type Inbox = BlockInbox;
     type Reader = Reader<D>;
 
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
@@ -185,6 +210,43 @@ where
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+impl<D> ThreadSafeConnect for Writer<D>
+where
+    D: CpuSample,
+{
+    type ReaderToken = ThreadSafeConnectToken<D>;
+    type WriterToken = ThreadSafeReturnToken<D>;
+
+    fn take_reader_token(reader: &mut Reader<D>) -> Self::ReaderToken {
+        ThreadSafeConnectToken {
+            reader: PortEndpoint::new(reader.core.inbox(), reader.core.port_id()),
+            _item: PhantomData,
+        }
+    }
+
+    fn connect_reader(&mut self, token: Self::ReaderToken) -> Self::WriterToken {
+        self.state.set_connected(ConnectedWriter {
+            reader: token.reader,
+        });
+        ThreadSafeReturnToken {
+            inbound: self.inbound.clone(),
+            outbound: self.outbound.clone(),
+            instance: self.instance.clone(),
+            connected: ConnectedReader {
+                writer: PortEndpoint::new(self.core.inbox(), self.core.port_id()),
+            },
+        }
+    }
+
+    fn finish_reader(reader: &mut Reader<D>, token: Self::WriterToken) {
+        reader.inbound = token.outbound;
+        reader.outbound = token.inbound;
+        reader.instance = token.instance;
+        reader.state.set_connected(token.connected);
+    }
+}
+
 /// WGPU device-to-host CPU reader.
 #[derive(Debug)]
 pub struct Reader<D>
@@ -241,7 +303,7 @@ impl<D> BufferReader for Reader<D>
 where
     D: CpuSample,
 {
-    type Mode = ThreadSafeMode;
+    type Inbox = BlockInbox;
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
@@ -306,7 +368,7 @@ where
 
 impl<D> CpuBufferReader for Reader<D>
 where
-    D: CpuSample,
+    D: CpuSample + Pod,
 {
     type Item = D;
 
@@ -331,19 +393,10 @@ where
         }
         debug!("D2H reader buffer available");
 
-        unsafe {
-            let buffer = self.buffer.as_ref().unwrap();
-            let byte_len = buffer.slice.len();
-            let ptr = buffer.slice.as_ptr();
-
-            (
-                std::slice::from_raw_parts(
-                    ptr.add(buffer.byte_offset) as *const D,
-                    (byte_len - buffer.byte_offset) / size_of::<D>(),
-                ),
-                &V,
-            )
-        }
+        let buffer = self.buffer.as_ref().unwrap();
+        let data = bytemuck::try_cast_slice(&buffer.slice[buffer.byte_offset..])
+            .expect("D2H reader: mapped buffer alignment invalid for sample type");
+        (data, &V)
     }
 
     fn consume(&mut self, amount: usize) {
@@ -358,9 +411,9 @@ where
             "Consume -- byte_len: {}, offset: {}",
             byte_len, buffer.byte_offset
         );
-        debug_assert!(amount * size_of::<D>() + buffer.byte_offset <= byte_len);
+        debug_assert!(amount * D::SIZE.get() + buffer.byte_offset <= byte_len);
 
-        buffer.byte_offset += amount * size_of::<D>();
+        buffer.byte_offset += amount * D::SIZE.get();
         if buffer.byte_offset == byte_len {
             let CurrentBuffer { buffer, slice, .. } = self.buffer.take().unwrap();
             drop(slice);

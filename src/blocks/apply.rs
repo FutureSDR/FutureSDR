@@ -40,8 +40,8 @@ use futuresdr::runtime::dev::prelude::*;
 pub struct Apply<F, A, B, IN = DefaultCpuReader<A>, OUT = DefaultCpuWriter<B>>
 where
     F: FnMut(&A) -> B + Send + 'static,
-    A: Send + 'static,
-    B: Send + 'static,
+    A: CpuSample,
+    B: CpuSample,
     IN: CpuBufferReader<Item = A>,
     OUT: CpuBufferWriter<Item = B>,
 {
@@ -70,8 +70,8 @@ where
 impl<F, A, B, IN, OUT> Apply<F, A, B, IN, OUT>
 where
     F: FnMut(&A) -> B + Send + 'static,
-    A: Send + 'static,
-    B: Send + Sync + 'static,
+    A: CpuSample,
+    B: CpuSample,
     IN: CpuBufferReader<Item = A>,
     OUT: CpuBufferWriter<Item = B>,
 {
@@ -92,8 +92,8 @@ where
 impl<F, A, B, IN, OUT> Kernel for Apply<F, A, B, IN, OUT>
 where
     F: FnMut(&A) -> B + Send + 'static,
-    A: Send + 'static,
-    B: Send + 'static,
+    A: CpuSample,
+    B: CpuSample,
     IN: CpuBufferReader<Item = A>,
     OUT: CpuBufferWriter<Item = B>,
 {

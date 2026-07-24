@@ -27,7 +27,10 @@ use std::path::PathBuf;
 /// let source = fg.add(FileSource::<Complex<f32>>::new("my_filename.cf32", false)).unwrap();
 /// ```
 #[derive(Block)]
-pub struct FileSource<T: Send + 'static, O: CpuBufferWriter<Item = T> = DefaultCpuWriter<T>> {
+pub struct FileSource<
+    T: CpuSample + bytemuck::Pod,
+    O: CpuBufferWriter<Item = T> = DefaultCpuWriter<T>,
+> {
     file_path: PathBuf,
     file: Option<async_fs::File>,
     repeat: bool,
@@ -35,7 +38,7 @@ pub struct FileSource<T: Send + 'static, O: CpuBufferWriter<Item = T> = DefaultC
     output: O,
 }
 
-impl<T: Send + 'static, O: CpuBufferWriter<Item = T>> FileSource<T, O> {
+impl<T: CpuSample + bytemuck::Pod, O: CpuBufferWriter<Item = T>> FileSource<T, O> {
     /// Create FileSource block
     pub fn new(file_path: impl AsRef<Path>, repeat: bool) -> Self {
         Self {
@@ -48,7 +51,7 @@ impl<T: Send + 'static, O: CpuBufferWriter<Item = T>> FileSource<T, O> {
 }
 
 #[doc(hidden)]
-impl<T: Send + 'static, O: CpuBufferWriter<Item = T>> Kernel for FileSource<T, O> {
+impl<T: CpuSample + bytemuck::Pod, O: CpuBufferWriter<Item = T>> Kernel for FileSource<T, O> {
     async fn work(
         &mut self,
         io: &mut WorkIo,
@@ -57,11 +60,9 @@ impl<T: Send + 'static, O: CpuBufferWriter<Item = T>> Kernel for FileSource<T, O
     ) -> Result<()> {
         let out = self.output.slice();
 
-        let out_bytes = unsafe {
-            std::slice::from_raw_parts_mut(out.as_ptr() as *mut u8, std::mem::size_of_val(out))
-        };
+        let out_bytes = bytemuck::cast_slice_mut(out);
 
-        let item_size = std::mem::size_of::<T>();
+        let item_size = T::SIZE.get();
         let mut i = 0;
 
         while i < out_bytes.len() {

@@ -2,6 +2,7 @@ use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
 use crate::runtime::Error;
 use crate::runtime::PortId;
+use crate::runtime::buffer::BlockInbox;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferRequirements;
 use crate::runtime::buffer::BufferWriter;
@@ -17,13 +18,13 @@ use crate::runtime::buffer::PortConfig;
 use crate::runtime::buffer::PortCore;
 use crate::runtime::buffer::PortEndpoint;
 use crate::runtime::buffer::Tags;
-use crate::runtime::buffer::ThreadSafeMode;
+use crate::runtime::buffer::ThreadSafeConnect;
 use crate::runtime::config::config;
-use crate::runtime::dev::BlockInbox;
 use crate::runtime::dev::ItemTag;
 use burn::prelude::*;
 use burn::tensor::BasicOps;
 use burn::tensor::TensorKind;
+use bytemuck::Pod;
 use std::any::Any;
 use std::collections::VecDeque;
 use std::marker::PhantomData;
@@ -139,7 +140,7 @@ where
     /// Number of elements in the buffer
     pub fn num_host_elements(&self) -> usize {
         let elem = self.num_tensor_elements();
-        elem * size_of::<E::Elem>() / size_of::<S>()
+        elem * size_of::<E::Elem>() / S::SIZE.get()
     }
 }
 
@@ -161,12 +162,13 @@ impl<B, E, S> InplaceBuffer for Buffer<B, E, S>
 where
     B: Backend,
     E: TensorKind<B> + BasicOps<B> + Send + Sync + 'static,
-    S: CpuSample,
+    E::Elem: Pod,
+    S: CpuSample + Pod,
 {
     type Item = S;
 
     fn set_valid(&mut self, valid: usize) {
-        self.valid = valid * size_of::<S>() / size_of::<E::Elem>();
+        self.valid = valid * S::SIZE.get() / size_of::<E::Elem>();
     }
 
     fn slice(&mut self) -> &mut [Self::Item] {
@@ -174,8 +176,8 @@ where
         match self.state.as_mut().expect("burn buffer state missing") {
             BufferState::Data(d) => {
                 let s = &mut d.as_mut_slice::<E::Elem>().unwrap()[0..self.valid];
-                let len = size_of_val(s) / size_of::<S>();
-                unsafe { std::slice::from_raw_parts_mut(s.as_mut_ptr() as *mut S, len) }
+                bytemuck::try_cast_slice_mut(s)
+                    .expect("burn buffer alignment invalid for host sample type")
             }
             _ => unreachable!(),
         }
@@ -186,8 +188,8 @@ where
         match self.state.as_mut().expect("burn buffer state missing") {
             BufferState::Data(d) => {
                 let s = &mut d.as_mut_slice::<E::Elem>().unwrap()[0..self.valid];
-                let len = size_of_val(s) / size_of::<S>();
-                let s = unsafe { std::slice::from_raw_parts_mut(s.as_mut_ptr() as *mut S, len) };
+                let s = bytemuck::try_cast_slice_mut(s)
+                    .expect("burn buffer alignment invalid for host sample type");
                 (s, &mut self.tags)
             }
             _ => unreachable!(),
@@ -222,6 +224,30 @@ where
     outbound: FullBuffers<B, E, SR>,
 }
 
+/// Reader offer for a Burn-buffer cross-domain connection.
+#[doc(hidden)]
+pub struct ThreadSafeConnectToken<B, E = Float, SR = f32>
+where
+    B: Backend,
+    E: TensorKind<B> + BasicOps<B> + Send + Sync + 'static,
+    SR: CpuSample,
+{
+    reader: PortEndpoint,
+    #[allow(clippy::type_complexity)]
+    _marker: PhantomData<fn() -> (B, E, SR)>,
+}
+
+/// Reader installation returned by the Burn-buffer writer.
+#[doc(hidden)]
+pub struct ThreadSafeReturnToken<B, E = Float, SR = f32>
+where
+    B: Backend,
+    E: TensorKind<B> + BasicOps<B> + Send + Sync + 'static,
+    SR: CpuSample,
+{
+    connected: ConnectedReader<B, E, SR>,
+}
+
 impl<B, E, SW, SR> Writer<B, E, SW, SR>
 where
     B: Backend,
@@ -236,7 +262,7 @@ where
             state: ConnectionState::disconnected(),
             device: None,
             permits: Arc::new(AtomicUsize::new(0)),
-            buffer_size_in_items: config().buffer_size / std::mem::size_of::<SW>(),
+            buffer_size_in_items: config().buffer_size / SW::SIZE.get(),
             current: None,
             tags: Vec::new(),
         }
@@ -251,7 +277,7 @@ where
 
     fn try_acquire_permit(&self) -> bool {
         self.permits
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| n.checked_sub(1))
+            .try_update(Ordering::AcqRel, Ordering::Acquire, |n| n.checked_sub(1))
             .is_ok()
     }
 
@@ -268,7 +294,8 @@ where
 
     fn new_armed_buffer<S>(&self) -> Option<Buffer<B, E, S>>
     where
-        S: CpuSample,
+        E::Elem: Pod,
+        S: CpuSample + Pod,
     {
         let Some(ref d) = self.device else {
             self.release_permit();
@@ -301,7 +328,7 @@ where
     SW: CpuSample,
     SR: CpuSample,
 {
-    type Mode = ThreadSafeMode;
+    type Inbox = BlockInbox;
     type Reader = Reader<B, E, SR>;
 
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
@@ -361,12 +388,49 @@ where
     }
 }
 
-impl<B, E, SW, SR> InplaceWriter for Writer<B, E, SW, SR>
+impl<B, E, SW, SR> ThreadSafeConnect for Writer<B, E, SW, SR>
 where
     B: Backend,
     E: TensorKind<B> + BasicOps<B> + Send + Sync + 'static,
     SW: CpuSample,
     SR: CpuSample,
+{
+    type ReaderToken = ThreadSafeConnectToken<B, E, SR>;
+    type WriterToken = ThreadSafeReturnToken<B, E, SR>;
+
+    fn take_reader_token(reader: &mut Reader<B, E, SR>) -> Self::ReaderToken {
+        ThreadSafeConnectToken {
+            reader: PortEndpoint::new(reader.core.inbox(), reader.core.port_id()),
+            _marker: PhantomData,
+        }
+    }
+
+    fn connect_reader(&mut self, token: Self::ReaderToken) -> Self::WriterToken {
+        let inbound = Arc::new(Mutex::new(VecDeque::new()));
+        self.state.set_connected(ConnectedWriter {
+            reader: token.reader,
+            outbound: inbound.clone(),
+        });
+        ThreadSafeReturnToken {
+            connected: ConnectedReader {
+                writer: PortEndpoint::new(self.core.inbox(), self.core.port_id()),
+                inbound,
+            },
+        }
+    }
+
+    fn finish_reader(reader: &mut Reader<B, E, SR>, token: Self::WriterToken) {
+        reader.state.set_connected(token.connected);
+    }
+}
+
+impl<B, E, SW, SR> InplaceWriter for Writer<B, E, SW, SR>
+where
+    B: Backend,
+    E: TensorKind<B> + BasicOps<B> + Send + Sync + 'static,
+    E::Elem: Pod,
+    SW: CpuSample + Pod,
+    SR: CpuSample + Pod,
 {
     type Item = SW;
     type Buffer = Buffer<B, E, SW>;
@@ -415,8 +479,9 @@ impl<B, E, SW, SR> CpuBufferWriter for Writer<B, E, SW, SR>
 where
     B: Backend,
     E: TensorKind<B> + BasicOps<B> + Send + Sync + 'static,
-    SW: CpuSample,
-    SR: CpuSample,
+    E::Elem: Pod,
+    SW: CpuSample + Pod,
+    SR: CpuSample + Pod,
 {
     type Item = SW;
 
@@ -536,7 +601,7 @@ where
     E: TensorKind<B> + BasicOps<B> + Send + Sync + 'static,
     SR: CpuSample,
 {
-    type Mode = ThreadSafeMode;
+    type Inbox = BlockInbox;
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
@@ -599,7 +664,8 @@ impl<B, E, SR> InplaceReader for Reader<B, E, SR>
 where
     B: Backend,
     E: TensorKind<B> + BasicOps<B> + Send + Sync + 'static,
-    SR: CpuSample,
+    E::Elem: Pod,
+    SR: CpuSample + Pod,
 {
     type Item = SR;
     type Buffer = Buffer<B, E, SR>;
@@ -617,7 +683,8 @@ impl<B, E, SR> CpuBufferReader for Reader<B, E, SR>
 where
     B: Backend,
     E: TensorKind<B> + BasicOps<B> + Send + Sync + 'static,
-    SR: CpuSample,
+    E::Elem: Pod,
+    SR: CpuSample + Pod,
 {
     type Item = SR;
 

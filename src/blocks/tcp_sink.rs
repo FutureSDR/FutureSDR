@@ -28,7 +28,7 @@ use crate::runtime::dev::prelude::*;
 #[derive(Block)]
 pub struct TcpSink<T, I = DefaultCpuReader<T>>
 where
-    T: Send + 'static,
+    T: CpuSample + bytemuck::Pod,
     I: CpuBufferReader<Item = T>,
 {
     #[input]
@@ -40,7 +40,7 @@ where
 
 impl<T, I> TcpSink<T, I>
 where
-    T: Send + 'static,
+    T: CpuSample + bytemuck::Pod,
     I: CpuBufferReader<Item = T>,
 {
     /// Create TCP Sink block
@@ -57,7 +57,7 @@ where
 #[doc(hidden)]
 impl<T, I> Kernel for TcpSink<T, I>
 where
-    T: Send + 'static,
+    T: CpuSample + bytemuck::Pod,
     I: CpuBufferReader<Item = T>,
 {
     async fn work(
@@ -79,9 +79,7 @@ where
 
         let i = self.input.slice();
         let i_len = i.len();
-        let ptr = i.as_ptr() as *const u8;
-        let byte_len = std::mem::size_of_val(i);
-        let data = unsafe { std::slice::from_raw_parts(ptr, byte_len) };
+        let data = bytemuck::cast_slice(i);
 
         match self
             .socket

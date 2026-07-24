@@ -10,8 +10,8 @@ use std::sync::Mutex;
 use crate::runtime::BlockId;
 use crate::runtime::Error;
 use crate::runtime::PortId;
+use crate::runtime::buffer::BlockInbox;
 use crate::runtime::buffer::BufferInbox;
-use crate::runtime::buffer::BufferMode;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferRequirements;
 use crate::runtime::buffer::BufferWriter;
@@ -27,7 +27,7 @@ use crate::runtime::buffer::PortConfig;
 use crate::runtime::buffer::PortCore;
 use crate::runtime::buffer::PortEndpoint;
 use crate::runtime::buffer::Tags;
-use crate::runtime::buffer::ThreadSafeMode;
+use crate::runtime::buffer::ThreadSafeConnect;
 use crate::runtime::config::config;
 use crate::runtime::dev::ItemTag;
 
@@ -35,8 +35,8 @@ use crate::runtime::dev::ItemTag;
 type Queue<T> = ConcurrentQueue<T>;
 #[cfg(target_arch = "wasm32")]
 type Queue<T> = Mutex<VecDeque<T>>;
-type EmptyBuffers<T, M> = Arc<Queue<Buffer<T, M>>>;
-type FullBuffers<T, M> = Arc<Queue<Buffer<T, M>>>;
+type EmptyBuffers<T, I> = Arc<Queue<Buffer<T, I>>>;
+type FullBuffers<T, I> = Arc<Queue<Buffer<T, I>>>;
 
 fn queue_new<T>() -> Queue<T> {
     #[cfg(not(target_arch = "wasm32"))]
@@ -140,19 +140,19 @@ where
 /// Buffers remember the writer queue they originated from while they are in
 /// flight. If the final owner drops the buffer instead of forwarding it, the
 /// buffer automatically returns to that origin queue.
-pub struct Buffer<T, M = ThreadSafeMode>
+pub struct Buffer<T, I = BlockInbox>
 where
     T: CpuSample,
-    M: BufferMode,
+    I: BufferInbox,
 {
     storage: Option<BufferStorage<T>>,
-    origin: Option<CircuitReturn<M::Inbox, EmptyBuffers<T, M>>>,
+    origin: Option<CircuitReturn<I, EmptyBuffers<T, I>>>,
 }
 
-impl<T, M> Buffer<T, M>
+impl<T, I> Buffer<T, I>
 where
     T: CpuSample,
-    M: BufferMode,
+    I: BufferInbox,
 {
     /// Create buffer.
     fn with_items(items: usize) -> Self {
@@ -174,15 +174,15 @@ where
             .expect("circuit buffer storage missing")
     }
 
-    fn arm(&mut self, origin: CircuitReturn<M::Inbox, EmptyBuffers<T, M>>) {
+    fn arm(&mut self, origin: CircuitReturn<I, EmptyBuffers<T, I>>) {
         self.origin = Some(origin);
     }
 }
 
-impl<T, M> Drop for Buffer<T, M>
+impl<T, I> Drop for Buffer<T, I>
 where
     T: CpuSample,
-    M: BufferMode,
+    I: BufferInbox,
 {
     fn drop(&mut self) {
         let Some(origin) = self.origin.take() else {
@@ -202,10 +202,10 @@ where
     }
 }
 
-impl<T, M> InplaceBuffer for Buffer<T, M>
+impl<T, I> InplaceBuffer for Buffer<T, I>
 where
     T: CpuSample,
-    M: BufferMode,
+    I: BufferInbox,
 {
     type Item = T;
 
@@ -225,32 +225,51 @@ where
 }
 
 /// Circuit Writer
-pub struct Writer<T, M = ThreadSafeMode>
+pub struct Writer<T, I = BlockInbox>
 where
     T: CpuSample,
-    M: BufferMode,
+    I: BufferInbox,
 {
-    core: PortCore<M>,
-    state: ConnectionState<ConnectedWriter<T, M>>,
-    inbound: EmptyBuffers<T, M>,
+    core: PortCore<I>,
+    state: ConnectionState<ConnectedWriter<T, I>>,
+    inbound: EmptyBuffers<T, I>,
     buffer_size_in_items: usize,
-    current: Option<Buffer<T, M>>,
+    current: Option<Buffer<T, I>>,
     tags: Vec<ItemTag>,
 }
 
-struct ConnectedWriter<T, M>
+struct ConnectedWriter<T, I>
 where
     T: CpuSample,
-    M: BufferMode,
+    I: BufferInbox,
 {
-    reader: PortEndpoint<M>,
-    outbound: FullBuffers<T, M>,
+    reader: PortEndpoint<I>,
+    outbound: FullBuffers<T, I>,
 }
 
-impl<T, M> Writer<T, M>
+/// Reader offer for an in-place cross-domain connection.
+#[doc(hidden)]
+pub struct ThreadSafeConnectToken<T>
 where
     T: CpuSample,
-    M: BufferMode,
+{
+    reader: PortEndpoint<BlockInbox>,
+    _item: std::marker::PhantomData<T>,
+}
+
+/// Reader installation returned by the in-place writer.
+#[doc(hidden)]
+pub struct ThreadSafeReturnToken<T>
+where
+    T: CpuSample,
+{
+    connected: ConnectedReader<T, BlockInbox>,
+}
+
+impl<T, I> Writer<T, I>
+where
+    T: CpuSample,
+    I: BufferInbox,
 {
     /// Create circuit buffer writer
     pub fn new() -> Self {
@@ -258,32 +277,32 @@ where
             core: PortCore::with_config(PortConfig::with_min_items(1)),
             state: ConnectionState::disconnected(),
             inbound: Arc::new(queue_new()),
-            buffer_size_in_items: config().buffer_size / std::mem::size_of::<T>(),
+            buffer_size_in_items: config().buffer_size / T::SIZE.get(),
             current: None,
             tags: Vec::new(),
         }
     }
 }
 
-impl<T, M> Default for Writer<T, M>
+impl<T, I> Default for Writer<T, I>
 where
     T: CpuSample,
-    M: BufferMode,
+    I: BufferInbox,
 {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<T, M> BufferWriter for Writer<T, M>
+impl<T, I> BufferWriter for Writer<T, I>
 where
     T: CpuSample,
-    M: BufferMode,
+    I: BufferInbox,
 {
-    type Mode = M;
-    type Reader = Reader<T, M>;
+    type Inbox = I;
+    type Reader = Reader<T, I>;
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: M::Inbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: I) {
         self.core.init(block_id, port_id, inbox);
     }
 
@@ -342,13 +361,46 @@ where
     }
 }
 
-impl<T, M> InplaceWriter for Writer<T, M>
+impl<T> ThreadSafeConnect for Writer<T, BlockInbox>
 where
     T: CpuSample,
-    M: BufferMode,
+{
+    type ReaderToken = ThreadSafeConnectToken<T>;
+    type WriterToken = ThreadSafeReturnToken<T>;
+
+    fn take_reader_token(reader: &mut Reader<T, BlockInbox>) -> Self::ReaderToken {
+        ThreadSafeConnectToken {
+            reader: PortEndpoint::new(reader.core.inbox(), reader.core.port_id()),
+            _item: std::marker::PhantomData,
+        }
+    }
+
+    fn connect_reader(&mut self, token: Self::ReaderToken) -> Self::WriterToken {
+        let inbound = Arc::new(queue_new());
+        self.state.set_connected(ConnectedWriter {
+            reader: token.reader,
+            outbound: inbound.clone(),
+        });
+        ThreadSafeReturnToken {
+            connected: ConnectedReader {
+                writer: PortEndpoint::new(self.core.inbox(), self.core.port_id()),
+                inbound,
+            },
+        }
+    }
+
+    fn finish_reader(reader: &mut Reader<T, BlockInbox>, token: Self::WriterToken) {
+        reader.state.set_connected(token.connected);
+    }
+}
+
+impl<T, I> InplaceWriter for Writer<T, I>
+where
+    T: CpuSample,
+    I: BufferInbox,
 {
     type Item = T;
-    type Buffer = Buffer<T, M>;
+    type Buffer = Buffer<T, I>;
 
     fn put_full_buffer(&mut self, buffer: Self::Buffer) -> Result<(), Error> {
         queue_push(&self.state.connected().outbound, buffer);
@@ -378,10 +430,10 @@ where
     }
 }
 
-impl<T, M> CpuBufferWriter for Writer<T, M>
+impl<T, I> CpuBufferWriter for Writer<T, I>
 where
     T: CpuSample,
-    M: BufferMode,
+    I: BufferInbox,
 {
     type Item = T;
 
@@ -445,30 +497,30 @@ where
 }
 
 /// Circuit Reader
-pub struct Reader<T, M = ThreadSafeMode>
+pub struct Reader<T, I = BlockInbox>
 where
     T: CpuSample,
-    M: BufferMode,
+    I: BufferInbox,
 {
-    core: PortCore<M>,
-    state: ConnectionState<ConnectedReader<T, M>>,
+    core: PortCore<I>,
+    state: ConnectionState<ConnectedReader<T, I>>,
     finished: bool,
-    current: Option<(Buffer<T, M>, usize)>,
+    current: Option<(Buffer<T, I>, usize)>,
 }
 
-struct ConnectedReader<T, M>
+struct ConnectedReader<T, I>
 where
     T: CpuSample,
-    M: BufferMode,
+    I: BufferInbox,
 {
-    writer: PortEndpoint<M>,
-    inbound: FullBuffers<T, M>,
+    writer: PortEndpoint<I>,
+    inbound: FullBuffers<T, I>,
 }
 
-impl<T, M> Reader<T, M>
+impl<T, I> Reader<T, I>
 where
     T: CpuSample,
-    M: BufferMode,
+    I: BufferInbox,
 {
     /// Create circuit buffer reader
     pub fn new() -> Self {
@@ -481,27 +533,27 @@ where
     }
 }
 
-impl<T, M> Default for Reader<T, M>
+impl<T, I> Default for Reader<T, I>
 where
     T: CpuSample,
-    M: BufferMode,
+    I: BufferInbox,
 {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<T, M> BufferReader for Reader<T, M>
+impl<T, I> BufferReader for Reader<T, I>
 where
     T: CpuSample,
-    M: BufferMode,
+    I: BufferInbox,
 {
-    type Mode = M;
+    type Inbox = I;
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: M::Inbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: I) {
         self.core.init(block_id, port_id, inbox);
     }
 
@@ -552,13 +604,13 @@ where
     }
 }
 
-impl<T, M> InplaceReader for Reader<T, M>
+impl<T, I> InplaceReader for Reader<T, I>
 where
     T: CpuSample,
-    M: BufferMode,
+    I: BufferInbox,
 {
     type Item = T;
-    type Buffer = Buffer<T, M>;
+    type Buffer = Buffer<T, I>;
 
     fn get_full_buffer(&mut self) -> Option<Self::Buffer> {
         queue_pop(&self.state.connected().inbound)
@@ -569,10 +621,10 @@ where
     }
 }
 
-impl<T, M> CpuBufferReader for Reader<T, M>
+impl<T, I> CpuBufferReader for Reader<T, I>
 where
     T: CpuSample,
-    M: BufferMode,
+    I: BufferInbox,
 {
     type Item = T;
 

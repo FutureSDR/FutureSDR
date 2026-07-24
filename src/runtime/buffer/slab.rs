@@ -1,4 +1,4 @@
-//! Send-capable queue-backed CPU buffer.
+//! Queue-backed CPU buffer.
 
 use crate::runtime::buffer::queued;
 

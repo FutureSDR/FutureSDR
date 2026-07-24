@@ -16,14 +16,14 @@ use crate::runtime::dev::prelude::*;
 /// let src = NullSource::<u8>::new();
 /// ```
 #[derive(Block)]
-pub struct NullSource<T: Send + 'static, O: CpuBufferWriter<Item = T> = DefaultCpuWriter<T>> {
+pub struct NullSource<T: CpuSample, O: CpuBufferWriter<Item = T> = DefaultCpuWriter<T>> {
     #[output]
     output: O,
 }
 
 impl<T, O> NullSource<T, O>
 where
-    T: Send + 'static,
+    T: CpuSample,
     O: CpuBufferWriter<Item = T>,
 {
     /// Create Null Source block
@@ -36,7 +36,7 @@ where
 
 impl<T, O> Default for NullSource<T, O>
 where
-    T: Send + 'static,
+    T: CpuSample,
     O: CpuBufferWriter<Item = T>,
 {
     fn default() -> Self {
@@ -47,7 +47,7 @@ where
 #[doc(hidden)]
 impl<T, O> Kernel for NullSource<T, O>
 where
-    T: Send + 'static,
+    T: CpuSample,
     O: CpuBufferWriter<Item = T>,
 {
     async fn work(

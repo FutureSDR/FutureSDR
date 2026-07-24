@@ -22,7 +22,7 @@ use web_time::Instant;
 /// ```
 #[derive(Block)]
 pub struct Throttle<
-    T: Copy + Send + 'static,
+    T: CpuSample,
     I: CpuBufferReader<Item = T> = DefaultCpuReader<T>,
     O: CpuBufferWriter<Item = T> = DefaultCpuWriter<T>,
 > {
@@ -38,7 +38,7 @@ pub struct Throttle<
 
 impl<T, I, O> Throttle<T, I, O>
 where
-    T: Copy + Send + 'static,
+    T: CpuSample,
     I: CpuBufferReader<Item = T>,
     O: CpuBufferWriter<Item = T>,
 {
@@ -59,7 +59,7 @@ where
 #[doc(hidden)]
 impl<T, I, O> Kernel for Throttle<T, I, O>
 where
-    T: Copy + Send + 'static,
+    T: CpuSample,
     I: CpuBufferReader<Item = T>,
     O: CpuBufferWriter<Item = T>,
 {
@@ -116,7 +116,7 @@ where
 #[doc(hidden)]
 impl<T, I, O> Kernel for Throttle<T, I, O>
 where
-    T: Copy + Send + 'static,
+    T: CpuSample,
     I: CpuBufferReader<Item = T>,
     O: CpuBufferWriter<Item = T>,
 {

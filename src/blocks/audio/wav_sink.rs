@@ -36,7 +36,7 @@ use std::path;
 #[derive(Block)]
 pub struct WavSink<T, I = DefaultCpuReader<T>>
 where
-    T: Send + 'static + hound::Sample + Copy,
+    T: CpuSample + hound::Sample,
     I: CpuBufferReader<Item = T>,
 {
     #[input]
@@ -46,7 +46,7 @@ where
 
 impl<T, I> WavSink<T, I>
 where
-    T: Send + 'static + hound::Sample + Copy,
+    T: CpuSample + hound::Sample,
     I: CpuBufferReader<Item = T>,
 {
     /// Create WAV Sink block
@@ -65,7 +65,7 @@ where
 #[doc(hidden)]
 impl<T, I> Kernel for WavSink<T, I>
 where
-    T: Send + 'static + hound::Sample + Copy,
+    T: CpuSample + hound::Sample,
     I: CpuBufferReader<Item = T>,
 {
     async fn work(

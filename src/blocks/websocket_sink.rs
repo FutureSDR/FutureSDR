@@ -8,7 +8,6 @@ use futures::sink::Sink;
 use futures::sink::SinkExt;
 use std::future::Future;
 use std::marker::PhantomData;
-use std::mem::size_of;
 use std::net::SocketAddr;
 use std::net::TcpListener;
 use std::net::TcpStream;
@@ -46,7 +45,10 @@ pub enum WebsocketSinkMode {
 /// let sink = WebsocketSink::<f32>::new(9001, WebsocketSinkMode::Blocking);
 /// ```
 #[derive(Block)]
-pub struct WebsocketSink<T: CpuSample, I: CpuBufferReader<Item = T> = DefaultCpuReader<T>> {
+pub struct WebsocketSink<
+    T: CpuSample + bytemuck::Pod,
+    I: CpuBufferReader<Item = T> = DefaultCpuReader<T>,
+> {
     #[input]
     input: I,
     port: u32,
@@ -59,7 +61,7 @@ pub struct WebsocketSink<T: CpuSample, I: CpuBufferReader<Item = T> = DefaultCpu
 
 impl<T, I> WebsocketSink<T, I>
 where
-    T: CpuSample,
+    T: CpuSample + bytemuck::Pod,
     I: CpuBufferReader<Item = T>,
 {
     /// Create WebsocketSink block
@@ -79,7 +81,7 @@ where
 #[doc(hidden)]
 impl<T, I> Kernel for WebsocketSink<T, I>
 where
-    T: CpuSample,
+    T: CpuSample + bytemuck::Pod,
     I: CpuBufferReader<Item = T>,
 {
     type BlockOn = Pin<Box<dyn Future<Output = ()> + Send>>;
@@ -112,19 +114,21 @@ where
 
             match &self.mode {
                 WebsocketSinkMode::Blocking => {
-                    v.extend_from_slice(i);
+                    v.extend_from_slice(bytemuck::cast_slice(i));
                     self.input.consume(i_len);
                 }
                 WebsocketSinkMode::FixedBlocking(block_size) => {
                     if *block_size <= i_len {
-                        v.extend_from_slice(&i[0..*block_size]);
+                        v.extend_from_slice(bytemuck::cast_slice(&i[0..*block_size]));
                         self.input.consume(*block_size);
                     }
                 }
                 WebsocketSinkMode::FixedDropping(block_size) => {
                     let n = i_len / block_size;
                     if n != 0 {
-                        v.extend_from_slice(&i[((n - 1) * block_size)..(n * block_size)]);
+                        v.extend_from_slice(bytemuck::cast_slice(
+                            &i[((n - 1) * block_size)..(n * block_size)],
+                        ));
                         self.input.consume(n * block_size);
                     }
                 }
@@ -138,14 +142,6 @@ where
                         .accept(),
                 );
 
-                let len = v.len() * size_of::<T>();
-                let cap = v.capacity() * size_of::<T>();
-                let ptr = v.as_ptr() as *mut u8;
-
-                // prevent original Vec from dropping
-                std::mem::forget(v);
-
-                let v = unsafe { Vec::from_raw_parts(ptr, len, cap) };
                 let send = conn.send(Message::Binary(v.into()));
 
                 match future::select(acc, send).await {
@@ -211,7 +207,7 @@ pub struct WebsocketSinkBuilder<T> {
     _p: PhantomData<T>,
 }
 
-impl<T: CpuSample> WebsocketSinkBuilder<T> {
+impl<T: CpuSample + bytemuck::Pod> WebsocketSinkBuilder<T> {
     /// Create WebsocketSink builder
     pub fn new(port: u32) -> WebsocketSinkBuilder<T> {
         WebsocketSinkBuilder {

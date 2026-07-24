@@ -34,7 +34,7 @@ enum State {
 #[message_inputs(new_value)]
 pub struct Delay<T, I = DefaultCpuReader<T>, O = DefaultCpuWriter<T>>
 where
-    T: Copy + Send + 'static,
+    T: CpuSample,
     I: CpuBufferReader<Item = T>,
     O: CpuBufferWriter<Item = T>,
 {
@@ -47,7 +47,7 @@ where
 
 impl<T, I, O> Delay<T, I, O>
 where
-    T: Copy + Send + 'static,
+    T: CpuSample,
     I: CpuBufferReader<Item = T>,
     O: CpuBufferWriter<Item = T>,
 {
@@ -107,7 +107,7 @@ where
 
 impl<T, I, O> Kernel for Delay<T, I, O>
 where
-    T: Copy + Send + 'static,
+    T: CpuSample,
     I: CpuBufferReader<Item = T>,
     O: CpuBufferWriter<Item = T>,
 {
@@ -125,7 +125,7 @@ where
         match self.state {
             State::Pad(n) => {
                 let m = std::cmp::min(o_len, n);
-                o[0..m].fill(unsafe { std::mem::zeroed() });
+                o[0..m].fill(T::default());
                 self.output.produce(m);
 
                 if m == n {

@@ -26,7 +26,7 @@ use crate::runtime::dev::prelude::*;
 pub struct FiniteSource<F, A, O = DefaultCpuWriter<A>>
 where
     F: FnMut() -> Option<A> + Send + 'static,
-    A: Send + 'static,
+    A: CpuSample,
     O: CpuBufferWriter<Item = A>,
 {
     #[output]
@@ -48,7 +48,7 @@ where
 impl<F, A, O> FiniteSource<F, A, O>
 where
     F: FnMut() -> Option<A> + Send + 'static,
-    A: Send + 'static,
+    A: CpuSample,
     O: CpuBufferWriter<Item = A>,
 {
     /// Create FiniteSource block with a custom stream buffer.
@@ -64,7 +64,7 @@ where
 impl<F, A, O> Kernel for FiniteSource<F, A, O>
 where
     F: FnMut() -> Option<A> + Send + 'static,
-    A: Send + 'static,
+    A: CpuSample,
     O: CpuBufferWriter<Item = A>,
 {
     async fn work(

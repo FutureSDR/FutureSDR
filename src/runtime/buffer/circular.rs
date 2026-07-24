@@ -1,13 +1,12 @@
 use std::any::Any;
 use std::fmt;
-use std::mem::size_of;
 use vmcircbuffer::generic;
 
 use crate::runtime::BlockId;
 use crate::runtime::Error;
 use crate::runtime::PortId;
+use crate::runtime::buffer::BlockInbox;
 use crate::runtime::buffer::BufferInbox;
-use crate::runtime::buffer::BufferMode;
 use crate::runtime::buffer::BufferNotifier;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferRequirements;
@@ -19,7 +18,7 @@ use crate::runtime::buffer::CpuSample;
 use crate::runtime::buffer::PortCore;
 use crate::runtime::buffer::PortEndpoint;
 use crate::runtime::buffer::Tags;
-use crate::runtime::buffer::ThreadSafeMode;
+use crate::runtime::buffer::ThreadSafeConnect;
 use crate::runtime::config::config;
 use crate::runtime::dev::ItemTag;
 
@@ -67,30 +66,52 @@ impl generic::Metadata for MyMetadata {
 }
 
 /// Circular writer
-pub struct Writer<D, M = ThreadSafeMode>
+pub struct Writer<D, I = BlockInbox>
 where
     D: CpuSample,
-    M: BufferMode,
+    I: BufferInbox,
 {
-    core: PortCore<M>,
-    state: ConnectionState<ConnectedWriter<D, M>>,
+    core: PortCore<I>,
+    state: ConnectionState<ConnectedWriter<D, I>>,
     finished: bool,
     tags: Vec<ItemTag>,
 }
 
-struct ConnectedWriter<D, M>
+struct ConnectedWriter<D, I>
 where
     D: CpuSample,
-    M: BufferMode,
+    I: BufferInbox,
 {
-    writer: generic::Writer<D, MyNotifier<M::Notifier>, MyMetadata>,
-    readers: Vec<PortEndpoint<M>>,
+    writer: generic::Writer<D, MyNotifier<I::Notifier>, MyMetadata>,
+    readers: Vec<PortEndpoint<I>>,
 }
 
-impl<D, M> Writer<D, M>
+/// Reader offer for a circular-buffer cross-domain connection.
+#[doc(hidden)]
+pub struct ThreadSafeConnectToken<D>
 where
     D: CpuSample,
-    M: BufferMode,
+{
+    reader: PortEndpoint<BlockInbox>,
+    reader_min_items: Option<usize>,
+    reader_min_buffer_size: Option<usize>,
+    _item: std::marker::PhantomData<D>,
+}
+
+/// Reader installation returned by the circular writer.
+#[doc(hidden)]
+pub struct ThreadSafeReturnToken<D>
+where
+    D: CpuSample,
+{
+    connected: ConnectedReader<D, BlockInbox>,
+    min_buffer_size: usize,
+}
+
+impl<D, I> Writer<D, I>
+where
+    D: CpuSample,
+    I: BufferInbox,
 {
     fn new() -> Self {
         Self {
@@ -102,25 +123,25 @@ where
     }
 }
 
-impl<D, M> Default for Writer<D, M>
+impl<D, I> Default for Writer<D, I>
 where
     D: CpuSample,
-    M: BufferMode,
+    I: BufferInbox,
 {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<D, M> BufferWriter for Writer<D, M>
+impl<D, I> BufferWriter for Writer<D, I>
 where
     D: CpuSample,
-    M: BufferMode,
+    I: BufferInbox,
 {
-    type Mode = M;
-    type Reader = Reader<D, M>;
+    type Inbox = I;
+    type Reader = Reader<D, I>;
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: M::Inbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: I) {
         self.core.init(block_id, port_id, inbox);
     }
     fn buffer_requirements(&self) -> BufferRequirements {
@@ -174,7 +195,7 @@ where
             // Items required for work() to proceed
             let min_self = self.core.min_items().unwrap_or(1);
             let min_reader = dest.core.min_items().unwrap_or(1);
-            let mut min_bytes = (min_self + min_reader - 1) * size_of::<D>();
+            let mut min_bytes = (min_self + min_reader - 1) * D::SIZE.get();
 
             let buffer_size_configured = self.core.min_buffer_size_in_items().is_some()
                 || dest.core.min_buffer_size_in_items().is_some();
@@ -184,23 +205,23 @@ where
                 let min_reader = dest.core.min_buffer_size_in_items().unwrap_or(0);
                 std::cmp::max(
                     min_bytes,
-                    std::cmp::max(min_self, min_reader) * size_of::<D>(),
+                    std::cmp::max(min_self, min_reader) * D::SIZE.get(),
                 )
             } else {
                 std::cmp::max(min_bytes, config().buffer_size)
             };
 
-            while (buffer_size < min_bytes) || !buffer_size.is_multiple_of(size_of::<D>()) {
+            while (buffer_size < min_bytes) || !buffer_size.is_multiple_of(D::SIZE.get()) {
                 buffer_size += page_size;
             }
 
             self.core
-                .set_min_buffer_size_in_items(buffer_size / size_of::<D>());
+                .set_min_buffer_size_in_items(buffer_size / D::SIZE.get());
             dest.core
-                .set_min_buffer_size_in_items(buffer_size / size_of::<D>());
+                .set_min_buffer_size_in_items(buffer_size / D::SIZE.get());
 
             ConnectedWriter {
-                writer: generic::Circular::with_capacity(buffer_size / size_of::<D>()).unwrap(),
+                writer: generic::Circular::with_capacity(buffer_size / D::SIZE.get()).unwrap(),
                 readers: vec![],
             }
         };
@@ -240,10 +261,108 @@ where
     }
 }
 
-impl<D, M> CpuBufferWriter for Writer<D, M>
+impl<D> ThreadSafeConnect for Writer<D, BlockInbox>
 where
     D: CpuSample,
-    M: BufferMode,
+{
+    type ReaderToken = ThreadSafeConnectToken<D>;
+    type WriterToken = ThreadSafeReturnToken<D>;
+
+    fn take_reader_token(reader: &mut Reader<D, BlockInbox>) -> Self::ReaderToken {
+        ThreadSafeConnectToken {
+            reader: PortEndpoint::new(reader.core.inbox(), reader.core.port_id()),
+            reader_min_items: reader.core.min_items(),
+            reader_min_buffer_size: reader.core.min_buffer_size_in_items(),
+            _item: std::marker::PhantomData,
+        }
+    }
+
+    fn connect_reader(&mut self, token: Self::ReaderToken) -> Self::WriterToken {
+        let min_buffer_size = if self.state.is_connected() {
+            if self.core.min_buffer_size_in_items().unwrap_or(0)
+                < token.reader_min_buffer_size.unwrap_or(0)
+            {
+                warn!(
+                    "circular buffer is already created, size constraints of reader are not considered."
+                );
+            }
+            if self.core.min_buffer_size_in_items().unwrap_or(0)
+                - self.core.min_items().unwrap_or(0)
+                + 1
+                < token.reader_min_items.unwrap_or(1)
+            {
+                warn!(
+                    "circular buffer is already created, size constraints of reader are not considered."
+                );
+            }
+            self.core.min_buffer_size_in_items().unwrap_or(0)
+        } else {
+            let page_size = vmcircbuffer::double_mapped_buffer::pagesize();
+            let mut buffer_size = page_size;
+            let min_self = self.core.min_items().unwrap_or(1);
+            let min_reader = token.reader_min_items.unwrap_or(1);
+            let mut min_bytes = (min_self + min_reader - 1) * D::SIZE.get();
+            let buffer_size_configured = self.core.min_buffer_size_in_items().is_some()
+                || token.reader_min_buffer_size.is_some();
+
+            min_bytes = if buffer_size_configured {
+                let min_self = self.core.min_buffer_size_in_items().unwrap_or(0);
+                let min_reader = token.reader_min_buffer_size.unwrap_or(0);
+                std::cmp::max(
+                    min_bytes,
+                    std::cmp::max(min_self, min_reader) * D::SIZE.get(),
+                )
+            } else {
+                std::cmp::max(min_bytes, config().buffer_size)
+            };
+
+            while (buffer_size < min_bytes) || !buffer_size.is_multiple_of(D::SIZE.get()) {
+                buffer_size += page_size;
+            }
+
+            self.core
+                .set_min_buffer_size_in_items(buffer_size / D::SIZE.get());
+            self.state.set_connected(ConnectedWriter {
+                writer: generic::Circular::with_capacity(buffer_size / D::SIZE.get()).unwrap(),
+                readers: vec![],
+            });
+            buffer_size / D::SIZE.get()
+        };
+
+        let writer_notifier = MyNotifier {
+            notifier: self.core.notifier(),
+        };
+        let reader_notifier = MyNotifier {
+            notifier: BlockInbox::notifier(&token.reader.inbox()),
+        };
+        let reader = self
+            .state
+            .connected_mut()
+            .writer
+            .add_reader(reader_notifier, writer_notifier);
+        self.state.connected_mut().readers.push(token.reader);
+
+        ThreadSafeReturnToken {
+            connected: ConnectedReader {
+                reader,
+                writer: PortEndpoint::new(self.core.inbox(), self.core.port_id()),
+            },
+            min_buffer_size,
+        }
+    }
+
+    fn finish_reader(reader: &mut Reader<D, BlockInbox>, token: Self::WriterToken) {
+        reader
+            .core
+            .set_min_buffer_size_in_items(token.min_buffer_size);
+        reader.state.set_connected(token.connected);
+    }
+}
+
+impl<D, I> CpuBufferWriter for Writer<D, I>
+where
+    D: CpuSample,
+    I: BufferInbox,
 {
     type Item = D;
 
@@ -278,10 +397,10 @@ where
     }
 }
 
-impl<D, M> fmt::Debug for Writer<D, M>
+impl<D, I> fmt::Debug for Writer<D, I>
 where
     D: CpuSample,
-    M: BufferMode,
+    I: BufferInbox,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("circular::Writer")
@@ -292,30 +411,30 @@ where
 }
 
 /// Circular Reader
-pub struct Reader<D, M = ThreadSafeMode>
+pub struct Reader<D, I = BlockInbox>
 where
     D: CpuSample,
-    M: BufferMode,
+    I: BufferInbox,
 {
-    state: ConnectionState<ConnectedReader<D, M>>,
+    state: ConnectionState<ConnectedReader<D, I>>,
     finished: bool,
-    core: PortCore<M>,
+    core: PortCore<I>,
     tags: Vec<ItemTag>,
 }
 
-struct ConnectedReader<D, M>
+struct ConnectedReader<D, I>
 where
     D: CpuSample,
-    M: BufferMode,
+    I: BufferInbox,
 {
-    reader: generic::Reader<D, MyNotifier<M::Notifier>, MyMetadata>,
-    writer: PortEndpoint<M>,
+    reader: generic::Reader<D, MyNotifier<I::Notifier>, MyMetadata>,
+    writer: PortEndpoint<I>,
 }
 
-impl<D, M> Default for Reader<D, M>
+impl<D, I> Default for Reader<D, I>
 where
     D: CpuSample,
-    M: BufferMode,
+    I: BufferInbox,
 {
     fn default() -> Self {
         Self {
@@ -327,17 +446,17 @@ where
     }
 }
 
-impl<D, M> BufferReader for Reader<D, M>
+impl<D, I> BufferReader for Reader<D, I>
 where
     D: CpuSample,
-    M: BufferMode,
+    I: BufferInbox,
 {
-    type Mode = M;
+    type Inbox = I;
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: M::Inbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: I) {
         self.core.init(block_id, port_id, inbox);
     }
     fn buffer_requirements(&self) -> BufferRequirements {
@@ -376,10 +495,10 @@ where
     }
 }
 
-impl<D, M> CpuBufferReader for Reader<D, M>
+impl<D, I> CpuBufferReader for Reader<D, I>
 where
     D: CpuSample,
-    M: BufferMode,
+    I: BufferInbox,
 {
     type Item = D;
 
@@ -427,10 +546,10 @@ where
     }
 }
 
-impl<D, M> fmt::Debug for Reader<D, M>
+impl<D, I> fmt::Debug for Reader<D, I>
 where
     D: CpuSample,
-    M: BufferMode,
+    I: BufferInbox,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("circular::Reader")

@@ -1,7 +1,7 @@
+use bytemuck::Pod;
 use std::any::Any;
 use std::collections::VecDeque;
 use std::marker::PhantomData;
-use std::mem::size_of;
 use std::sync::Arc;
 use std::sync::Mutex;
 use wgpu::BufferUsages;
@@ -11,6 +11,7 @@ use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
 use crate::runtime::Error;
 use crate::runtime::PortId;
+use crate::runtime::buffer::BlockInbox;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferRequirements;
 use crate::runtime::buffer::BufferWriter;
@@ -20,10 +21,10 @@ use crate::runtime::buffer::CpuSample;
 use crate::runtime::buffer::PortCore;
 use crate::runtime::buffer::PortEndpoint;
 use crate::runtime::buffer::Tags;
-use crate::runtime::buffer::ThreadSafeMode;
+#[cfg(not(target_arch = "wasm32"))]
+use crate::runtime::buffer::ThreadSafeConnect;
 use crate::runtime::buffer::wgpu::InputBufferEmpty as BufferEmpty;
 use crate::runtime::buffer::wgpu::InputBufferFull as BufferFull;
-use crate::runtime::dev::BlockInbox;
 use crate::runtime::dev::ItemTag;
 
 const UNMANAGED_SLOT_ID: usize = usize::MAX;
@@ -75,6 +76,32 @@ struct ConnectedWriter {
     reader: PortEndpoint,
 }
 
+/// Reader offer for a native WGPU H2D cross-domain connection.
+#[cfg(not(target_arch = "wasm32"))]
+#[doc(hidden)]
+pub struct ThreadSafeConnectToken<D>
+where
+    D: CpuSample,
+{
+    reader: PortEndpoint,
+    instance: Option<super::Instance>,
+    _item: PhantomData<D>,
+}
+
+/// Reader installation returned by the native WGPU H2D writer.
+#[cfg(not(target_arch = "wasm32"))]
+#[doc(hidden)]
+pub struct ThreadSafeReturnToken<D>
+where
+    D: CpuSample,
+{
+    slots: Arc<Mutex<Vec<UploadSlot<D>>>>,
+    writable_ids: Arc<Mutex<Vec<usize>>>,
+    ready_ids: Arc<Mutex<VecDeque<usize>>>,
+    instance: Option<super::Instance>,
+    connected: ConnectedReader,
+}
+
 impl<D> Writer<D>
 where
     D: CpuSample,
@@ -104,7 +131,7 @@ where
             panic!("H2D writer: set_instance() must be called before injecting buffers");
         };
 
-        let n_bytes = (n_items * size_of::<D>()) as u64;
+        let n_bytes = (n_items * D::SIZE.get()) as u64;
         let mut slots = self.slots.lock().unwrap();
         let mut writable_ids = self.writable_ids.lock().unwrap();
 
@@ -163,7 +190,7 @@ where
                 "H2D writer: acquired non-writable slot"
             );
             slot.written_items = 0;
-            let byte_len = (slot.capacity * size_of::<D>()) as u64;
+            let byte_len = (slot.capacity * D::SIZE.get()) as u64;
             (
                 slot.capacity,
                 slot.buffer.slice(0..byte_len).get_mapped_range_mut(),
@@ -194,7 +221,7 @@ impl<D> BufferWriter for Writer<D>
 where
     D: CpuSample,
 {
-    type Mode = ThreadSafeMode;
+    type Inbox = BlockInbox;
     type Reader = Reader<D>;
 
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
@@ -281,9 +308,52 @@ where
     }
 }
 
-impl<D> CpuBufferWriter for Writer<D>
+#[cfg(not(target_arch = "wasm32"))]
+impl<D> ThreadSafeConnect for Writer<D>
 where
     D: CpuSample,
+{
+    type ReaderToken = ThreadSafeConnectToken<D>;
+    type WriterToken = ThreadSafeReturnToken<D>;
+
+    fn take_reader_token(reader: &mut Reader<D>) -> Self::ReaderToken {
+        ThreadSafeConnectToken {
+            reader: PortEndpoint::new(reader.core.inbox(), reader.core.port_id()),
+            instance: reader.instance.clone(),
+            _item: PhantomData,
+        }
+    }
+
+    fn connect_reader(&mut self, token: Self::ReaderToken) -> Self::WriterToken {
+        if self.instance.is_none() {
+            self.instance = token.instance;
+        }
+        self.state.set_connected(ConnectedWriter {
+            reader: token.reader,
+        });
+        ThreadSafeReturnToken {
+            slots: self.slots.clone(),
+            writable_ids: self.writable_ids.clone(),
+            ready_ids: self.ready_ids.clone(),
+            instance: self.instance.clone(),
+            connected: ConnectedReader {
+                writer: PortEndpoint::new(self.core.inbox(), self.core.port_id()),
+            },
+        }
+    }
+
+    fn finish_reader(reader: &mut Reader<D>, token: Self::WriterToken) {
+        reader.slots = token.slots;
+        reader.ready_ids = token.ready_ids;
+        reader.writable_ids = token.writable_ids;
+        reader.instance = token.instance;
+        reader.state.set_connected(token.connected);
+    }
+}
+
+impl<D> CpuBufferWriter for Writer<D>
+where
+    D: CpuSample + Pod,
 {
     type Item = D;
 
@@ -297,8 +367,8 @@ where
             let slots = self.slots.lock().unwrap();
             slots[current.slot_id].capacity
         };
-        let byte_offset = current.item_offset * size_of::<D>();
-        let byte_end = cap * size_of::<D>();
+        let byte_offset = current.item_offset * D::SIZE.get();
+        let byte_end = cap * D::SIZE.get();
         let mut tail_write_only = current.view.slice(byte_offset..byte_end);
         let tail = unsafe {
             std::slice::from_raw_parts_mut(
@@ -306,11 +376,8 @@ where
                 byte_end - byte_offset,
             )
         };
-        let (prefix, data, suffix) = unsafe { tail.align_to_mut::<D>() };
-        assert!(
-            prefix.is_empty() && suffix.is_empty(),
-            "H2D writer: mapped buffer alignment invalid for sample type"
-        );
+        let data = bytemuck::try_cast_slice_mut(tail)
+            .expect("H2D writer: mapped buffer alignment invalid for sample type");
         (data, Tags::new(&mut self.tags, 0))
     }
 
@@ -442,7 +509,7 @@ where
         let writable_ids = self.writable_ids.clone();
         let slots_arc = self.slots.clone();
         let writer_inbox = self.state.connected().writer.inbox();
-        let byte_len = (capacity * size_of::<D>()) as u64;
+        let byte_len = (capacity * D::SIZE.get()) as u64;
         let slice = buffer_for_map.slice(0..byte_len);
         slice.map_async(wgpu::MapMode::Write, move |result| match result {
             Ok(()) => {
@@ -505,7 +572,7 @@ impl<D> BufferReader for Reader<D>
 where
     D: CpuSample,
 {
-    type Mode = ThreadSafeMode;
+    type Inbox = BlockInbox;
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self

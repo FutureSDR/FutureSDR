@@ -21,7 +21,7 @@ use crate::runtime::dev::prelude::*;
 /// ```
 #[derive(Block)]
 pub struct Head<
-    T: Copy + Send + 'static,
+    T: CpuSample,
     I: CpuBufferReader<Item = T> = DefaultCpuReader<T>,
     O: CpuBufferWriter<Item = T> = DefaultCpuWriter<T>,
 > {
@@ -33,7 +33,7 @@ pub struct Head<
 }
 impl<T, I, O> Head<T, I, O>
 where
-    T: Copy + Send + 'static,
+    T: CpuSample,
     I: CpuBufferReader<Item = T>,
     O: CpuBufferWriter<Item = T>,
 {
@@ -50,7 +50,7 @@ where
 #[doc(hidden)]
 impl<T, I, O> Kernel for Head<T, I, O>
 where
-    T: Copy + Send + 'static,
+    T: CpuSample,
     I: CpuBufferReader<Item = T>,
     O: CpuBufferWriter<Item = T>,
 {

@@ -30,14 +30,17 @@ use std::path::PathBuf;
 /// let sink = fg.add(FileSink::<Complex<f32>>::new("my_sink_filename.cf32")).unwrap();
 /// ```
 #[derive(Block)]
-pub struct FileSink<T: Send + 'static, I: CpuBufferReader<Item = T> = DefaultCpuReader<T>> {
+pub struct FileSink<
+    T: CpuSample + bytemuck::Pod,
+    I: CpuBufferReader<Item = T> = DefaultCpuReader<T>,
+> {
     #[input]
     input: I,
     file_path: PathBuf,
     file: Option<File>,
 }
 
-impl<T: Send + 'static, I: CpuBufferReader<Item = T>> FileSink<T, I> {
+impl<T: CpuSample + bytemuck::Pod, I: CpuBufferReader<Item = T>> FileSink<T, I> {
     /// Create FileSink block
     pub fn new(file_path: impl AsRef<Path>) -> Self {
         Self {
@@ -49,7 +52,7 @@ impl<T: Send + 'static, I: CpuBufferReader<Item = T>> FileSink<T, I> {
 }
 
 #[doc(hidden)]
-impl<T: Send + 'static, I: CpuBufferReader<Item = T>> Kernel for FileSink<T, I> {
+impl<T: CpuSample + bytemuck::Pod, I: CpuBufferReader<Item = T>> Kernel for FileSink<T, I> {
     async fn work(
         &mut self,
         io: &mut WorkIo,
@@ -60,9 +63,7 @@ impl<T: Send + 'static, I: CpuBufferReader<Item = T>> Kernel for FileSink<T, I> 
 
         let items = i.len();
         if items > 0 {
-            let byte_slice = unsafe {
-                std::slice::from_raw_parts(i.as_ptr() as *const u8, std::mem::size_of_val(i))
-            };
+            let byte_slice = bytemuck::cast_slice(i);
 
             match self.file.as_mut().unwrap().write_all(byte_slice).await {
                 Ok(()) => {}

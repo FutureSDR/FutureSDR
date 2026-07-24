@@ -21,7 +21,7 @@ use crate::runtime::dev::prelude::*;
 pub struct Source<F, A, O = DefaultCpuWriter<A>>
 where
     F: FnMut() -> A + Send + 'static,
-    A: Send + 'static,
+    A: CpuSample,
     O: CpuBufferWriter<Item = A>,
 {
     #[output]
@@ -43,7 +43,7 @@ where
 impl<F, A, O> Source<F, A, O>
 where
     F: FnMut() -> A + Send + 'static,
-    A: Send + 'static,
+    A: CpuSample,
     O: CpuBufferWriter<Item = A>,
 {
     /// Create Source block with a custom stream buffer.
@@ -59,7 +59,7 @@ where
 impl<F, A, O> Kernel for Source<F, A, O>
 where
     F: FnMut() -> A + Send + 'static,
-    A: Send + 'static,
+    A: CpuSample,
     O: CpuBufferWriter<Item = A>,
 {
     async fn work(

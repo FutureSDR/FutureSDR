@@ -272,9 +272,10 @@ impl Flowgraph {
     ///
     /// Add non-`Send` or explicitly local blocks to this domain with
     /// [`Flowgraph::with_local_domain`]. Blocks in one local domain can use
-    /// local-only stream buffers through [`LocalDomainContext`]. Normal
-    /// send-capable stream buffers may connect local-domain blocks to normal
-    /// blocks after the local-domain builder closure returns.
+    /// local-only stream buffers through [`LocalDomainContext`]. Buffers that
+    /// implement [`ThreadSafeConnect`](crate::runtime::buffer::ThreadSafeConnect)
+    /// may connect local-domain blocks to normal blocks after the local-domain
+    /// builder closure returns.
     ///
     /// This can fail on WASM when the local-domain worker script cannot be
     /// started.

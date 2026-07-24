@@ -38,17 +38,21 @@ use std::any::Any;
 use std::any::TypeId;
 use std::fmt::Debug;
 use std::future::Future;
+use std::marker::PhantomData;
+use std::mem::size_of;
+use std::num::NonZeroUsize;
+use std::sync::Arc;
 
 use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
 use crate::runtime::Error;
 use crate::runtime::PortId;
 use crate::runtime::PortIndex;
-use crate::runtime::block_inbox::BlockInbox;
+pub use crate::runtime::block_inbox::BlockInbox;
+pub use crate::runtime::block_inbox::LocalBlockInbox;
 use crate::runtime::config::config;
 use crate::runtime::dev::BlockNotifier;
 use crate::runtime::dev::ItemTag;
-use crate::runtime::dev::LocalBlockInbox;
 use crate::runtime::dev::LocalBlockNotifier;
 use crate::runtime::dev::Tag;
 
@@ -215,8 +219,8 @@ pub struct PortManifest {
     direction: PortDirection,
     concrete_type_id: TypeId,
     reader_type_id: Option<TypeId>,
-    mode_type_id: TypeId,
     requirements: BufferRequirements,
+    thread_safe_connect: Option<Arc<dyn DynThreadSafeConnect>>,
 }
 
 impl PortManifest {
@@ -227,8 +231,8 @@ impl PortManifest {
             direction: PortDirection::Input,
             concrete_type_id: port.concrete_type_id(),
             reader_type_id: None,
-            mode_type_id: port.mode_type_id(),
             requirements: port.buffer_requirements(),
+            thread_safe_connect: None,
         }
     }
 
@@ -239,8 +243,8 @@ impl PortManifest {
             direction: PortDirection::Output,
             concrete_type_id: port.concrete_type_id(),
             reader_type_id: Some(port.reader_type_id()),
-            mode_type_id: port.mode_type_id(),
             requirements: port.buffer_requirements(),
+            thread_safe_connect: port.thread_safe_connect(),
         }
     }
 
@@ -264,12 +268,12 @@ impl PortManifest {
         self.reader_type_id
     }
 
-    pub(crate) fn mode_type_id(&self) -> TypeId {
-        self.mode_type_id
-    }
-
     pub(crate) fn requirements(&self) -> BufferRequirements {
         self.requirements
+    }
+
+    pub(crate) fn thread_safe_connect(&self) -> Option<Arc<dyn DynThreadSafeConnect>> {
+        self.thread_safe_connect.clone()
     }
 }
 
@@ -294,7 +298,18 @@ impl BufferNotifier for LocalBlockNotifier {
 }
 
 /// Wake/message handle stored by stream buffers.
+///
+/// This selects the control-plane handle and its lightweight notifier. It does
+/// not make a buffer endpoint `Send` or opt it into cross-domain connections;
+/// that capability is declared separately with [`ThreadSafeConnect`].
 pub trait BufferInbox: Clone + Debug + 'static {
+    /// Wake-only handle stored on hot paths.
+    type Notifier: BufferNotifier;
+
+    /// Select this inbox from the handles provided during port initialization.
+    fn from_port_inboxes(inboxes: &PortInboxes) -> Self;
+    /// Extract a wake-only notifier from this inbox.
+    fn notifier(&self) -> Self::Notifier;
     /// Wake the owning block without sending a message.
     fn notify(&self);
     /// Notify the destination block that one stream input port is done.
@@ -304,6 +319,16 @@ pub trait BufferInbox: Clone + Debug + 'static {
 }
 
 impl BufferInbox for BlockInbox {
+    type Notifier = BlockNotifier;
+
+    fn from_port_inboxes(inboxes: &PortInboxes) -> Self {
+        inboxes.thread_safe_inbox()
+    }
+
+    fn notifier(&self) -> Self::Notifier {
+        BlockInbox::notifier(self)
+    }
+
     #[inline(always)]
     fn notify(&self) {
         BlockInbox::notify(self);
@@ -319,6 +344,16 @@ impl BufferInbox for BlockInbox {
 }
 
 impl BufferInbox for LocalBlockInbox {
+    type Notifier = LocalBlockNotifier;
+
+    fn from_port_inboxes(inboxes: &PortInboxes) -> Self {
+        inboxes.local_inbox()
+    }
+
+    fn notifier(&self) -> Self::Notifier {
+        LocalBlockInbox::notifier(self)
+    }
+
     #[inline(always)]
     fn notify(&self) {
         LocalBlockInbox::notify(self);
@@ -370,68 +405,30 @@ impl PortInboxes {
     }
 }
 
-/// Selects which wake/message mechanism a buffer stores.
-pub trait BufferMode: 'static {
-    /// Inbox handle stored by buffers in this mode.
-    type Inbox: BufferInbox;
-    /// Wake-only handle stored on hot paths.
-    type Notifier: BufferNotifier;
-
-    /// Select this mode's inbox from the handles provided during port init.
-    fn inbox(inboxes: &PortInboxes) -> Self::Inbox;
-    /// Extract a wake-only notifier from this mode's inbox.
-    fn notifier(inbox: &Self::Inbox) -> Self::Notifier;
-}
-
-/// Send-capable wake mode for normal buffers.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct ThreadSafeMode;
-
-impl BufferMode for ThreadSafeMode {
-    type Inbox = BlockInbox;
-    type Notifier = BlockNotifier;
-
-    fn inbox(inboxes: &PortInboxes) -> Self::Inbox {
-        inboxes.thread_safe_inbox()
-    }
-
-    fn notifier(inbox: &Self::Inbox) -> Self::Notifier {
-        inbox.notifier()
-    }
-}
-
-/// Same-thread local-domain wake mode for local buffers.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct LocalMode;
-
-impl BufferMode for LocalMode {
-    type Inbox = LocalBlockInbox;
-    type Notifier = LocalBlockNotifier;
-
-    fn inbox(inboxes: &PortInboxes) -> Self::Inbox {
-        inboxes.local_inbox()
-    }
-
-    fn notifier(inbox: &Self::Inbox) -> Self::Notifier {
-        inbox.notifier()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn assert_mode_inbox<M, I>()
+    fn assert_inbox_notifier<I, N>()
     where
-        M: BufferMode<Inbox = I>,
-        I: BufferInbox,
+        I: BufferInbox<Notifier = N>,
+        N: BufferNotifier,
     {
     }
 
     #[test]
-    fn built_in_modes_use_concrete_inboxes() {
-        assert_mode_inbox::<ThreadSafeMode, BlockInbox>();
-        assert_mode_inbox::<LocalMode, LocalBlockInbox>();
+    fn built_in_inboxes_select_concrete_notifiers() {
+        assert_inbox_notifier::<BlockInbox, BlockNotifier>();
+        assert_inbox_notifier::<LocalBlockInbox, LocalBlockNotifier>();
+    }
+
+    #[test]
+    fn erased_connection_capability_follows_thread_safe_connect_impl() {
+        let writer = super::DefaultCpuWriter::<u8>::default();
+        assert!(DynBufferWriter::thread_safe_connect(&writer).is_some());
+
+        let writer = super::local::Writer::<u8>::default();
+        assert!(DynBufferWriter::thread_safe_connect(&writer).is_none());
     }
 
     #[test]
@@ -458,7 +455,7 @@ mod tests {
 
 /// Binding state shared by all stream ports.
 #[derive(Debug, Clone)]
-pub enum PortBinding<M: BufferMode = ThreadSafeMode> {
+pub enum PortBinding<I: BufferInbox = BlockInbox> {
     /// Port is only constructed and not yet attached to a concrete block/port id.
     Unbound,
     /// Port is attached to a concrete block/port id inside a flowgraph.
@@ -468,18 +465,18 @@ pub enum PortBinding<M: BufferMode = ThreadSafeMode> {
         /// Port id inside the owning block.
         port_id: PortId,
         /// Inbox used to notify the owning block.
-        inbox: M::Inbox,
+        inbox: I,
     },
 }
 
 /// Shared per-port state that is independent from the concrete buffer backend.
 #[derive(Debug, Clone)]
-pub struct PortCore<M: BufferMode = ThreadSafeMode> {
-    binding: PortBinding<M>,
+pub struct PortCore<I: BufferInbox = BlockInbox> {
+    binding: PortBinding<I>,
     config: PortConfig,
 }
 
-impl<M: BufferMode> PortCore<M> {
+impl<I: BufferInbox> PortCore<I> {
     /// Create an unbound port with empty configuration.
     pub const fn new_disconnected() -> Self {
         Self::with_config(PortConfig::new())
@@ -494,7 +491,7 @@ impl<M: BufferMode> PortCore<M> {
     }
 
     /// Bind the port to the given block/port id and inbox.
-    pub fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: M::Inbox) {
+    pub fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: I) {
         self.binding = PortBinding::Bound {
             block_id,
             port_id,
@@ -508,7 +505,7 @@ impl<M: BufferMode> PortCore<M> {
     }
 
     /// The current binding state.
-    pub fn binding(&self) -> &PortBinding<M> {
+    pub fn binding(&self) -> &PortBinding<I> {
         &self.binding
     }
 
@@ -545,7 +542,7 @@ impl<M: BufferMode> PortCore<M> {
     }
 
     /// Get the bound inbox.
-    pub fn inbox(&self) -> M::Inbox {
+    pub fn inbox(&self) -> I {
         match &self.binding {
             PortBinding::Bound { inbox, .. } => inbox.clone(),
             PortBinding::Unbound => panic!("port is not bound to a flowgraph"),
@@ -553,9 +550,9 @@ impl<M: BufferMode> PortCore<M> {
     }
 
     /// Get the wake-only notifier associated with the bound inbox.
-    pub fn notifier(&self) -> M::Notifier {
+    pub fn notifier(&self) -> I::Notifier {
         match &self.binding {
-            PortBinding::Bound { inbox, .. } => M::notifier(inbox),
+            PortBinding::Bound { inbox, .. } => inbox.notifier(),
             PortBinding::Unbound => panic!("port is not bound to a flowgraph"),
         }
     }
@@ -630,19 +627,19 @@ impl<M: BufferMode> PortCore<M> {
 
 /// A peer endpoint captured during connection setup.
 #[derive(Debug, Clone)]
-pub struct PortEndpoint<M: BufferMode = ThreadSafeMode> {
-    inbox: M::Inbox,
+pub struct PortEndpoint<I: BufferInbox = BlockInbox> {
+    inbox: I,
     port_id: PortId,
 }
 
-impl<M: BufferMode> PortEndpoint<M> {
+impl<I: BufferInbox> PortEndpoint<I> {
     /// Create a new peer endpoint.
-    pub fn new(inbox: M::Inbox, port_id: PortId) -> Self {
+    pub fn new(inbox: I, port_id: PortId) -> Self {
         Self { inbox, port_id }
     }
 
     /// Get the peer inbox.
-    pub fn inbox(&self) -> M::Inbox {
+    pub fn inbox(&self) -> I {
         self.inbox.clone()
     }
 
@@ -746,31 +743,12 @@ impl<T> ConnectionState<T> {
     }
 }
 
-/// Send-capable reader marker for stream buffers.
-///
-/// Native normal flowgraphs use this to ensure the reader type and its
-/// finish-notification future can cross worker threads. The reader methods come
-/// from [`BufferReader`].
-pub trait SendBufferReader: BufferReader<notify_finished(..): Send> + Send {}
-
-/// Send-capable writer marker for stream buffers.
-///
-/// Native normal flowgraphs use this to ensure the writer type, its matching
-/// reader, and its finish-notification future can cross worker threads. The
-/// writer methods come from [`BufferWriter`].
-pub trait SendBufferWriter:
-    BufferWriter<Reader: SendBufferReader, notify_finished(..): Send> + Send
-{
-}
-
 /// Type-erased reader side of a stream buffer.
 pub trait DynBufferReader: Any {
     /// Return this reader as [`Any`] for runtime downcasting.
     fn as_any_mut(&mut self) -> &mut dyn Any;
     /// Concrete reader type identity.
     fn concrete_type_id(&self) -> TypeId;
-    /// Buffer mode type identity.
-    fn mode_type_id(&self) -> TypeId;
     /// Buffer requirements configured on this port.
     fn buffer_requirements(&self) -> BufferRequirements;
     /// Raise this port's configured requirements.
@@ -796,10 +774,6 @@ impl<T: BufferReader> DynBufferReader for T {
 
     fn concrete_type_id(&self) -> TypeId {
         TypeId::of::<T>()
-    }
-
-    fn mode_type_id(&self) -> TypeId {
-        TypeId::of::<T::Mode>()
     }
 
     fn buffer_requirements(&self) -> BufferRequirements {
@@ -836,12 +810,9 @@ impl<T: BufferReader> DynBufferReader for T {
 }
 
 /// Reader side of a stream buffer.
-///
-/// Native send-capable readers are derived from this trait through a blanket
-/// impl when the type and returned futures permit it.
 pub trait BufferReader: Any {
-    /// Wake/message mode used by this buffer.
-    type Mode: BufferMode;
+    /// Concrete inbox handle stored by this buffer.
+    type Inbox: BufferInbox;
     /// Return this reader as [`Any`] for runtime downcasting.
     fn as_any_mut(&mut self) -> &mut dyn Any;
     /// Buffer requirements configured on this port.
@@ -851,18 +822,13 @@ pub trait BufferReader: Any {
     /// Raise this port's configured requirements.
     fn raise_buffer_requirements(&mut self, _requirements: BufferRequirements) {}
     /// Initialize the reader with its owning block, port id, and inbox.
-    fn init(
-        &mut self,
-        block_id: BlockId,
-        port_id: PortId,
-        inbox: <Self::Mode as BufferMode>::Inbox,
-    );
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: Self::Inbox);
     /// Initialize the reader from a block's available inbox handles.
     fn init_from(&mut self, block_id: BlockId, port_id: PortId, inboxes: &PortInboxes) {
-        self.init(block_id, port_id, Self::Mode::inbox(inboxes));
+        self.init(block_id, port_id, Self::Inbox::from_port_inboxes(inboxes));
     }
     /// Replace the inbox/wake handle for this already-bound reader.
-    fn set_inbox(&mut self, inbox: <Self::Mode as BufferMode>::Inbox) {
+    fn set_inbox(&mut self, inbox: Self::Inbox) {
         let block_id = self.block_id();
         let port_id = self.port_id();
         self.init(block_id, port_id, inbox);
@@ -889,123 +855,112 @@ pub trait BufferReader: Any {
     fn port_id(&self) -> PortId;
 }
 
-impl<T> SendBufferReader for T where T: BufferReader<notify_finished(..): Send> + Send + 'static {}
+/// Buffer writer that can be connected while its endpoints stay in different domains.
+///
+/// Connection always proceeds from reader to writer and back to the reader:
+///
+/// 1. [`take_reader_token`](Self::take_reader_token) creates a sendable offer in
+///    the reader's domain.
+/// 2. [`connect_reader`](Self::connect_reader) mutates the pinned writer and
+///    returns a sendable reader installation token.
+/// 3. [`finish_reader`](Self::finish_reader) installs that token into the pinned
+///    reader.
+pub trait ThreadSafeConnect: BufferWriter {
+    /// Sendable reader offer consumed in the writer's domain.
+    type ReaderToken: Send + 'static;
+    /// Sendable reader installation token returned by the writer.
+    type WriterToken: Send + 'static;
 
-/// Type-erased sendable token for connecting a stream writer across domains.
-pub trait DynSendBufferWriterToken: Send {
-    /// Connect the token's writer to a type-erased reader.
-    fn connect_dyn(&mut self, dest: &mut dyn DynBufferReader) -> Result<(), Error>;
-    /// Convert the token back into boxed [`Any`] for restoring its concrete writer.
-    fn into_any(self: Box<Self>) -> Box<dyn Any + Send>;
+    /// Create an offer from the reader without moving the reader endpoint.
+    fn take_reader_token(reader: &mut Self::Reader) -> Self::ReaderToken;
+    /// Attach the offered reader while keeping the writer endpoint pinned.
+    fn connect_reader(&mut self, token: Self::ReaderToken) -> Self::WriterToken;
+    /// Install the writer-created connection state into the pinned reader.
+    fn finish_reader(reader: &mut Self::Reader, token: Self::WriterToken);
 }
 
-/// Owned sendable writer token used by buffers that opt into cross-domain setup.
-pub struct SendBufferWriterToken<T: BufferWriter + Send + 'static> {
-    writer: T,
-}
+pub(crate) type DynThreadSafeToken = Box<dyn Any + Send>;
 
-impl<T> SendBufferWriterToken<T>
-where
-    T: BufferWriter + Send + 'static,
-{
-    /// Create a token from an owned writer.
-    pub fn new(writer: T) -> Self {
-        Self { writer }
-    }
-}
-
-impl<T> DynSendBufferWriterToken for SendBufferWriterToken<T>
-where
-    T: BufferWriter + Send + 'static,
-{
-    fn connect_dyn(&mut self, dest: &mut dyn DynBufferReader) -> Result<(), Error> {
-        BufferWriter::connect_dyn(&mut self.writer, dest)
-    }
-
-    fn into_any(self: Box<Self>) -> Box<dyn Any + Send> {
-        let Self { writer } = *self;
-        Box::new(writer)
-    }
-}
-
-/// Take a sendable token from a writer by replacing it with its default value.
-pub fn take_send_token<T>(writer: &mut T) -> Result<Box<dyn DynSendBufferWriterToken>, Error>
-where
-    T: BufferWriter + Default + Send + 'static,
-{
-    Ok(Box::new(SendBufferWriterToken::new(std::mem::take(writer))))
-}
-
-/// Restore a writer from a sendable token that was created from the same type.
-pub fn replace_send_token<T>(
-    writer: &mut T,
-    token: Box<dyn DynSendBufferWriterToken>,
-) -> Result<(), Error>
-where
-    T: BufferWriter + Send + 'static,
-{
-    let restored = token
-        .into_any()
-        .downcast::<T>()
-        .map_err(|_| Error::ValidationError("send stream token has unexpected type".to_string()))?;
-    *writer = *restored;
-    Ok(())
-}
-
-/// Mode-level policy for sendable stream-writer tokens.
+/// Type-erased adapter for a concrete [`ThreadSafeConnect`] implementation.
 #[doc(hidden)]
-pub trait BufferWriterTokenPolicy<W>: BufferMode {
-    /// Temporarily take a writer as a sendable cross-domain token.
-    fn take_send_token(_writer: &mut W) -> Result<Box<dyn DynSendBufferWriterToken>, Error> {
-        Err(Error::ValidationError(
-            "stream writer is not send-capable".to_string(),
-        ))
-    }
+pub trait DynThreadSafeConnect: Debug + Send + Sync {
+    /// Create an erased offer from a type-erased reader.
+    fn take_reader(&self, reader: &mut dyn DynBufferReader) -> Result<DynThreadSafeToken, Error>;
+    /// Attach an erased reader offer to a type-erased writer.
+    fn connect_reader(
+        &self,
+        writer: &mut dyn DynBufferWriter,
+        token: DynThreadSafeToken,
+    ) -> Result<DynThreadSafeToken, Error>;
+    /// Install an erased writer token into a type-erased reader.
+    fn finish_reader(
+        &self,
+        reader: &mut dyn DynBufferReader,
+        token: DynThreadSafeToken,
+    ) -> Result<(), Error>;
+}
 
-    /// Restore a writer that was previously taken as a sendable token.
-    fn replace_send_token(
-        _writer: &mut W,
-        _token: Box<dyn DynSendBufferWriterToken>,
-    ) -> Result<(), Error> {
-        Err(Error::ValidationError(
-            "stream writer is not send-capable".to_string(),
-        ))
+struct ErasedThreadSafeConnect<W>(PhantomData<fn() -> W>);
+
+impl<W> Debug for ErasedThreadSafeConnect<W> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DynThreadSafeConnect")
+            .finish_non_exhaustive()
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
-impl<W> BufferWriterTokenPolicy<W> for ThreadSafeMode
+impl<W> DynThreadSafeConnect for ErasedThreadSafeConnect<W>
 where
-    W: BufferWriter<Mode = ThreadSafeMode> + Default + Send + 'static,
+    W: ThreadSafeConnect + 'static,
 {
-    fn take_send_token(writer: &mut W) -> Result<Box<dyn DynSendBufferWriterToken>, Error> {
-        self::take_send_token(writer)
+    fn take_reader(&self, reader: &mut dyn DynBufferReader) -> Result<DynThreadSafeToken, Error> {
+        let reader = reader
+            .as_any_mut()
+            .downcast_mut::<W::Reader>()
+            .ok_or_else(|| Error::ValidationError("stream reader has wrong type".to_string()))?;
+        Ok(Box::new(W::take_reader_token(reader)))
     }
 
-    fn replace_send_token(
-        writer: &mut W,
-        token: Box<dyn DynSendBufferWriterToken>,
+    fn connect_reader(
+        &self,
+        writer: &mut dyn DynBufferWriter,
+        token: DynThreadSafeToken,
+    ) -> Result<DynThreadSafeToken, Error> {
+        let writer = writer
+            .as_any_mut()
+            .downcast_mut::<W>()
+            .ok_or_else(|| Error::ValidationError("stream writer has wrong type".to_string()))?;
+        let token = token.downcast::<W::ReaderToken>().map_err(|_| {
+            Error::ValidationError("stream connection token has unexpected type".to_string())
+        })?;
+        Ok(Box::new(writer.connect_reader(*token)))
+    }
+
+    fn finish_reader(
+        &self,
+        reader: &mut dyn DynBufferReader,
+        token: DynThreadSafeToken,
     ) -> Result<(), Error> {
-        self::replace_send_token(writer, token)
+        let reader = reader
+            .as_any_mut()
+            .downcast_mut::<W::Reader>()
+            .ok_or_else(|| Error::ValidationError("stream reader has wrong type".to_string()))?;
+        let token = token.downcast::<W::WriterToken>().map_err(|_| {
+            Error::ValidationError("stream connection token has unexpected type".to_string())
+        })?;
+        W::finish_reader(reader, *token);
+        Ok(())
     }
 }
-
-#[cfg(target_arch = "wasm32")]
-impl<W> BufferWriterTokenPolicy<W> for ThreadSafeMode where
-    W: BufferWriter<Mode = ThreadSafeMode> + 'static
-{
-}
-
-impl<W> BufferWriterTokenPolicy<W> for LocalMode where W: BufferWriter<Mode = LocalMode> {}
 
 /// Type-erased writer side of a stream buffer.
 pub trait DynBufferWriter {
+    /// Return this writer as [`Any`] for runtime downcasting.
+    fn as_any_mut(&mut self) -> &mut dyn Any;
     /// Concrete writer type identity.
     fn concrete_type_id(&self) -> TypeId;
     /// Concrete reader type identity expected by this writer.
     fn reader_type_id(&self) -> TypeId;
-    /// Buffer mode type identity.
-    fn mode_type_id(&self) -> TypeId;
     /// Buffer requirements configured on this port.
     fn buffer_requirements(&self) -> BufferRequirements;
     /// Raise this port's configured requirements.
@@ -1016,11 +971,9 @@ pub trait DynBufferWriter {
     fn validate(&self) -> Result<(), Error>;
     /// Connect this writer to a type-erased reader.
     fn connect_dyn(&mut self, dest: &mut dyn DynBufferReader) -> Result<(), Error>;
-    /// Temporarily take this writer as a sendable cross-domain token.
-    fn take_send_token(&mut self) -> Result<Box<dyn DynSendBufferWriterToken>, Error>;
-    /// Restore a writer that was previously taken with [`DynBufferWriter::take_send_token`].
-    fn replace_send_token(&mut self, token: Box<dyn DynSendBufferWriterToken>)
-    -> Result<(), Error>;
+    /// Type-erased cross-domain connection capability, if implemented.
+    #[doc(hidden)]
+    fn thread_safe_connect(&self) -> Option<Arc<dyn DynThreadSafeConnect>>;
     /// Get the owning block id.
     fn block_id(&self) -> BlockId;
     /// Get the owning port id.
@@ -1030,18 +983,17 @@ pub trait DynBufferWriter {
 impl<T> DynBufferWriter for T
 where
     T: BufferWriter + 'static,
-    T::Mode: BufferWriterTokenPolicy<T>,
 {
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn concrete_type_id(&self) -> TypeId {
         TypeId::of::<T>()
     }
 
     fn reader_type_id(&self) -> TypeId {
         TypeId::of::<T::Reader>()
-    }
-
-    fn mode_type_id(&self) -> TypeId {
-        TypeId::of::<T::Mode>()
     }
 
     fn buffer_requirements(&self) -> BufferRequirements {
@@ -1064,15 +1016,8 @@ where
         BufferWriter::connect_dyn(self, dest)
     }
 
-    fn take_send_token(&mut self) -> Result<Box<dyn DynSendBufferWriterToken>, Error> {
-        T::Mode::take_send_token(self)
-    }
-
-    fn replace_send_token(
-        &mut self,
-        token: Box<dyn DynSendBufferWriterToken>,
-    ) -> Result<(), Error> {
-        T::Mode::replace_send_token(self, token)
+    default fn thread_safe_connect(&self) -> Option<Arc<dyn DynThreadSafeConnect>> {
+        None
     }
 
     fn block_id(&self) -> BlockId {
@@ -1084,15 +1029,21 @@ where
     }
 }
 
+impl<T> DynBufferWriter for T
+where
+    T: ThreadSafeConnect + 'static,
+{
+    fn thread_safe_connect(&self) -> Option<Arc<dyn DynThreadSafeConnect>> {
+        Some(Arc::new(ErasedThreadSafeConnect::<T>(PhantomData)))
+    }
+}
+
 /// Writer side of a stream buffer.
-///
-/// Native send-capable writers are derived from this trait through a blanket
-/// impl when the type, reader, and returned futures permit it.
 pub trait BufferWriter: Any {
-    /// Wake/message mode used by this buffer.
-    type Mode: BufferMode;
+    /// Concrete inbox handle stored by this buffer.
+    type Inbox: BufferInbox;
     /// The corresponding matching reader.
-    type Reader: BufferReader<Mode = Self::Mode>;
+    type Reader: BufferReader<Inbox = Self::Inbox>;
     /// Buffer requirements configured on this port.
     fn buffer_requirements(&self) -> BufferRequirements {
         let mut requirements = BufferRequirements::new();
@@ -1102,18 +1053,13 @@ pub trait BufferWriter: Any {
     /// Raise this port's configured requirements.
     fn raise_buffer_requirements(&mut self, _requirements: BufferRequirements) {}
     /// Initialize the writer with its owning block, port id, and inbox.
-    fn init(
-        &mut self,
-        block_id: BlockId,
-        port_id: PortId,
-        inbox: <Self::Mode as BufferMode>::Inbox,
-    );
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: Self::Inbox);
     /// Initialize the writer from a block's available inbox handles.
     fn init_from(&mut self, block_id: BlockId, port_id: PortId, inboxes: &PortInboxes) {
-        self.init(block_id, port_id, Self::Mode::inbox(inboxes));
+        self.init(block_id, port_id, Self::Inbox::from_port_inboxes(inboxes));
     }
     /// Replace the inbox/wake handle for this already-bound writer.
-    fn set_inbox(&mut self, inbox: <Self::Mode as BufferMode>::Inbox) {
+    fn set_inbox(&mut self, inbox: Self::Inbox) {
         let block_id = self.block_id();
         let port_id = self.port_id();
         self.init(block_id, port_id, inbox);
@@ -1147,27 +1093,20 @@ pub trait BufferWriter: Any {
     fn port_id(&self) -> PortId;
 }
 
-impl<T> SendBufferWriter for T
-where
-    T: BufferWriter<notify_finished(..): Send> + Send,
-    T::Reader: SendBufferReader,
-{
+/// Value-level contract for sample types supported by CPU buffers.
+///
+/// Samples are copyable, have a valid default value for initializing typed
+/// storage, and occupy at least one byte. Backends that reinterpret arbitrary
+/// bytes impose an additional representation bound such as `bytemuck::Pod`.
+pub trait CpuSample: Copy + Default + std::fmt::Debug + Send + Sync + 'static {
+    /// Non-zero size of one sample in bytes.
+    const SIZE: NonZeroUsize =
+        NonZeroUsize::new(size_of::<Self>()).expect("sample types must not be zero-sized");
 }
 
-/// Trait alias-style marker for sample types supported by CPU buffers.
-pub trait CpuSample: Default + Clone + std::fmt::Debug + Send + Sync + 'static {}
-
-impl<T> CpuSample for T where T: Default + Clone + std::fmt::Debug + Send + Sync + 'static {}
-
-/// Send-capable reader marker for out-of-place CPU stream buffers.
-///
-/// The CPU methods come from [`CpuBufferReader`].
-pub trait SendCpuBufferReader: CpuBufferReader + SendBufferReader {}
+impl<T> CpuSample for T where T: Copy + Default + std::fmt::Debug + Send + Sync + 'static {}
 
 /// CPU stream reader API.
-///
-/// This is the primary local API. Native send-capable readers are derived from
-/// this trait through a blanket impl.
 pub trait CpuBufferReader: BufferReader + Default {
     /// Item type.
     type Item: CpuSample;
@@ -1193,17 +1132,7 @@ pub trait CpuBufferReader: BufferReader + Default {
     fn max_items(&self) -> usize;
 }
 
-impl<T> SendCpuBufferReader for T where T: CpuBufferReader + SendBufferReader {}
-
-/// Send-capable writer marker for out-of-place CPU stream buffers.
-///
-/// The CPU methods come from [`CpuBufferWriter`].
-pub trait SendCpuBufferWriter: CpuBufferWriter + SendBufferWriter {}
-
 /// CPU stream writer API.
-///
-/// This is the primary local API. Native send-capable writers are derived from
-/// this trait through a blanket impl.
 pub trait CpuBufferWriter: BufferWriter + Default {
     /// Item type.
     type Item: CpuSample;
@@ -1228,8 +1157,6 @@ pub trait CpuBufferWriter: BufferWriter + Default {
     /// Maximum writable items.
     fn max_items(&self) -> usize;
 }
-
-impl<T> SendCpuBufferWriter for T where T: CpuBufferWriter + SendBufferWriter {}
 
 /// Owned buffer chunk passed through an in-place stream circuit.
 pub trait InplaceBuffer {
@@ -1275,27 +1202,17 @@ pub trait InplaceWriter: BufferWriter + Default {
     fn has_more_buffers(&mut self) -> bool;
     /// Inject new empty buffers using the configured default item capacity.
     fn inject_buffers(&mut self, n_buffers: usize) {
-        let n_items = config().buffer_size / std::mem::size_of::<Self::Item>();
+        let n_items = config().buffer_size / Self::Item::SIZE.get();
         self.inject_buffers_with_items(n_buffers, n_items);
     }
     /// Inject new empty buffers with an explicit item capacity.
     fn inject_buffers_with_items(&mut self, n_buffers: usize, n_items: usize);
 }
 
-/// Send-capable in-place reader marker.
-pub trait SendInplaceReader: InplaceReader + SendBufferReader {}
-
-impl<T> SendInplaceReader for T where T: InplaceReader + SendBufferReader {}
-
-/// Send-capable in-place writer marker.
-pub trait SendInplaceWriter: InplaceWriter + SendBufferWriter {}
-
-impl<T> SendInplaceWriter for T where T: InplaceWriter + SendBufferWriter {}
-
 #[cfg(not(target_arch = "wasm32"))]
-/// Default send-capable [`CpuBufferReader`] implementation.
+/// Default native [`CpuBufferReader`] implementation.
 pub type DefaultCpuReader<D> = circular::Reader<D>;
-/// Default send-capable [`CpuBufferWriter`] implementation.
+/// Default native [`CpuBufferWriter`] implementation.
 #[cfg(not(target_arch = "wasm32"))]
 pub type DefaultCpuWriter<D> = circular::Writer<D>;
 #[cfg(target_arch = "wasm32")]

@@ -27,7 +27,7 @@ use crate::runtime::dev::prelude::*;
 #[derive(Block)]
 pub struct TcpSource<T, O = DefaultCpuWriter<T>>
 where
-    T: Send + 'static,
+    T: CpuSample + bytemuck::Pod,
     O: CpuBufferWriter<Item = T>,
 {
     #[output]
@@ -39,7 +39,7 @@ where
 
 impl<T, O> TcpSource<T, O>
 where
-    T: Send + 'static,
+    T: CpuSample + bytemuck::Pod,
     O: CpuBufferWriter<Item = T>,
 {
     /// Create TCP Source block
@@ -56,7 +56,7 @@ where
 #[doc(hidden)]
 impl<T, O> Kernel for TcpSource<T, O>
 where
-    T: Send + 'static,
+    T: CpuSample + bytemuck::Pod,
     O: CpuBufferWriter<Item = T>,
 {
     async fn work(
@@ -81,9 +81,7 @@ where
             return Ok(());
         }
         let out_len = out.len();
-        let ptr = out.as_mut_ptr() as *mut u8;
-        let byte_len = std::mem::size_of_val(out);
-        let data = unsafe { std::slice::from_raw_parts_mut(ptr, byte_len) };
+        let data = bytemuck::cast_slice_mut(out);
 
         match self
             .socket

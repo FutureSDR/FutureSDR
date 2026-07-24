@@ -8,7 +8,7 @@ use crate::runtime::Result;
 use crate::runtime::block_on;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
-use crate::runtime::buffer::SendBufferWriter;
+use crate::runtime::buffer::ThreadSafeConnect;
 
 use super::Flowgraph;
 use super::block_access;
@@ -34,7 +34,7 @@ impl Flowgraph {
     /// This is the typed block-level stream API used by the
     /// [`connect`](crate::runtime::macros::connect) macro.
     ///
-    /// The selected writer must be send-capable and default-constructible.
+    /// The selected writer must provide sendable cross-domain connection tokens.
     /// Build local-only buffers inside [`LocalDomainContext`](crate::runtime::LocalDomainContext).
     #[cfg(not(target_arch = "wasm32"))]
     pub fn stream<KS, KD, B, FS, FD>(
@@ -47,7 +47,7 @@ impl Flowgraph {
     where
         KS: 'static,
         KD: 'static,
-        B: SendBufferWriter + Default + 'static,
+        B: ThreadSafeConnect + 'static,
         FS: FnOnce(&mut KS) -> &mut B + Send + 'static,
         FD: FnOnce(&mut KD) -> &mut B::Reader + Send + 'static,
     {
@@ -65,7 +65,7 @@ impl Flowgraph {
     where
         KS: 'static,
         KD: 'static,
-        B: SendBufferWriter + Default + 'static,
+        B: ThreadSafeConnect + 'static,
         FS: FnOnce(&mut KS) -> &mut B + Send + 'static,
         FD: FnOnce(&mut KD) -> &mut B::Reader + Send + 'static,
     {

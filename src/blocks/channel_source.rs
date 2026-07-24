@@ -21,7 +21,7 @@ use crate::runtime::dev::prelude::*;
 #[derive(Block)]
 pub struct ChannelSource<T, O = DefaultCpuWriter<T>>
 where
-    T: Send + 'static,
+    T: CpuSample,
     O: CpuBufferWriter<Item = T>,
 {
     #[output]
@@ -32,7 +32,7 @@ where
 
 impl<T, O> ChannelSource<T, O>
 where
-    T: Send + 'static,
+    T: CpuSample,
     O: CpuBufferWriter<Item = T>,
 {
     /// Create ChannelSource block
@@ -48,7 +48,7 @@ where
 #[doc(hidden)]
 impl<T, O> Kernel for ChannelSource<T, O>
 where
-    T: Send + 'static,
+    T: CpuSample,
     O: CpuBufferWriter<Item = T>,
 {
     async fn work(

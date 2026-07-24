@@ -93,7 +93,7 @@ pub struct Selector<
     IN = DefaultCpuReader<A>,
     OUT = DefaultCpuWriter<A>,
 > where
-    A: Send + 'static + Copy,
+    A: CpuSample,
     IN: CpuBufferReader<Item = A>,
     OUT: CpuBufferWriter<Item = A>,
 {
@@ -108,7 +108,7 @@ pub struct Selector<
 
 impl<A, const N: usize, const M: usize> Selector<A, N, M, DefaultCpuReader<A>, DefaultCpuWriter<A>>
 where
-    A: CpuSample + Copy,
+    A: CpuSample,
 {
     /// Create Selector block with default stream buffers.
     pub fn new(drop_policy: DropPolicy) -> Self {
@@ -118,7 +118,7 @@ where
 
 impl<A, const N: usize, const M: usize, IN, OUT> Selector<A, N, M, IN, OUT>
 where
-    A: Send + 'static + Copy,
+    A: CpuSample,
     IN: CpuBufferReader<Item = A>,
     OUT: CpuBufferWriter<Item = A>,
 {
@@ -173,7 +173,7 @@ where
 #[doc(hidden)]
 impl<A, const N: usize, const M: usize, IN, OUT> Kernel for Selector<A, N, M, IN, OUT>
 where
-    A: Send + 'static + Copy,
+    A: CpuSample,
     IN: CpuBufferReader<Item = A>,
     OUT: CpuBufferWriter<Item = A>,
 {
