@@ -45,7 +45,7 @@ struct Args {
     #[clap(
         short,
         long,
-        default_value = "lora-dumps/lora_single_channel_1M_multi_sf_16B_1dBpSF_300s.cf32"
+        default_value = "lora-dumps/samples_sf7_pad16_snr30_16B_300s.cf32"
     )]
     file: String,
     /// Runtime config

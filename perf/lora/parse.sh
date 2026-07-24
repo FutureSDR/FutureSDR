@@ -19,7 +19,9 @@ import sys
 try:
     with open(sys.argv[1] + ".txt", "r", encoding="utf-8") as f:
         counts = ast.literal_eval(f.read().strip())
-    print(f"{counts[0]},{counts[0]},{counts[0]},{counts[0]}")
+    sf7_index = 2 if len(counts) == 8 else 0
+    expected = counts[sf7_index]
+    print(f"{expected},{expected},{expected},{expected}")
 except Exception:
     print(",,,")
 PY

@@ -8,11 +8,9 @@ GRRESULTS=$(foreach r,$(RUNS),$(foreach p,$(PAYLOADS),perf-data/gr_$(r)_$(p).csv
 FSRESULTS=$(foreach r,$(RUNS),$(foreach p,$(PAYLOADS),$(foreach c,$(CONFIGS),perf-data/fs_$(r)_$(p)_$(c).csv)))
 
 SHIELD=sudo systemd-run --uid=1000 --slice=sdr --wait -P -d
-PY_USER_SITE=$(shell python3 -c "import site; print(site.getusersitepackages())")
-PY_SITE_PKGS=$(shell python3 -c "import site; print(':'.join(site.getsitepackages()))")
-SHIELD_ENV=--setenv=HOME=$(HOME) --setenv=PATH=$(PATH) --setenv=PYTHONPATH=$(PY_USER_SITE):$(PY_SITE_PKGS):$(PYTHONPATH) --setenv=LD_LIBRARY_PATH=$(LD_LIBRARY_PATH)
+LORA_PREFIX?=$(HOME)/usr
 
-dump_file = $(firstword $(wildcard lora-dumps/*_$(1)B_*.cf32))
+dump_file = $(firstword $(wildcard lora-dumps/samples_sf7_*_$(1)B_*.cf32))
 
 .PHONY: setup all gr fs parse plot clean
 
@@ -25,14 +23,18 @@ setup:
 	@echo "### SETTING UP"
 	../perf_setup.sh
 
-perf-data/gr_%.csv: gnuradio-rx.py
+build/gnuradio-rx: CMakeLists.txt gnuradio-rx.cc
+	cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=$(LORA_PREFIX)
+	cmake --build build -j
+
+perf-data/gr_%.csv: build/gnuradio-rx
 	mkdir -p perf-data
 	$(eval RUN=$(word 1,$(subst _, ,$*)))
 	$(eval PAYLOAD=$(word 2,$(subst _, ,$*)))
 	$(eval FILE=$(call dump_file,$(PAYLOAD)))
-	@test -n "$(FILE)" || (echo "missing LoRa dump for $(PAYLOAD)B" >&2; exit 1)
+	@test -f "$(FILE)" || (echo "missing LoRa dump for $(PAYLOAD)B" >&2; exit 1)
 	@echo "GR run=$(RUN) payload=$(PAYLOAD) file=$(FILE)"
-	$(SHIELD) $(SHIELD_ENV) -- python3 gnuradio-rx.py --run=$(RUN) --file=$(FILE) > $@
+	$(SHIELD) -- ./build/gnuradio-rx --run=$(RUN) --file=$(FILE) > $@
 
 perf-data/fs_%.csv: rx.rs Cargo.toml
 	mkdir -p perf-data
@@ -40,7 +42,7 @@ perf-data/fs_%.csv: rx.rs Cargo.toml
 	$(eval PAYLOAD=$(word 2,$(subst _, ,$*)))
 	$(eval CONFIG=$(word 3,$(subst _, ,$*)))
 	$(eval FILE=$(call dump_file,$(PAYLOAD)))
-	@test -n "$(FILE)" || (echo "missing LoRa dump for $(PAYLOAD)B" >&2; exit 1)
+	@test -f "$(FILE)" || (echo "missing LoRa dump for $(PAYLOAD)B" >&2; exit 1)
 	@echo "FS run=$(RUN) payload=$(PAYLOAD) config=$(CONFIG) file=$(FILE)"
 	$(SHIELD) -- cargo run --release --bin rx -- --run=$(RUN) --file=$(FILE) --config=$(CONFIG) > $@
 
@@ -51,4 +53,4 @@ plot: parse
 	./plot.py
 
 clean:
-	rm -rf perf-data lora.pdf
+	rm -rf build perf-data lora.pdf
