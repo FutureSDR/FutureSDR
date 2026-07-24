@@ -246,13 +246,6 @@ impl Default for BlockNotifier {
     }
 }
 
-impl Default for BlockInbox {
-    fn default() -> Self {
-        let (inbox, _reader) = Self::pair(1);
-        inbox
-    }
-}
-
 impl From<BlockInbox> for BlockEndpoint {
     fn from(inbox: BlockInbox) -> Self {
         Self::Direct(inbox)
@@ -450,13 +443,6 @@ impl LocalInboxState {
 impl Default for LocalBlockNotifier {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl Default for LocalBlockInbox {
-    fn default() -> Self {
-        let (inbox, _reader) = LocalBlockInboxReader::pair();
-        inbox
     }
 }
 

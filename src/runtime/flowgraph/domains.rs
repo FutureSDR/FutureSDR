@@ -527,17 +527,31 @@ mod tests {
     use crate::runtime::PortName;
     use crate::runtime::block_inbox::BlockEndpoint;
     use crate::runtime::block_inbox::BlockInbox;
+    use crate::runtime::block_inbox::BlockInboxReader;
     use crate::runtime::buffer::DynBufferReader;
     use crate::runtime::buffer::DynBufferWriter;
     use crate::runtime::channel::mpsc::Sender;
 
     struct TestBlock {
         id: BlockId,
+        inbox: BlockInbox,
+        _inbox_reader: BlockInboxReader,
+    }
+
+    impl TestBlock {
+        fn new(id: BlockId) -> Self {
+            let (inbox, inbox_reader) = BlockInbox::pair(1);
+            Self {
+                id,
+                inbox,
+                _inbox_reader: inbox_reader,
+            }
+        }
     }
 
     impl BlockObject for TestBlock {
         fn inbox(&self) -> BlockEndpoint {
-            BlockInbox::default().into()
+            self.inbox.clone().into()
         }
 
         fn id(&self) -> BlockId {
@@ -604,7 +618,7 @@ mod tests {
     #[test]
     fn normal_domain_is_dense_by_domain_slot() {
         let mut domain = NormalDomain::new();
-        let normal_id = domain.push_block(Box::new(TestBlock { id: BlockId(2) }));
+        let normal_id = domain.push_block(Box::new(TestBlock::new(BlockId(2))));
 
         assert_eq!(normal_id, 0);
         assert!(domain.block(0, BlockId(0)).is_err());

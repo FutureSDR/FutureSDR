@@ -16,6 +16,7 @@ use futuresdr::runtime::buffer::PortCore;
 use futuresdr::runtime::buffer::PortEndpoint;
 use futuresdr::runtime::buffer::Tags;
 use futuresdr::runtime::dev::ItemTag;
+use futuresdr::runtime::dev::LocalBlockNotifier;
 use futuresdr::tracing::warn;
 use vmcircbuffer::generic;
 
@@ -59,6 +60,7 @@ where
 {
     core: PortCore<LocalBlockInbox>,
     state: ConnectionState<ConnectedWriter<T>>,
+    notifier: LocalBlockNotifier,
     tags: Vec<ItemTag>,
 }
 
@@ -82,6 +84,7 @@ where
         Self {
             core: PortCore::new_disconnected(),
             state: ConnectionState::disconnected(),
+            notifier: LocalBlockNotifier::default(),
             tags: Vec::new(),
         }
     }
@@ -120,6 +123,7 @@ where
     }
 
     fn init(&mut self, block_id: BlockId, port_id: PortIndex, inbox: LocalBlockInbox) {
+        self.notifier = inbox.notifier();
         self.core.init(block_id, port_id, inbox);
     }
 
@@ -188,23 +192,23 @@ where
         };
 
         let writer_notifier = LocalNotifier {
-            notifier: self.core.notifier(),
+            notifier: self.notifier.clone(),
         };
         let reader_notifier = LocalNotifier {
-            notifier: dest.core.notifier(),
+            notifier: dest.notifier.clone(),
         };
         let reader = connected
             .writer
             .add_reader(reader_notifier, writer_notifier);
 
-        connected
-            .readers
-            .push(PortEndpoint::new(dest.core.inbox(), dest.core.port_id()));
+        if let Some(reader) = dest.core.endpoint_if_bound() {
+            connected.readers.push(reader);
+        }
         self.state.set_connected(connected);
 
         dest.state.set_connected(ConnectedReader {
             reader,
-            writer: PortEndpoint::new(self.core.inbox(), self.core.port_id()),
+            writer: self.core.endpoint_if_bound(),
         });
     }
 
@@ -272,6 +276,7 @@ where
     state: ConnectionState<ConnectedReader<T>>,
     finished: bool,
     core: PortCore<LocalBlockInbox>,
+    notifier: LocalBlockNotifier,
     tags: Vec<ItemTag>,
 }
 
@@ -284,7 +289,7 @@ where
         LocalNotifier<<LocalBlockInbox as futuresdr::runtime::buffer::BufferInbox>::Notifier>,
         NoMetadata,
     >,
-    writer: PortEndpoint<LocalBlockInbox>,
+    writer: Option<PortEndpoint<LocalBlockInbox>>,
 }
 
 impl<T> Reader<T>
@@ -296,6 +301,7 @@ where
             state: ConnectionState::disconnected(),
             finished: false,
             core: PortCore::new_disconnected(),
+            notifier: LocalBlockNotifier::default(),
             tags: Vec::new(),
         }
     }
@@ -318,7 +324,11 @@ where
         f.debug_struct("perf::local_mpsc::Reader")
             .field(
                 "writer_output_id",
-                &self.state.as_ref().map(|state| state.writer.port_id()),
+                &self
+                    .state
+                    .as_ref()
+                    .and_then(|state| state.writer.as_ref())
+                    .map(PortEndpoint::port_id),
             )
             .field("finished", &self.finished)
             .finish()
@@ -332,6 +342,7 @@ where
     type Inbox = LocalBlockInbox;
 
     fn init(&mut self, block_id: BlockId, port_id: PortIndex, inbox: LocalBlockInbox) {
+        self.notifier = inbox.notifier();
         self.core.init(block_id, port_id, inbox);
     }
 
@@ -344,13 +355,9 @@ where
     }
 
     async fn notify_finished(&mut self) {
-        let _ = self
-            .state
-            .connected()
-            .writer
-            .inbox()
-            .stream_output_done(self.state.connected().writer.port_id())
-            .await;
+        if let Some(writer) = &self.state.connected().writer {
+            let _ = writer.inbox().stream_output_done(writer.port_id()).await;
+        }
     }
 
     fn finish(&mut self) {
@@ -421,26 +428,13 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futuresdr::runtime::dev::LocalBlockInbox;
     use futuresdr::runtime::dev::Tag;
-
-    fn init<T: CpuSample>(w: &mut Writer<T>, readers: &mut [&mut Reader<T>]) {
-        w.init(BlockId(0), PortIndex::new(0), LocalBlockInbox::default());
-        for (i, reader) in readers.iter_mut().enumerate() {
-            reader.init(
-                BlockId(i + 1),
-                PortIndex::new(i),
-                LocalBlockInbox::default(),
-            );
-        }
-    }
 
     #[test]
     fn fanout() {
         let mut w = Writer::<u32>::default();
         let mut r0 = Reader::<u32>::default();
         let mut r1 = Reader::<u32>::default();
-        init(&mut w, &mut [&mut r0, &mut r1]);
         w.connect(&mut r0);
         w.connect(&mut r1);
 
@@ -459,7 +453,6 @@ mod tests {
     fn tags_are_ignored() {
         let mut w = Writer::<u32>::default();
         let mut r = Reader::<u32>::default();
-        init(&mut w, &mut [&mut r]);
         w.connect(&mut r);
 
         let (out, mut tags) = w.slice_with_tags();

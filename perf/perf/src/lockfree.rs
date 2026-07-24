@@ -9,6 +9,8 @@ use futuresdr::runtime::buffer::BufferWriter;
 use futuresdr::runtime::buffer::CpuBufferReader;
 use futuresdr::runtime::buffer::CpuBufferWriter;
 use futuresdr::runtime::buffer::CpuSample;
+use futuresdr::runtime::buffer::PortCore;
+use futuresdr::runtime::buffer::PortEndpoint;
 use futuresdr::runtime::buffer::Tags;
 use futuresdr::runtime::buffer::ThreadSafeConnect;
 use futuresdr::runtime::dev::BlockNotifier;
@@ -25,8 +27,7 @@ pub struct ThreadSafeConnectToken<T, const MAX_READERS: usize>
 where
     T: CpuSample,
 {
-    reader_inbox: BlockInbox,
-    reader_input_id: PortIndex,
+    reader: PortEndpoint,
     reader_notifier: BlockNotifier,
     reader_min_items: Option<usize>,
     reader_min_buffer_size_in_items: Option<usize>,
@@ -38,8 +39,7 @@ where
     T: CpuSample,
 {
     reader: vm_lockfree::Reader<T, TagMetadata>,
-    writer_inbox: BlockInbox,
-    writer_output_id: PortIndex,
+    writer: PortEndpoint,
     writer_notifier: BlockNotifier,
     min_buffer_size_in_items: usize,
 }
@@ -76,11 +76,9 @@ pub struct Writer<T, const MAX_READERS: usize>
 where
     T: CpuSample,
 {
-    inbox: BlockInbox,
-    block_id: BlockId,
-    port_id: PortIndex,
+    core: PortCore,
     writer: Option<vm_lockfree::Writer<T, TagMetadata>>,
-    readers: Vec<(PortIndex, BlockInbox)>,
+    readers: Vec<PortEndpoint>,
     reader_notifiers: Vec<BlockNotifier>,
     notifier: BlockNotifier,
     tags: Vec<ItemTag>,
@@ -94,9 +92,7 @@ where
 {
     pub fn new() -> Self {
         Self {
-            inbox: BlockInbox::default(),
-            block_id: BlockId::default(),
-            port_id: PortIndex::new(0),
+            core: PortCore::new_disconnected(),
             writer: None,
             readers: Vec::new(),
             reader_notifiers: Vec::new(),
@@ -123,8 +119,8 @@ where
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("perf::lockfree::Writer")
-            .field("port_id", &self.port_id)
-            .field("readers", &self.readers.len())
+            .field("port_id", &self.core.port_id_if_bound())
+            .field("readers", &self.reader_notifiers.len())
             .finish()
     }
 }
@@ -141,20 +137,15 @@ where
     }
 
     fn init(&mut self, block_id: BlockId, port_id: PortIndex, inbox: BlockInbox) {
-        self.block_id = block_id;
-        self.port_id = port_id;
         self.notifier = inbox.notifier();
-        self.inbox = inbox;
+        self.core.init(block_id, port_id, inbox);
     }
 
     fn validate(&self) -> Result<(), Error> {
         if self.writer.is_some() {
             Ok(())
         } else {
-            Err(Error::ValidationError(format!(
-                "{:?}:{:?} not connected",
-                self.block_id, self.port_id
-            )))
+            Err(self.core.not_connected_error())
         }
     }
 
@@ -216,27 +207,28 @@ where
             .add_reader()
             .expect("perf::lockfree reader limit exceeded");
 
-        self.readers.push((dest.port_id, dest.inbox.clone()));
+        if let Some(reader) = dest.core.endpoint_if_bound() {
+            self.readers.push(reader);
+        }
         self.reader_notifiers.push(dest.notifier.clone());
 
         dest.reader = Some(reader);
-        dest.writer_output_id = self.port_id;
-        dest.writer_inbox = self.inbox.clone();
+        dest.writer = self.core.endpoint_if_bound();
         dest.writer_notifier = self.notifier.clone();
     }
 
     async fn notify_finished(&mut self) {
-        for (input_id, inbox) in &mut self.readers {
-            let _ = inbox.stream_input_done(*input_id).await;
+        for reader in &self.readers {
+            let _ = reader.inbox().stream_input_done(reader.port_id()).await;
         }
     }
 
     fn block_id(&self) -> BlockId {
-        self.block_id
+        self.core.block_id()
     }
 
     fn port_id(&self) -> PortIndex {
-        self.port_id
+        self.core.port_id()
     }
 }
 
@@ -249,8 +241,10 @@ where
 
     fn take_reader_token(reader: &mut Reader<T, MAX_READERS>) -> Self::ReaderToken {
         ThreadSafeConnectToken {
-            reader_inbox: reader.inbox.clone(),
-            reader_input_id: reader.port_id,
+            reader: reader
+                .core
+                .endpoint_if_bound()
+                .expect("reader port not bound to a flowgraph"),
             reader_notifier: reader.notifier.clone(),
             reader_min_items: reader.min_items,
             reader_min_buffer_size_in_items: reader.min_buffer_size_in_items,
@@ -314,14 +308,15 @@ where
             .expect("writer was initialized above")
             .add_reader()
             .expect("perf::lockfree reader limit exceeded");
-        self.readers
-            .push((token.reader_input_id, token.reader_inbox));
+        self.readers.push(token.reader);
         self.reader_notifiers.push(token.reader_notifier);
 
         ThreadSafeReturnToken {
             reader,
-            writer_inbox: self.inbox.clone(),
-            writer_output_id: self.port_id,
+            writer: self
+                .core
+                .endpoint_if_bound()
+                .expect("writer port not bound to a flowgraph"),
             writer_notifier: self.notifier.clone(),
             min_buffer_size_in_items,
         }
@@ -330,8 +325,7 @@ where
     fn finish_reader(reader: &mut Reader<T, MAX_READERS>, token: Self::WriterToken) {
         reader.min_buffer_size_in_items = Some(token.min_buffer_size_in_items);
         reader.reader = Some(token.reader);
-        reader.writer_output_id = token.writer_output_id;
-        reader.writer_inbox = token.writer_inbox;
+        reader.writer = Some(token.writer);
         reader.writer_notifier = token.writer_notifier;
     }
 }
@@ -391,12 +385,9 @@ where
 {
     reader: Option<vm_lockfree::Reader<T, TagMetadata>>,
     finished: bool,
-    writer_inbox: BlockInbox,
-    writer_output_id: PortIndex,
+    writer: Option<PortEndpoint>,
     writer_notifier: BlockNotifier,
-    block_id: BlockId,
-    port_id: PortIndex,
-    inbox: BlockInbox,
+    core: PortCore,
     notifier: BlockNotifier,
     tags: Vec<ItemTag>,
     min_items: Option<usize>,
@@ -411,12 +402,9 @@ where
         Self {
             reader: None,
             finished: false,
-            writer_inbox: BlockInbox::default(),
-            writer_output_id: PortIndex::new(0),
+            writer: None,
             writer_notifier: BlockNotifier::new(),
-            block_id: BlockId::default(),
-            port_id: PortIndex::new(0),
-            inbox: BlockInbox::default(),
+            core: PortCore::new_disconnected(),
             notifier: BlockNotifier::new(),
             tags: Vec::new(),
             min_items: None,
@@ -440,7 +428,7 @@ where
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("perf::lockfree::Reader")
-            .field("port_id", &self.port_id)
+            .field("port_id", &self.core.port_id_if_bound())
             .field("finished", &self.finished)
             .finish()
     }
@@ -453,28 +441,22 @@ where
     type Inbox = BlockInbox;
 
     fn init(&mut self, block_id: BlockId, port_id: PortIndex, inbox: BlockInbox) {
-        self.block_id = block_id;
-        self.port_id = port_id;
         self.notifier = inbox.notifier();
-        self.inbox = inbox;
+        self.core.init(block_id, port_id, inbox);
     }
 
     fn validate(&self) -> Result<(), Error> {
         if self.reader.is_some() {
             Ok(())
         } else {
-            Err(Error::ValidationError(format!(
-                "{:?}:{:?} not connected",
-                self.block_id, self.port_id
-            )))
+            Err(self.core.not_connected_error())
         }
     }
 
     async fn notify_finished(&mut self) {
-        let _ = self
-            .writer_inbox
-            .stream_output_done(self.writer_output_id)
-            .await;
+        if let Some(writer) = &self.writer {
+            let _ = writer.inbox().stream_output_done(writer.port_id()).await;
+        }
     }
 
     fn finish(&mut self) {
@@ -486,11 +468,11 @@ where
     }
 
     fn block_id(&self) -> BlockId {
-        self.block_id
+        self.core.block_id()
     }
 
     fn port_id(&self) -> PortIndex {
-        self.port_id
+        self.core.port_id()
     }
 }
 
@@ -530,14 +512,14 @@ where
     }
 
     fn set_min_items(&mut self, n: usize) {
-        if !self.writer_inbox.is_closed() {
+        if self.writer.is_some() {
             warn!("buffer size configured after buffer is connected. This has no effect");
         }
         self.min_items = Some(n);
     }
 
     fn set_min_buffer_size_in_items(&mut self, n: usize) {
-        if !self.writer_inbox.is_closed() {
+        if self.writer.is_some() {
             warn!("buffer size configured after buffer is connected. This has no effect");
         }
         self.min_buffer_size_in_items = Some(n);

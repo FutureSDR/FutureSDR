@@ -408,6 +408,16 @@ impl<I: BufferInbox> PortCore<I> {
         }
     }
 
+    /// Create an endpoint for this port if it has been bound to a flowgraph.
+    pub fn endpoint_if_bound(&self) -> Option<PortEndpoint<I>> {
+        match &self.binding {
+            PortBinding::Bound {
+                port_index, inbox, ..
+            } => Some(PortEndpoint::new(inbox.clone(), *port_index)),
+            PortBinding::Unbound => None,
+        }
+    }
+
     /// Minimum number of items requested by the port.
     pub fn min_items(&self) -> Option<usize> {
         self.requirements.min_items()

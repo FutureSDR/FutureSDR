@@ -13,6 +13,8 @@ use futuresdr::runtime::buffer::InplaceBuffer;
 use futuresdr::runtime::buffer::InplaceReader;
 use futuresdr::runtime::buffer::InplaceWriter;
 use futuresdr::runtime::buffer::LocalBlockInbox;
+use futuresdr::runtime::buffer::PortCore;
+use futuresdr::runtime::buffer::PortEndpoint;
 use futuresdr::runtime::config::config;
 use futuresdr::runtime::dev::ItemTag;
 use futuresdr::runtime::dev::LocalBlockNotifier;
@@ -57,7 +59,7 @@ struct Origin<T>
 where
     T: CpuSample,
 {
-    inbox: LocalBlockInbox,
+    notifier: LocalBlockNotifier,
     queue: Queue<T>,
 }
 
@@ -87,8 +89,8 @@ where
             .expect("local in-place buffer storage missing")
     }
 
-    fn arm(&mut self, inbox: LocalBlockInbox, queue: Queue<T>) {
-        self.origin = Some(Origin { inbox, queue });
+    fn arm(&mut self, notifier: LocalBlockNotifier, queue: Queue<T>) {
+        self.origin = Some(Origin { notifier, queue });
     }
 }
 
@@ -108,7 +110,7 @@ where
             storage: Some(storage),
             origin: None,
         });
-        origin.inbox.notify();
+        origin.notifier.notify();
     }
 }
 
@@ -137,8 +139,7 @@ struct ConnectedWriter<T>
 where
     T: CpuSample,
 {
-    reader_inbox: LocalBlockInbox,
-    reader_input_id: PortIndex,
+    reader: Option<PortEndpoint<LocalBlockInbox>>,
     reader_notifier: LocalBlockNotifier,
     outbound: Queue<T>,
 }
@@ -148,9 +149,8 @@ pub struct Writer<T>
 where
     T: CpuSample,
 {
-    inbox: LocalBlockInbox,
-    block_id: BlockId,
-    port_id: PortIndex,
+    core: PortCore<LocalBlockInbox>,
+    notifier: LocalBlockNotifier,
     inbound: Queue<T>,
     connected: Option<ConnectedWriter<T>>,
 }
@@ -161,9 +161,8 @@ where
 {
     pub fn new() -> Self {
         Self {
-            inbox: LocalBlockInbox::default(),
-            block_id: BlockId::default(),
-            port_id: PortIndex::new(0),
+            core: PortCore::new_disconnected(),
+            notifier: LocalBlockNotifier::default(),
             inbound: queue(),
             connected: None,
         }
@@ -187,33 +186,27 @@ where
     type Reader = Reader<T>;
 
     fn init(&mut self, block_id: BlockId, port_id: PortIndex, inbox: LocalBlockInbox) {
-        self.block_id = block_id;
-        self.port_id = port_id;
-        self.inbox = inbox;
+        self.notifier = inbox.notifier();
+        self.core.init(block_id, port_id, inbox);
     }
 
     fn validate(&self) -> Result<(), Error> {
         if self.connected.is_some() {
             Ok(())
         } else {
-            Err(Error::ValidationError(format!(
-                "{:?}:{:?} not connected",
-                self.block_id, self.port_id
-            )))
+            Err(self.core.not_connected_error())
         }
     }
 
     fn connect(&mut self, dest: &mut Self::Reader) {
         let full = queue();
         self.connected = Some(ConnectedWriter {
-            reader_inbox: dest.inbox.clone(),
-            reader_input_id: dest.port_id,
+            reader: dest.core.endpoint_if_bound(),
             reader_notifier: dest.notifier.clone(),
             outbound: full.clone(),
         });
         dest.connected = Some(ConnectedReader {
-            writer_inbox: self.inbox.clone(),
-            writer_output_id: self.port_id,
+            writer: self.core.endpoint_if_bound(),
             inbound: full,
         });
     }
@@ -222,18 +215,17 @@ where
         let Some(connected) = &self.connected else {
             return;
         };
-        let _ = connected
-            .reader_inbox
-            .stream_input_done(connected.reader_input_id)
-            .await;
+        if let Some(reader) = &connected.reader {
+            let _ = reader.inbox().stream_input_done(reader.port_id()).await;
+        }
     }
 
     fn block_id(&self) -> BlockId {
-        self.block_id
+        self.core.block_id()
     }
 
     fn port_id(&self) -> PortIndex {
-        self.port_id
+        self.core.port_id()
     }
 }
 
@@ -256,7 +248,7 @@ where
             let storage = buffer.storage_mut();
             storage.valid = storage.buffer.len();
             storage.tags.clear();
-            buffer.arm(self.inbox.clone(), self.inbound.clone());
+            buffer.arm(self.notifier.clone(), self.inbound.clone());
             buffer
         })
     }
@@ -283,8 +275,7 @@ struct ConnectedReader<T>
 where
     T: CpuSample,
 {
-    writer_inbox: LocalBlockInbox,
-    writer_output_id: PortIndex,
+    writer: Option<PortEndpoint<LocalBlockInbox>>,
     inbound: Queue<T>,
 }
 
@@ -293,9 +284,7 @@ pub struct Reader<T>
 where
     T: CpuSample,
 {
-    block_id: BlockId,
-    port_id: PortIndex,
-    inbox: LocalBlockInbox,
+    core: PortCore<LocalBlockInbox>,
     notifier: LocalBlockNotifier,
     connected: Option<ConnectedReader<T>>,
     finished: bool,
@@ -307,9 +296,7 @@ where
 {
     pub fn new() -> Self {
         Self {
-            block_id: BlockId::default(),
-            port_id: PortIndex::new(0),
-            inbox: LocalBlockInbox::default(),
+            core: PortCore::new_disconnected(),
             notifier: LocalBlockNotifier::default(),
             connected: None,
             finished: false,
@@ -333,20 +320,15 @@ where
     type Inbox = LocalBlockInbox;
 
     fn init(&mut self, block_id: BlockId, port_id: PortIndex, inbox: LocalBlockInbox) {
-        self.block_id = block_id;
-        self.port_id = port_id;
         self.notifier = inbox.notifier();
-        self.inbox = inbox;
+        self.core.init(block_id, port_id, inbox);
     }
 
     fn validate(&self) -> Result<(), Error> {
         if self.connected.is_some() {
             Ok(())
         } else {
-            Err(Error::ValidationError(format!(
-                "{:?}:{:?} not connected",
-                self.block_id, self.port_id
-            )))
+            Err(self.core.not_connected_error())
         }
     }
 
@@ -354,10 +336,9 @@ where
         let Some(connected) = &self.connected else {
             return;
         };
-        let _ = connected
-            .writer_inbox
-            .stream_output_done(connected.writer_output_id)
-            .await;
+        if let Some(writer) = &connected.writer {
+            let _ = writer.inbox().stream_output_done(writer.port_id()).await;
+        }
     }
 
     fn finish(&mut self) {
@@ -373,11 +354,11 @@ where
     }
 
     fn block_id(&self) -> BlockId {
-        self.block_id
+        self.core.block_id()
     }
 
     fn port_id(&self) -> PortIndex {
-        self.port_id
+        self.core.port_id()
     }
 }
 
