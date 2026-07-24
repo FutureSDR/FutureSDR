@@ -4,7 +4,7 @@ version.workspace = true
 authors = ["FutureSDR Contributors <team@futuresdr.org>"]
 edition = "2024"
 # Minimum rustc version; FutureSDR currently requires the nightly channel (see rust-toolchain.toml).
-rust-version = "1.92"
+rust-version = "1.95"
 license = "Apache-2.0"
 homepage = "https://www.futuresdr.org"
 repository = "https://github.com/futuresdr/futuresdr/"
@@ -169,7 +169,7 @@ hyper = { version = "1", default-features = false, features = ["http1", "server"
 tower-http = { version = "0.7", default-features = false, features = ["cors"], optional = true }
 tower-service = { version = "0.3", default-features = false, optional = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
-vmcircbuffer = { version = "0.0.14", features = ["generic"] }
+vmcircbuffer = { version = "0.0.15", features = ["generic"] }
 zmq = { version = "0.10", optional = true }
 
 [target.'cfg(target_os = "android")'.dependencies]
