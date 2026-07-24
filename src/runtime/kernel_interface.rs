@@ -11,7 +11,6 @@ use crate::runtime::Result;
 use crate::runtime::buffer::DynBufferReader;
 use crate::runtime::buffer::DynBufferWriter;
 use crate::runtime::buffer::PortInboxes;
-use crate::runtime::buffer::PortManifest;
 use crate::runtime::dev::BlockMeta;
 use crate::runtime::dev::MessageOutputs;
 use crate::runtime::dev::WorkIo;
@@ -68,32 +67,24 @@ pub trait KernelInterface {
     ) -> impl Future<Output = Result<Pmt, Error>>;
 }
 
-pub(crate) fn stream_input_manifest<K: KernelInterface>(kernel: &mut K) -> Vec<PortManifest> {
-    let mut manifest = Vec::new();
+pub(crate) fn stream_input_names<K: KernelInterface>(kernel: &mut K) -> Vec<String> {
+    let mut names = Vec::new();
     let mut index = 0;
-    while let Some((name, port)) = kernel.stream_input_at(PortIndex::new(index)) {
-        manifest.push(PortManifest::input(
-            name.into_string(),
-            PortIndex::new(index),
-            port,
-        ));
+    while let Some((name, _)) = kernel.stream_input_at(PortIndex::new(index)) {
+        names.push(name.into_string());
         index += 1;
     }
-    manifest
+    names
 }
 
-pub(crate) fn stream_output_manifest<K: KernelInterface>(kernel: &mut K) -> Vec<PortManifest> {
-    let mut manifest = Vec::new();
+pub(crate) fn stream_output_names<K: KernelInterface>(kernel: &mut K) -> Vec<String> {
+    let mut names = Vec::new();
     let mut index = 0;
-    while let Some((name, port)) = kernel.stream_output_at(PortIndex::new(index)) {
-        manifest.push(PortManifest::output(
-            name.into_string(),
-            PortIndex::new(index),
-            port,
-        ));
+    while let Some((name, _)) = kernel.stream_output_at(PortIndex::new(index)) {
+        names.push(name.into_string());
         index += 1;
     }
-    manifest
+    names
 }
 
 pub(crate) fn stream_ports_init<K: KernelInterface>(

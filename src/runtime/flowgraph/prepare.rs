@@ -777,8 +777,8 @@ impl FlowgraphCompiler {
                 status: BlockStatus::Running,
                 type_name,
                 instance_name,
-                stream_inputs: entry.stream_inputs().map(str::to_string).collect(),
-                stream_outputs: entry.stream_outputs().map(str::to_string).collect(),
+                stream_inputs: entry.stream_inputs().to_vec(),
+                stream_outputs: entry.stream_outputs().to_vec(),
                 message_inputs: entry
                     .message_inputs()
                     .iter()

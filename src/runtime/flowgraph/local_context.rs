@@ -16,8 +16,8 @@ use crate::runtime::block_on;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::dev::Kernel;
 use crate::runtime::kernel_interface::KernelInterface;
-use crate::runtime::kernel_interface::stream_input_manifest;
-use crate::runtime::kernel_interface::stream_output_manifest;
+use crate::runtime::kernel_interface::stream_input_names;
+use crate::runtime::kernel_interface::stream_output_names;
 use crate::runtime::local_domain::LocalDomainInbox;
 use crate::runtime::local_domain_common::LocalDomainState;
 use crate::runtime::resolve_port_name;
@@ -207,8 +207,8 @@ impl<'a, LS: LocalScheduler> LocalDomainContext<'a, LS> {
             .meta
             .set_instance_name(format!("{}-{}", K::type_name(), block_id.0));
         let inbox = block.inbox();
-        let stream_input_manifest = stream_input_manifest(&mut block.kernel);
-        let stream_output_manifest = stream_output_manifest(&mut block.kernel);
+        let stream_inputs = stream_input_names(&mut block.kernel);
+        let stream_outputs = stream_output_names(&mut block.kernel);
         let type_name = K::type_name();
         let instance_name = block.meta.instance_name().unwrap_or(type_name).to_string();
         inner
@@ -221,8 +221,8 @@ impl<'a, LS: LocalScheduler> LocalDomainContext<'a, LS> {
                 domain_id,
                 local_id,
                 inbox,
-                stream_input_manifest,
-                stream_output_manifest,
+                stream_inputs,
+                stream_outputs,
                 K::message_inputs(),
                 K::message_outputs(),
                 type_name,

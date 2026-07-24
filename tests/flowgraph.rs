@@ -81,6 +81,35 @@ impl Kernel for RecordingSlabSource {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Block)]
+struct RecordingCircularSource {
+    first_slice_len: Arc<AtomicUsize>,
+    #[output]
+    output: DefaultCpuWriter<u8>,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl Kernel for RecordingCircularSource {
+    async fn work(
+        &mut self,
+        io: &mut WorkIo,
+        _mo: &mut MessageOutputs,
+        _meta: &BlockMeta,
+    ) -> futuresdr::runtime::Result<()> {
+        let out = self.output.slice();
+        self.first_slice_len.store(out.len(), Ordering::SeqCst);
+
+        if let Some(first) = out.first_mut() {
+            *first = 7;
+            self.output.produce(1);
+        }
+
+        io.finished = true;
+        Ok(())
+    }
+}
+
 #[derive(Clone, Default)]
 struct FailingStartScheduler {
     inner: SmolScheduler,
@@ -262,6 +291,36 @@ fn flowgraph_uses_config_buffer_size_when_no_min_buffer_size_is_set() -> Result<
         futuresdr::runtime::config::config().buffer_size
     );
     assert_eq!(fg.block(&snk)?.items(), &[7]);
+
+    Ok(())
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+#[test]
+fn flowgraph_uses_requirements_changed_after_block_insertion() -> Result<()> {
+    let mut fg = Flowgraph::new();
+    let first_slice_len = Arc::new(AtomicUsize::new(usize::MAX));
+    let requested = futuresdr::runtime::config::config().buffer_size * 4;
+
+    let src = fg.add(RecordingCircularSource {
+        first_slice_len: Arc::clone(&first_slice_len),
+        output: DefaultCpuWriter::default(),
+    })?;
+    let snk0 = fg.add(VectorSink::<u8>::new(1))?;
+    let snk1 = fg.add(VectorSink::<u8>::new(1))?;
+
+    snk1.with_mut(&mut fg, move |block| {
+        block.input().set_min_buffer_size_in_items(requested);
+    })?;
+
+    fg.stream(&src, |block| block.output(), &snk0, |block| block.input())?;
+    fg.stream(&src, |block| block.output(), &snk1, |block| block.input())?;
+
+    let fg = Runtime::new().run(fg)?;
+
+    assert!(first_slice_len.load(Ordering::SeqCst) >= requested);
+    assert_eq!(fg.block(&snk0)?.items(), &[7]);
+    assert_eq!(fg.block(&snk1)?.items(), &[7]);
 
     Ok(())
 }

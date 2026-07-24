@@ -8,7 +8,6 @@ use crate::runtime::Edge;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphId;
 use crate::runtime::PortId;
-use crate::runtime::PortIndex;
 use crate::runtime::Result;
 use crate::runtime::block::Block;
 use crate::runtime::block::BlockObject;
@@ -16,13 +15,11 @@ use crate::runtime::block_inbox::BlockEndpoint;
 use crate::runtime::block_inbox::LocalBlockAddr;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::runtime::block_on;
-use crate::runtime::buffer::PortDirection;
-use crate::runtime::buffer::PortManifest;
 use crate::runtime::dev::Kernel;
 use crate::runtime::dev::SendKernel;
 use crate::runtime::kernel_interface::KernelInterface;
-use crate::runtime::kernel_interface::stream_input_manifest;
-use crate::runtime::kernel_interface::stream_output_manifest;
+use crate::runtime::kernel_interface::stream_input_names;
+use crate::runtime::kernel_interface::stream_output_names;
 use crate::runtime::local_domain::LocalDomainRuntime;
 use crate::runtime::local_domain_common::LocalDomainState;
 use crate::runtime::resolve_port_index;
@@ -62,8 +59,8 @@ use types::StreamEdge;
 pub(super) struct BlockSlot {
     placement: BlockPlacement,
     endpoint: BlockEndpoint,
-    stream_input_manifest: Vec<PortManifest>,
-    stream_output_manifest: Vec<PortManifest>,
+    stream_inputs: Vec<String>,
+    stream_outputs: Vec<String>,
     message_inputs: &'static [&'static str],
     message_outputs: &'static [&'static str],
     type_name: &'static str,
@@ -76,8 +73,8 @@ impl BlockSlot {
     fn normal(
         normal_id: usize,
         endpoint: BlockEndpoint,
-        stream_input_manifest: Vec<PortManifest>,
-        stream_output_manifest: Vec<PortManifest>,
+        stream_inputs: Vec<String>,
+        stream_outputs: Vec<String>,
         message_inputs: &'static [&'static str],
         message_outputs: &'static [&'static str],
         type_name: &'static str,
@@ -87,8 +84,8 @@ impl BlockSlot {
         Self {
             placement: BlockPlacement::Normal { normal_id },
             endpoint,
-            stream_input_manifest,
-            stream_output_manifest,
+            stream_inputs,
+            stream_outputs,
             message_inputs,
             message_outputs,
             type_name,
@@ -102,8 +99,8 @@ impl BlockSlot {
         domain_id: usize,
         local_id: usize,
         endpoint: BlockEndpoint,
-        stream_input_manifest: Vec<PortManifest>,
-        stream_output_manifest: Vec<PortManifest>,
+        stream_inputs: Vec<String>,
+        stream_outputs: Vec<String>,
         message_inputs: &'static [&'static str],
         message_outputs: &'static [&'static str],
         type_name: &'static str,
@@ -116,8 +113,8 @@ impl BlockSlot {
                 local_id,
             },
             endpoint,
-            stream_input_manifest,
-            stream_output_manifest,
+            stream_inputs,
+            stream_outputs,
             message_inputs,
             message_outputs,
             type_name,
@@ -139,35 +136,19 @@ impl BlockSlot {
     }
 
     fn stream_input_name(&self, port_id: &PortId) -> Option<PortId> {
-        resolve_port_name(port_id, &self.stream_input_manifest)
+        resolve_port_name(port_id, &self.stream_inputs)
     }
 
     fn stream_output_name(&self, port_id: &PortId) -> Option<PortId> {
-        resolve_port_name(port_id, &self.stream_output_manifest)
+        resolve_port_name(port_id, &self.stream_outputs)
     }
 
     fn stream_input_index(&self, port_id: &PortId) -> Option<PortId> {
-        resolve_port_index(port_id, &self.stream_input_manifest).map(PortId::index)
+        resolve_port_index(port_id, &self.stream_inputs).map(PortId::index)
     }
 
     fn stream_output_index(&self, port_id: &PortId) -> Option<PortId> {
-        resolve_port_index(port_id, &self.stream_output_manifest).map(PortId::index)
-    }
-
-    fn stream_input_manifest(&self, port_id: PortIndex) -> Option<&PortManifest> {
-        self.stream_input_manifest
-            .get(port_id.index())
-            .filter(|port| {
-                port.index() == port_id && matches!(port.direction(), PortDirection::Input)
-            })
-    }
-
-    fn stream_output_manifest(&self, port_id: PortIndex) -> Option<&PortManifest> {
-        self.stream_output_manifest
-            .get(port_id.index())
-            .filter(|port| {
-                port.index() == port_id && matches!(port.direction(), PortDirection::Output)
-            })
+        resolve_port_index(port_id, &self.stream_outputs).map(PortId::index)
     }
 
     fn message_inputs(&self) -> &'static [&'static str] {
@@ -178,12 +159,12 @@ impl BlockSlot {
         self.message_outputs
     }
 
-    fn stream_inputs(&self) -> impl Iterator<Item = &str> {
-        self.stream_input_manifest.iter().map(PortManifest::name)
+    fn stream_inputs(&self) -> &[String] {
+        &self.stream_inputs
     }
 
-    fn stream_outputs(&self) -> impl Iterator<Item = &str> {
-        self.stream_output_manifest.iter().map(PortManifest::name)
+    fn stream_outputs(&self) -> &[String] {
+        &self.stream_outputs
     }
 
     fn type_name(&self) -> &'static str {
@@ -489,15 +470,15 @@ impl Flowgraph {
         b.meta
             .set_instance_name(format!("{}-{}", block_name, block_id.0));
         let inbox = b.inbox();
-        let stream_input_manifest = stream_input_manifest(&mut b.kernel);
-        let stream_output_manifest = stream_output_manifest(&mut b.kernel);
+        let stream_inputs = stream_input_names(&mut b.kernel);
+        let stream_outputs = stream_output_names(&mut b.kernel);
         let type_name = K::type_name();
         let instance_name = b.meta.instance_name().unwrap_or(type_name).to_string();
         self.add_normal_block(
             Box::new(b),
             inbox,
-            stream_input_manifest,
-            stream_output_manifest,
+            stream_inputs,
+            stream_outputs,
             <K as KernelInterface>::message_inputs(),
             <K as KernelInterface>::message_outputs(),
             type_name,
@@ -520,8 +501,8 @@ impl Flowgraph {
         &mut self,
         block: Box<dyn Block>,
         inbox: BlockEndpoint,
-        stream_input_manifest: Vec<PortManifest>,
-        stream_output_manifest: Vec<PortManifest>,
+        stream_inputs: Vec<String>,
+        stream_outputs: Vec<String>,
         message_inputs: &'static [&'static str],
         message_outputs: &'static [&'static str],
         type_name: &'static str,
@@ -534,8 +515,8 @@ impl Flowgraph {
         self.blocks.push(BlockSlot::normal(
             normal_id,
             inbox,
-            stream_input_manifest,
-            stream_output_manifest,
+            stream_inputs,
+            stream_outputs,
             message_inputs,
             message_outputs,
             type_name,
@@ -600,8 +581,8 @@ impl Flowgraph {
             domain_id,
             local_id,
             build_info.endpoint,
-            build_info.stream_input_manifest,
-            build_info.stream_output_manifest,
+            build_info.stream_inputs,
+            build_info.stream_outputs,
             K::message_inputs(),
             K::message_outputs(),
             K::type_name(),
@@ -771,30 +752,6 @@ impl Flowgraph {
             edge.dst_block,
             self.stream_input_index(edge.dst_block, &edge.dst_port)?,
         ))
-    }
-
-    pub(super) fn stream_input_manifest(
-        &self,
-        block_id: BlockId,
-        port_id: PortIndex,
-    ) -> Result<&PortManifest, Error> {
-        self.block_slot(block_id)?
-            .stream_input_manifest(port_id)
-            .ok_or_else(|| {
-                Error::InvalidStreamPort(BlockPortCtx::Id(block_id), PortId::index(port_id))
-            })
-    }
-
-    pub(super) fn stream_output_manifest(
-        &self,
-        block_id: BlockId,
-        port_id: PortIndex,
-    ) -> Result<&PortManifest, Error> {
-        self.block_slot(block_id)?
-            .stream_output_manifest(port_id)
-            .ok_or_else(|| {
-                Error::InvalidStreamPort(BlockPortCtx::Id(block_id), PortId::index(port_id))
-            })
     }
 
     pub(super) fn indexed_message_edge(&self, edge: &Edge) -> Result<Edge, Error> {

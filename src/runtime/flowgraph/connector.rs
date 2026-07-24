@@ -1,3 +1,5 @@
+use std::any::Any;
+use std::any::TypeId;
 use std::sync::Arc;
 
 use crate::runtime::BlockId;
@@ -13,7 +15,6 @@ use crate::runtime::buffer::BufferRequirements;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::DynThreadSafeConnect;
 use crate::runtime::buffer::DynThreadSafeToken;
-use crate::runtime::buffer::PortManifest;
 use crate::runtime::buffer::ThreadSafeConnect;
 
 use super::Flowgraph;
@@ -39,6 +40,24 @@ impl ResolvedStreamGroup {
     fn push(&mut self, dst_block: BlockId, dst_port: PortIndex) {
         self.dsts.push((dst_block, dst_port));
     }
+}
+
+struct StreamOutputInfo {
+    reader_type_id: TypeId,
+    max_readers: usize,
+    requirements: BufferRequirements,
+    thread_safe_connect: Option<Arc<dyn DynThreadSafeConnect>>,
+}
+
+struct StreamInputInfo {
+    concrete_type_id: TypeId,
+    requirements: BufferRequirements,
+}
+
+struct ValidatedStreamGroup {
+    src_requirements: BufferRequirements,
+    dst_requirements: Vec<BufferRequirements>,
+    thread_safe_connect: Option<Arc<dyn DynThreadSafeConnect>>,
 }
 
 pub(super) struct FlowgraphConnector<'a> {
@@ -297,62 +316,101 @@ impl<'a> FlowgraphConnector<'a> {
         groups
     }
 
-    fn validate_stream_group(
-        &self,
+    async fn stream_output_info(
+        &mut self,
+        location: BlockLocation,
+        port: PortIndex,
+    ) -> Result<StreamOutputInfo, Error> {
+        self.flowgraph
+            .with_block_mut(location, move |block| {
+                let (_, writer) = block.stream_output_at(port).ok_or_else(|| {
+                    Error::InvalidStreamPort(
+                        BlockPortCtx::Id(location.block_id),
+                        PortId::from(port),
+                    )
+                })?;
+                Ok(StreamOutputInfo {
+                    reader_type_id: writer.reader_type_id(),
+                    max_readers: writer.max_readers(),
+                    requirements: writer.buffer_requirements(),
+                    thread_safe_connect: writer.thread_safe_connect(),
+                })
+            })
+            .await
+    }
+
+    async fn stream_input_info(
+        &mut self,
+        location: BlockLocation,
+        port: PortIndex,
+    ) -> Result<StreamInputInfo, Error> {
+        self.flowgraph
+            .with_block_mut(location, move |block| {
+                let (_, reader) = block.stream_input_at(port).ok_or_else(|| {
+                    Error::InvalidStreamPort(
+                        BlockPortCtx::Id(location.block_id),
+                        PortId::from(port),
+                    )
+                })?;
+                Ok(StreamInputInfo {
+                    concrete_type_id: (&*reader as &dyn Any).type_id(),
+                    requirements: reader.buffer_requirements(),
+                })
+            })
+            .await
+    }
+
+    async fn validate_stream_group(
+        &mut self,
         group: &ResolvedStreamGroup,
-    ) -> Result<(BufferRequirements, Vec<BufferRequirements>), Error> {
-        let src_manifest = self
+    ) -> Result<ValidatedStreamGroup, Error> {
+        let src_name = self
             .flowgraph
-            .stream_output_manifest(group.src_block, group.src_port)?;
-        let max_readers = src_manifest.max_readers().ok_or_else(|| {
-            Error::ValidationError("stream output manifest missing reader limit".to_string())
-        })?;
-        if group.dsts.len() > max_readers {
+            .stream_output_name(group.src_block, &PortId::from(group.src_port))?
+            .name()
+            .to_string();
+        let src_location = self.flowgraph.location(group.src_block)?;
+        let src = self
+            .stream_output_info(src_location, group.src_port)
+            .await?;
+        if group.dsts.len() > src.max_readers {
             return Err(Error::ValidationError(format!(
                 "stream output {:?}.{} supports at most {} reader(s)",
-                group.src_block,
-                src_manifest.name(),
-                max_readers
+                group.src_block, src_name, src.max_readers
             )));
         }
 
-        let src_reader_type = src_manifest.reader_type_id().ok_or_else(|| {
-            Error::ValidationError("stream output manifest missing reader type".to_string())
-        })?;
-        let mut merged = src_manifest.requirements();
+        let mut merged = src.requirements;
+        let mut dst_own_requirements = Vec::with_capacity(group.dsts.len());
         for (dst_block, dst_port) in &group.dsts {
-            let dst_manifest = self
-                .flowgraph
-                .stream_input_manifest(*dst_block, *dst_port)?;
-            if src_reader_type != dst_manifest.concrete_type_id() {
+            let dst_location = self.flowgraph.location(*dst_block)?;
+            let dst = self.stream_input_info(dst_location, *dst_port).await?;
+            if src.reader_type_id != dst.concrete_type_id {
                 return Err(Error::ValidationError(
                     "dyn BufferReader has wrong type".to_string(),
                 ));
             }
-            let requirements = dst_manifest.requirements();
-            merged.merge(requirements);
+            merged.merge(dst.requirements);
+            dst_own_requirements.push(dst.requirements);
         }
 
-        let source_requirements = Self::with_merged_buffer_size(src_manifest, merged);
-        let dst_requirements = group
-            .dsts
+        let src_requirements = Self::with_merged_buffer_size(src.requirements, merged);
+        let dst_requirements = dst_own_requirements
             .iter()
-            .map(|(dst_block, dst_port)| {
-                let dst_manifest = self
-                    .flowgraph
-                    .stream_input_manifest(*dst_block, *dst_port)
-                    .expect("destination manifest was already validated");
-                Self::with_merged_buffer_size(dst_manifest, merged)
-            })
+            .copied()
+            .map(|requirements| Self::with_merged_buffer_size(requirements, merged))
             .collect();
-        Ok((source_requirements, dst_requirements))
+        Ok(ValidatedStreamGroup {
+            src_requirements,
+            dst_requirements,
+            thread_safe_connect: src.thread_safe_connect,
+        })
     }
 
     fn with_merged_buffer_size(
-        manifest: &PortManifest,
+        mut requirements: BufferRequirements,
         merged: BufferRequirements,
     ) -> BufferRequirements {
-        let mut requirements = manifest.requirements();
         if let Some(min_items) = merged.min_buffer_size_in_items() {
             requirements.raise_min_buffer_size_in_items(min_items);
         }
@@ -360,7 +418,11 @@ impl<'a> FlowgraphConnector<'a> {
     }
 
     async fn apply_stream_group(&mut self, group: &ResolvedStreamGroup) -> Result<(), Error> {
-        let (src_requirements, dst_requirements) = self.validate_stream_group(group)?;
+        let ValidatedStreamGroup {
+            src_requirements,
+            dst_requirements,
+            thread_safe_connect,
+        } = self.validate_stream_group(group).await?;
         let src = self.flowgraph.location(group.src_block)?;
         let dsts = group
             .dsts
@@ -400,16 +462,11 @@ impl<'a> FlowgraphConnector<'a> {
             }
             Ok(())
         } else {
-            let connect = self
-                .flowgraph
-                .stream_output_manifest(group.src_block, group.src_port)
-                .ok()
-                .and_then(PortManifest::thread_safe_connect)
-                .ok_or_else(|| {
-                    Error::ValidationError(
-                        "stream buffer does not provide thread-safe connection tokens".to_string(),
-                    )
-                })?;
+            let connect = thread_safe_connect.ok_or_else(|| {
+                Error::ValidationError(
+                    "stream buffer does not provide thread-safe connection tokens".to_string(),
+                )
+            })?;
             self.connect_cross_domain_stream_dyn_async(
                 src,
                 group.src_port,

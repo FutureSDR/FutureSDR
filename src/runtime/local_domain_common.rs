@@ -16,7 +16,6 @@ use crate::runtime::block_inbox::BlockInboxReader;
 use crate::runtime::block_inbox::LocalBlockAddr;
 use crate::runtime::block_inbox::LocalBlockInbox;
 use crate::runtime::block_inbox::LocalDomainKey;
-use crate::runtime::buffer::PortManifest;
 use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::channel::oneshot;
 use crate::runtime::scheduler::DomainTopology;
@@ -26,8 +25,8 @@ pub(crate) type LocalBlockBuilder = Box<dyn FnOnce() -> Box<dyn LocalBlock> + Se
 
 pub(crate) struct LocalBlockBuildInfo {
     pub(crate) endpoint: BlockEndpoint,
-    pub(crate) stream_input_manifest: Vec<PortManifest>,
-    pub(crate) stream_output_manifest: Vec<PortManifest>,
+    pub(crate) stream_inputs: Vec<String>,
+    pub(crate) stream_outputs: Vec<String>,
 }
 
 #[doc(hidden)]
@@ -700,32 +699,24 @@ pub(crate) async fn build_local_block(
         .map_err(|_| Error::RuntimeError("local domain terminated".to_string()))?
 }
 
-fn collect_stream_input_manifest(block: &mut dyn BlockObject) -> Vec<PortManifest> {
-    let mut manifest = Vec::new();
+fn collect_stream_input_names(block: &mut dyn BlockObject) -> Vec<String> {
+    let mut names = Vec::new();
     let mut index = 0;
-    while let Some((name, port)) = block.stream_input_at(PortIndex::new(index)) {
-        manifest.push(PortManifest::input(
-            name.into_string(),
-            PortIndex::new(index),
-            port,
-        ));
+    while let Some((name, _)) = block.stream_input_at(PortIndex::new(index)) {
+        names.push(name.into_string());
         index += 1;
     }
-    manifest
+    names
 }
 
-fn collect_stream_output_manifest(block: &mut dyn BlockObject) -> Vec<PortManifest> {
-    let mut manifest = Vec::new();
+fn collect_stream_output_names(block: &mut dyn BlockObject) -> Vec<String> {
+    let mut names = Vec::new();
     let mut index = 0;
-    while let Some((name, port)) = block.stream_output_at(PortIndex::new(index)) {
-        manifest.push(PortManifest::output(
-            name.into_string(),
-            PortIndex::new(index),
-            port,
-        ));
+    while let Some((name, _)) = block.stream_output_at(PortIndex::new(index)) {
+        names.push(name.into_string());
         index += 1;
     }
-    manifest
+    names
 }
 
 pub(crate) async fn exec_local_domain<R>(
@@ -778,14 +769,14 @@ pub(crate) async fn handle_idle_domain_message<LS: LocalScheduler>(
         } => {
             let mut block = builder();
             let endpoint = block.inbox();
-            let stream_input_manifest = collect_stream_input_manifest(block.as_mut());
-            let stream_output_manifest = collect_stream_output_manifest(block.as_mut());
+            let stream_inputs = collect_stream_input_names(block.as_mut());
+            let stream_outputs = collect_stream_output_names(block.as_mut());
             let result = state
                 .insert_block(local_id, block)
                 .map(|()| LocalBlockBuildInfo {
                     endpoint,
-                    stream_input_manifest,
-                    stream_output_manifest,
+                    stream_inputs,
+                    stream_outputs,
                 });
             if let Err(e) = &result {
                 error!("failed to insert local block: {e}");
