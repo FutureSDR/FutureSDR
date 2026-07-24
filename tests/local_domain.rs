@@ -64,10 +64,6 @@ impl Default for NonSendReader {
 impl BufferReader for NonSendReader {
     type Inbox = BlockInbox;
 
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-        self
-    }
-
     fn buffer_requirements(&self) -> BufferRequirements {
         self.inner.buffer_requirements()
     }

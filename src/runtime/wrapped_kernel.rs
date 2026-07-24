@@ -1,4 +1,3 @@
-use std::any::Any;
 use std::collections::VecDeque;
 use std::future::Future;
 use std::ops::Deref;
@@ -473,12 +472,6 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> KernelWrapper<K, I> {
 impl<K: KernelInterface + 'static, I: WrappedKernelInbox + 'static> BlockObject
     for KernelWrapper<K, I>
 {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
     fn inbox(&self) -> BlockEndpoint {
         self.inbox.external_inbox()
     }

@@ -1,4 +1,3 @@
-use std::any::Any;
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::fmt::Debug;
@@ -614,10 +613,6 @@ where
     I: BufferInbox,
 {
     type Inbox = I;
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
-
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: I) {
         self.core.init(block_id, port_id, inbox);
     }

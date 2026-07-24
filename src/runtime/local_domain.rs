@@ -146,7 +146,6 @@ async fn run_domain_thread<LS: LocalScheduler>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::any::Any;
 
     use crate::runtime::BlockId;
     use crate::runtime::BlockMessage;
@@ -176,14 +175,6 @@ mod tests {
     }
 
     impl BlockObject for WaitForTerminate {
-        fn as_any(&self) -> &dyn Any {
-            self
-        }
-
-        fn as_any_mut(&mut self) -> &mut dyn Any {
-            self
-        }
-
         fn inbox(&self) -> BlockEndpoint {
             self.inbox.clone()
         }

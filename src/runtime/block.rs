@@ -21,11 +21,6 @@ use crate::runtime::channel::mpsc::Sender;
 /// is runtime plumbing for storing wrapped kernels after type erasure and
 /// installing dynamic edges.
 pub(crate) trait BlockObject: Any {
-    /// Return this block as [`Any`] for downcasting.
-    fn as_any(&self) -> &dyn Any;
-    /// Return this block as mutable [`Any`] for downcasting.
-    fn as_any_mut(&mut self) -> &mut dyn Any;
-
     /// Get the send-safe endpoint of the block.
     fn inbox(&self) -> BlockEndpoint;
     /// Get the block id.

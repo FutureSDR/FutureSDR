@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use crate::runtime::BlockId;
 use crate::runtime::Error;
 use crate::runtime::Result;
@@ -33,8 +35,7 @@ pub(super) fn typed_wrapped_block_from_object<K: 'static>(
     block: &dyn BlockObject,
     block_id: BlockId,
 ) -> Result<&WrappedKernel<K>, Error> {
-    block
-        .as_any()
+    (block as &dyn Any)
         .downcast_ref::<WrappedKernel<K>>()
         .ok_or_else(|| unexpected_type::<K>(block_id))
 }
@@ -43,8 +44,7 @@ pub(super) fn typed_wrapped_block_mut_from_object<K: 'static>(
     block: &mut dyn BlockObject,
     block_id: BlockId,
 ) -> Result<&mut WrappedKernel<K>, Error> {
-    block
-        .as_any_mut()
+    (block as &mut dyn Any)
         .downcast_mut::<WrappedKernel<K>>()
         .ok_or_else(|| unexpected_type::<K>(block_id))
 }
@@ -53,10 +53,10 @@ pub(super) fn typed_kernel_ref_from_object<K: 'static>(
     block: &dyn BlockObject,
     block_id: BlockId,
 ) -> Result<&K, Error> {
-    if let Some(block) = block.as_any().downcast_ref::<WrappedKernel<K>>() {
+    if let Some(block) = (block as &dyn Any).downcast_ref::<WrappedKernel<K>>() {
         return Ok(&block.kernel);
     }
-    if let Some(block) = block.as_any().downcast_ref::<LocalWrappedKernel<K>>() {
+    if let Some(block) = (block as &dyn Any).downcast_ref::<LocalWrappedKernel<K>>() {
         return Ok(&block.kernel);
     }
     Err(unexpected_type::<K>(block_id))
@@ -66,16 +66,14 @@ pub(super) fn typed_kernel_mut_from_object<K: 'static>(
     block: &mut dyn BlockObject,
     block_id: BlockId,
 ) -> Result<&mut K, Error> {
-    if block.as_any().is::<WrappedKernel<K>>() {
-        return block
-            .as_any_mut()
+    if (block as &dyn Any).is::<WrappedKernel<K>>() {
+        return (block as &mut dyn Any)
             .downcast_mut::<WrappedKernel<K>>()
             .map(|block| &mut block.kernel)
             .ok_or(Error::LockError);
     }
-    if block.as_any().is::<LocalWrappedKernel<K>>() {
-        return block
-            .as_any_mut()
+    if (block as &dyn Any).is::<LocalWrappedKernel<K>>() {
+        return (block as &mut dyn Any)
             .downcast_mut::<LocalWrappedKernel<K>>()
             .map(|block| &mut block.kernel)
             .ok_or(Error::LockError);

@@ -1,4 +1,3 @@
-use std::any::Any;
 use std::cell::Cell;
 use std::fmt;
 use std::ptr;
@@ -370,10 +369,6 @@ where
     T: CpuSample,
 {
     type Inbox = LocalBlockInbox;
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
 
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: LocalBlockInbox) {
         self.block_id = block_id;

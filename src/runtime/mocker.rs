@@ -1,4 +1,3 @@
-use std::any::Any;
 use std::fmt::Debug;
 use std::ops::Deref;
 use std::ops::DerefMut;
@@ -253,9 +252,6 @@ impl<T: Debug + Send + 'static> Default for Reader<T> {
 impl<T: Debug + Send + 'static> BufferReader for Reader<T> {
     type Inbox = BlockInbox;
 
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
     fn init(&mut self, block_id: BlockId, port_id: PortId, _inbox: BlockInbox) {
         self.block_id = block_id;
         self.port_id = port_id;

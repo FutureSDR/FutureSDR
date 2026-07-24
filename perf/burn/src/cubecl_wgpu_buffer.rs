@@ -1,4 +1,3 @@
-use std::any::Any;
 use std::collections::VecDeque;
 use std::marker::PhantomData;
 use std::sync::Arc;
@@ -593,10 +592,6 @@ impl<D: CpuSample> Default for H2DReader<D> {
 impl<D: CpuSample> BufferReader for H2DReader<D> {
     type Inbox = BlockInbox;
 
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
-
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
         self.core.init(block_id, port_id, inbox);
     }
@@ -843,10 +838,6 @@ impl<D: CpuSample> Default for D2HReader<D> {
 
 impl<D: CpuSample> BufferReader for D2HReader<D> {
     type Inbox = BlockInbox;
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
 
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
         self.core.init(block_id, port_id, inbox);

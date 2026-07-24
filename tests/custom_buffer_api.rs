@@ -1,5 +1,3 @@
-use std::any::Any;
-
 use futuresdr::runtime::BlockId;
 use futuresdr::runtime::Error;
 use futuresdr::runtime::PortId;
@@ -34,10 +32,6 @@ impl<T: CpuSample> Default for CustomReader<T> {
 
 impl<T: CpuSample> BufferReader for CustomReader<T> {
     type Inbox = BlockInbox;
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
 
     fn buffer_requirements(&self) -> BufferRequirements {
         self.core.requirements()

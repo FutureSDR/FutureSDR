@@ -887,9 +887,8 @@ impl Flowgraph {
         block: &mut dyn BlockObject,
         block_id: BlockId,
     ) -> Result<&mut K, Error> {
-        if block.as_any().is::<LocalWrappedKernel<K>>() {
-            return block
-                .as_any_mut()
+        if (block as &dyn std::any::Any).is::<LocalWrappedKernel<K>>() {
+            return (block as &mut dyn std::any::Any)
                 .downcast_mut::<LocalWrappedKernel<K>>()
                 .map(|block| &mut block.kernel)
                 .ok_or(Error::LockError);

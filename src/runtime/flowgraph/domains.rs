@@ -537,14 +537,6 @@ mod tests {
     }
 
     impl BlockObject for TestBlock {
-        fn as_any(&self) -> &dyn std::any::Any {
-            self
-        }
-
-        fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-            self
-        }
-
         fn inbox(&self) -> BlockEndpoint {
             BlockInbox::default().into()
         }

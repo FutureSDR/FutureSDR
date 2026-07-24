@@ -1,4 +1,3 @@
-use std::any::Any;
 use std::fmt;
 
 use futuresdr::runtime::BlockId;
@@ -449,10 +448,6 @@ where
     T: CpuSample,
 {
     type Inbox = BlockInbox;
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
 
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
         self.block_id = block_id;

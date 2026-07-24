@@ -229,7 +229,7 @@ impl PortManifest {
             name,
             index,
             direction: PortDirection::Input,
-            concrete_type_id: port.concrete_type_id(),
+            concrete_type_id: (&*port as &dyn Any).type_id(),
             reader_type_id: None,
             requirements: port.buffer_requirements(),
             thread_safe_connect: None,
@@ -241,7 +241,7 @@ impl PortManifest {
             name,
             index,
             direction: PortDirection::Output,
-            concrete_type_id: port.concrete_type_id(),
+            concrete_type_id: (&*port as &dyn Any).type_id(),
             reader_type_id: Some(port.reader_type_id()),
             requirements: port.buffer_requirements(),
             thread_safe_connect: port.thread_safe_connect(),
@@ -745,10 +745,6 @@ impl<T> ConnectionState<T> {
 
 /// Type-erased reader side of a stream buffer.
 pub trait DynBufferReader: Any {
-    /// Return this reader as [`Any`] for runtime downcasting.
-    fn as_any_mut(&mut self) -> &mut dyn Any;
-    /// Concrete reader type identity.
-    fn concrete_type_id(&self) -> TypeId;
     /// Buffer requirements configured on this port.
     fn buffer_requirements(&self) -> BufferRequirements;
     /// Raise this port's configured requirements.
@@ -768,14 +764,6 @@ pub trait DynBufferReader: Any {
 }
 
 impl<T: BufferReader> DynBufferReader for T {
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        BufferReader::as_any_mut(self)
-    }
-
-    fn concrete_type_id(&self) -> TypeId {
-        TypeId::of::<T>()
-    }
-
     fn buffer_requirements(&self) -> BufferRequirements {
         BufferReader::buffer_requirements(self)
     }
@@ -813,8 +801,6 @@ impl<T: BufferReader> DynBufferReader for T {
 pub trait BufferReader: Any {
     /// Concrete inbox handle stored by this buffer.
     type Inbox: BufferInbox;
-    /// Return this reader as [`Any`] for runtime downcasting.
-    fn as_any_mut(&mut self) -> &mut dyn Any;
     /// Buffer requirements configured on this port.
     fn buffer_requirements(&self) -> BufferRequirements {
         BufferRequirements::new()
@@ -914,8 +900,7 @@ where
     W: ThreadSafeConnect + 'static,
 {
     fn take_reader(&self, reader: &mut dyn DynBufferReader) -> Result<DynThreadSafeToken, Error> {
-        let reader = reader
-            .as_any_mut()
+        let reader = (reader as &mut dyn Any)
             .downcast_mut::<W::Reader>()
             .ok_or_else(|| Error::ValidationError("stream reader has wrong type".to_string()))?;
         Ok(Box::new(W::take_reader_token(reader)))
@@ -926,8 +911,7 @@ where
         writer: &mut dyn DynBufferWriter,
         token: DynThreadSafeToken,
     ) -> Result<DynThreadSafeToken, Error> {
-        let writer = writer
-            .as_any_mut()
+        let writer = (writer as &mut dyn Any)
             .downcast_mut::<W>()
             .ok_or_else(|| Error::ValidationError("stream writer has wrong type".to_string()))?;
         let token = token.downcast::<W::ReaderToken>().map_err(|_| {
@@ -941,8 +925,7 @@ where
         reader: &mut dyn DynBufferReader,
         token: DynThreadSafeToken,
     ) -> Result<(), Error> {
-        let reader = reader
-            .as_any_mut()
+        let reader = (reader as &mut dyn Any)
             .downcast_mut::<W::Reader>()
             .ok_or_else(|| Error::ValidationError("stream reader has wrong type".to_string()))?;
         let token = token.downcast::<W::WriterToken>().map_err(|_| {
@@ -954,11 +937,7 @@ where
 }
 
 /// Type-erased writer side of a stream buffer.
-pub trait DynBufferWriter {
-    /// Return this writer as [`Any`] for runtime downcasting.
-    fn as_any_mut(&mut self) -> &mut dyn Any;
-    /// Concrete writer type identity.
-    fn concrete_type_id(&self) -> TypeId;
+pub trait DynBufferWriter: Any {
     /// Concrete reader type identity expected by this writer.
     fn reader_type_id(&self) -> TypeId;
     /// Buffer requirements configured on this port.
@@ -984,14 +963,6 @@ impl<T> DynBufferWriter for T
 where
     T: BufferWriter + 'static,
 {
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
-
-    fn concrete_type_id(&self) -> TypeId {
-        TypeId::of::<T>()
-    }
-
     fn reader_type_id(&self) -> TypeId {
         TypeId::of::<T::Reader>()
     }
@@ -1073,7 +1044,7 @@ pub trait BufferWriter: Any {
     fn connect(&mut self, dest: &mut Self::Reader);
     /// Connect the writer to a type-erased matching reader.
     fn connect_dyn(&mut self, dest: &mut dyn DynBufferReader) -> Result<(), Error> {
-        if let Some(concrete) = dest.as_any_mut().downcast_mut::<Self::Reader>() {
+        if let Some(concrete) = (dest as &mut dyn Any).downcast_mut::<Self::Reader>() {
             self.connect(concrete);
             Ok(())
         } else {
