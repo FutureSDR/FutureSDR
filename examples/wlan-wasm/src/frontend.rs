@@ -8,9 +8,6 @@ use futuresdr::blocks::wasm::HackRf;
 use futuresdr::prelude::*;
 use futuresdr::runtime::channel::mpsc;
 use futuresdr::runtime::dev::BlockMeta;
-use futuresdr::runtime::dev::CpuBufferReader;
-use futuresdr::runtime::dev::DefaultCpuReader;
-use futuresdr::runtime::dev::Kernel;
 use futuresdr::runtime::dev::MessageOutputs;
 use futuresdr::runtime::dev::WorkIo;
 use futuresdr::runtime::macros::Block;
@@ -36,6 +33,7 @@ const DEFAULT_FREQUENCY: f64 = 2_462_000_000.0;
 const DEFAULT_SAMPLE_RATE: f64 = 20_000_000.0;
 const DC_OFFSET_CORRECTION: bool = true;
 const DC_OFFSET_WARMUP_SAMPLES: usize = 1_000_000;
+const STREAM_BUFFER_SIZE: usize = 512 * 1024;
 const FRAME_QUEUE_LIMIT: usize = 100;
 const DISPLAY_FRAME_LIMIT: usize = 50;
 
@@ -174,112 +172,6 @@ impl FramePipe {
         } else {
             Ok(Pmt::InvalidValue)
         }
-    }
-}
-
-#[derive(Block)]
-struct SampleStats<I = DefaultCpuReader<Complex32>>
-where
-    I: CpuBufferReader<Item = Complex32>,
-{
-    #[input]
-    input: I,
-    label: &'static str,
-    count: usize,
-    sum_re: f64,
-    sum_im: f64,
-    sum_power: f64,
-    peak_power: f64,
-    last_ms: f64,
-    first_log_done: bool,
-    tags_seen: usize,
-}
-
-impl SampleStats {
-    fn new(label: &'static str) -> Self {
-        Self {
-            input: DefaultCpuReader::default(),
-            label,
-            count: 0,
-            sum_re: 0.0,
-            sum_im: 0.0,
-            sum_power: 0.0,
-            peak_power: 0.0,
-            last_ms: js_sys::Date::now(),
-            first_log_done: false,
-            tags_seen: 0,
-        }
-    }
-}
-
-impl<I> Kernel for SampleStats<I>
-where
-    I: CpuBufferReader<Item = Complex32>,
-{
-    async fn work(
-        &mut self,
-        io: &mut WorkIo,
-        _mo: &mut MessageOutputs,
-        _meta: &BlockMeta,
-    ) -> Result<()> {
-        let (input, tags) = self.input.slice_with_tags();
-        let n = input.len();
-
-        for tag in tags.iter() {
-            self.tags_seen += 1;
-            if self.tags_seen <= 20 {
-                futuresdr::tracing::info!(
-                    "{}: tag {} at index {}: {:?}",
-                    self.label,
-                    self.tags_seen,
-                    tag.index,
-                    tag.tag
-                );
-            }
-        }
-
-        for c in input.iter() {
-            self.count += 1;
-            self.sum_re += c.re as f64;
-            self.sum_im += c.im as f64;
-            let power = c.norm_sqr() as f64;
-            self.sum_power += power;
-            self.peak_power = self.peak_power.max(power);
-        }
-
-        self.input.consume(n);
-        if self.input.finished() {
-            io.finished = true;
-        }
-
-        if n > 0 && !self.first_log_done {
-            futuresdr::tracing::info!("{}: received first {n} samples", self.label);
-            self.first_log_done = true;
-        }
-
-        let now = js_sys::Date::now();
-        let elapsed_ms = now - self.last_ms;
-        if elapsed_ms >= 1000.0 && self.count > 0 {
-            let elapsed_s = elapsed_ms / 1000.0;
-            futuresdr::tracing::info!(
-                "{}: {:.2} MS/s, mean=({:.4}, {:.4}), rms={:.4}, peak={:.4}",
-                self.label,
-                self.count as f64 / elapsed_s / 1.0e6,
-                self.sum_re / self.count as f64,
-                self.sum_im / self.count as f64,
-                (self.sum_power / self.count as f64).sqrt(),
-                self.peak_power.sqrt(),
-            );
-
-            self.count = 0;
-            self.sum_re = 0.0;
-            self.sum_im = 0.0;
-            self.sum_power = 0.0;
-            self.peak_power = 0.0;
-            self.last_ms = now;
-        }
-
-        Ok(())
     }
 }
 
@@ -508,6 +400,7 @@ async fn start_receiver(
     );
     set_status.set("starting flowgraph".to_string());
 
+    futuresdr::runtime::config::set("buffer_size", STREAM_BUFFER_SIZE as i64);
     let rt = Runtime::with_scheduler(WasmScheduler::new(4));
     let rt_handle = rt.handle();
     let (frame_tx, frames) = mpsc::channel::<Vec<u8>>(FRAME_QUEUE_LIMIT);
@@ -597,13 +490,10 @@ async fn build_rx_flowgraph(
     // WASM slab buffers support one reader per output. Explicitly duplicate
     // streams whenever one output feeds multiple downstream blocks.
     let input_dup = fg
-        .add_async(StreamDuplicator::<Complex32, 4>::new())
+        .add_async(StreamDuplicator::<Complex32, 3>::new())
         .await?;
     connect_async!(fg, dc_warmup > input_dup);
 
-    let sample_stats = fg
-        .add_async(SampleStats::new("WLAN RX samples after DC correction"))
-        .await?;
     let delay = fg.add_async(Delay::<Complex32>::new(16)).await?;
     let complex_to_mag_2 = fg
         .add_async(Apply::new(|i: &Complex32| i.norm_sqr()))
@@ -612,13 +502,11 @@ async fn build_rx_flowgraph(
         .add_async(Combine::new(|a: &Complex32, b: &Complex32| a * b.conj()))
         .await?;
 
-    fg.stream_dyn_async(input_dup, "outputs[0]", sample_stats, "input")
+    fg.stream_dyn_async(input_dup, "outputs[0]", delay, "input")
         .await?;
-    fg.stream_dyn_async(input_dup, "outputs[1]", delay, "input")
+    fg.stream_dyn_async(input_dup, "outputs[1]", complex_to_mag_2, "input")
         .await?;
-    fg.stream_dyn_async(input_dup, "outputs[2]", complex_to_mag_2, "input")
-        .await?;
-    fg.stream_dyn_async(input_dup, "outputs[3]", mult_conj, "in0")
+    fg.stream_dyn_async(input_dup, "outputs[2]", mult_conj, "in0")
         .await?;
 
     let float_avg = MovingAverage::<f32>::new(64);
@@ -640,26 +528,19 @@ async fn build_rx_flowgraph(
                  complex_avg_dup.outputs[0] > in0.divide_mag;
                  float_avg > in1.divide_mag);
 
-    let sync_short: SyncShort = SyncShort::new();
+    let mut sync_short: SyncShort = SyncShort::new();
+    sync_short.in_sig().set_min_buffers(4);
     connect_async!(fg, delay_dup.outputs[1] > in_sig.sync_short;
                  complex_avg_dup.outputs[1] > in_abs.sync_short;
                  divide_mag > in_cor.sync_short);
 
     let sync_long: SyncLong = SyncLong::new();
-    let sync_long_dup = StreamDuplicator::<Complex32, 2>::with_min_output_buffer_size(128);
-    let sync_long_stats = SampleStats::new("WLAN RX after sync long");
     let fft = Fft::new(64);
-    let fft_dup = StreamDuplicator::<Complex32, 2>::with_min_output_buffer_size(64);
-    let fft_stats = SampleStats::new("WLAN RX after FFT");
     let frame_equalizer: FrameEqualizer = FrameEqualizer::new();
     let decoder: Decoder = Decoder::new();
     let frame_pipe = FramePipe::new(frames);
 
-    connect_async!(fg, sync_short > sync_long > sync_long_dup;
-                 sync_long_dup.outputs[0] > sync_long_stats;
-                 sync_long_dup.outputs[1] > fft > fft_dup;
-                 fft_dup.outputs[0] > fft_stats;
-                 fft_dup.outputs[1] > frame_equalizer > decoder;
+    connect_async!(fg, sync_short > sync_long > fft > frame_equalizer > decoder;
                  decoder.rx_frames | frame_pipe);
 
     Ok(())
