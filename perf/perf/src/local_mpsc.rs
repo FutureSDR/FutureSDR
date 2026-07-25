@@ -391,7 +391,7 @@ where
             .unwrap_or(&[])
     }
 
-    fn slice_with_tags(&mut self) -> (&[Self::Item], &Vec<ItemTag>) {
+    fn slice_with_tags(&mut self) -> (&[Self::Item], &[ItemTag]) {
         self.tags.clear();
         let slice = self
             .state

@@ -621,16 +621,13 @@ where
 {
     type Item = T;
 
-    fn slice_with_tags(&mut self) -> (&[Self::Item], &Vec<ItemTag>) {
+    fn slice_with_tags(&mut self) -> (&[Self::Item], &[ItemTag]) {
         if self.current.is_none() {
             match queue_pop(&self.state.connected().inbound) {
                 Some(b) => {
                     self.current = Some((b, 0));
                 }
-                None => {
-                    static V: Vec<ItemTag> = vec![];
-                    return (&[], &V);
-                }
+                None => return (&[], &[]),
             }
         }
 

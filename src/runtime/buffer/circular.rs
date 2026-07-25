@@ -503,7 +503,7 @@ where
             .unwrap_or(&[])
     }
 
-    fn slice_with_tags(&mut self) -> (&[Self::Item], &Vec<ItemTag>) {
+    fn slice_with_tags(&mut self) -> (&[Self::Item], &[ItemTag]) {
         match self
             .state
             .connected_mut()

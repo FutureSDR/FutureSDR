@@ -486,7 +486,7 @@ where
         self.reader.as_mut().expect("reader not connected").slice()
     }
 
-    fn slice_with_tags(&mut self) -> (&[Self::Item], &Vec<ItemTag>) {
+    fn slice_with_tags(&mut self) -> (&[Self::Item], &[ItemTag]) {
         match self
             .reader
             .as_mut()

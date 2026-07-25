@@ -71,7 +71,7 @@ impl<T: CpuSample> BufferReader for CustomReader<T> {
 impl<T: CpuSample> CpuBufferReader for CustomReader<T> {
     type Item = T;
 
-    fn slice_with_tags(&mut self) -> (&[Self::Item], &Vec<ItemTag>) {
+    fn slice_with_tags(&mut self) -> (&[Self::Item], &[ItemTag]) {
         (self.data.as_slice(), &self.tags)
     }
 

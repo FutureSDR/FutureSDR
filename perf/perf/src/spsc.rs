@@ -19,11 +19,8 @@ use futuresdr::runtime::buffer::ThreadSafeConnect;
 use futuresdr::runtime::dev::BlockNotifier;
 use futuresdr::runtime::dev::ItemTag;
 use futuresdr::tracing::warn;
-use once_cell::sync::Lazy;
 use vmcircbuffer::double_mapped_buffer::DoubleMappedBuffer;
 use vmcircbuffer::double_mapped_buffer::pagesize;
-
-static EMPTY_TAGS: Lazy<Vec<ItemTag>> = Lazy::new(Vec::new);
 
 #[repr(align(128))]
 struct PaddedAtomicUsize(AtomicUsize);
@@ -513,8 +510,8 @@ where
         unsafe { &inner.buffer.slice_with_offset(offset)[..avail] }
     }
 
-    fn slice_with_tags(&mut self) -> (&[Self::Item], &Vec<ItemTag>) {
-        (self.slice(), &EMPTY_TAGS)
+    fn slice_with_tags(&mut self) -> (&[Self::Item], &[ItemTag]) {
+        (self.slice(), &[])
     }
 
     fn consume(&mut self, n: usize) {

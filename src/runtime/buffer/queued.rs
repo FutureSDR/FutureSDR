@@ -702,7 +702,7 @@ where
 {
     type Item = D;
 
-    fn slice_with_tags(&mut self) -> (&[Self::Item], &Vec<ItemTag>) {
+    fn slice_with_tags(&mut self) -> (&[Self::Item], &[ItemTag]) {
         let connected = self.state.connected();
         let reserved_items = connected.reserved_items;
 
@@ -764,10 +764,7 @@ where
                         tags: b.tags,
                     });
                 }
-                None => {
-                    static V: Vec<ItemTag> = vec![];
-                    return (&[], &V);
-                }
+                None => return (&[], &[]),
             }
         }
 

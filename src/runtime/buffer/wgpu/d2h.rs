@@ -361,8 +361,7 @@ where
 {
     type Item = D;
 
-    fn slice_with_tags(&mut self) -> (&[Self::Item], &Vec<ItemTag>) {
-        static V: Vec<ItemTag> = vec![];
+    fn slice_with_tags(&mut self) -> (&[Self::Item], &[ItemTag]) {
         if self.buffer.is_none() {
             if let Some(buffer) = self.inbound.lock().unwrap().pop_front() {
                 let slice = buffer
@@ -375,14 +374,14 @@ where
                     slice,
                 });
             } else {
-                return (&[], &V);
+                return (&[], &[]);
             }
         }
 
         let buffer = self.buffer.as_ref().unwrap();
         let data = bytemuck::try_cast_slice(&buffer.slice[buffer.byte_offset..])
             .expect("D2H reader: mapped buffer alignment invalid for sample type");
-        (data, &V)
+        (data, &[])
     }
 
     fn consume(&mut self, amount: usize) {

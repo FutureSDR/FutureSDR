@@ -109,7 +109,7 @@ impl BufferReader for NonSendReader {
 impl CpuBufferReader for NonSendReader {
     type Item = u8;
 
-    fn slice_with_tags(&mut self) -> (&[Self::Item], &Vec<ItemTag>) {
+    fn slice_with_tags(&mut self) -> (&[Self::Item], &[ItemTag]) {
         self.inner.slice_with_tags()
     }
 

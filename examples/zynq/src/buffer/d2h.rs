@@ -279,8 +279,7 @@ where
 {
     type Item = D;
 
-    fn slice_with_tags(&mut self) -> (&[Self::Item], &Vec<ItemTag>) {
-        static V: Vec<ItemTag> = vec![];
+    fn slice_with_tags(&mut self) -> (&[Self::Item], &[ItemTag]) {
         if self.current.is_none() {
             if let Some(b) = self.inbound.lock().unwrap().pop_front() {
                 self.current = Some(CurrentBuffer {
@@ -288,7 +287,7 @@ where
                     byte_offset: 0,
                 });
             } else {
-                return (&[], &V);
+                return (&[], &[]);
             }
         }
 
@@ -302,7 +301,7 @@ where
         };
         let samples = bytemuck::try_cast_slice(bytes)
             .expect("Zynq D2H buffer alignment invalid for sample type");
-        (samples, &V)
+        (samples, &[])
     }
 
     fn consume(&mut self, amount: usize) {

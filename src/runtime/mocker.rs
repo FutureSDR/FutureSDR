@@ -282,7 +282,7 @@ where
     fn slice(&mut self) -> &[Self::Item] {
         self.data.as_slice()
     }
-    fn slice_with_tags(&mut self) -> (&[Self::Item], &Vec<ItemTag>) {
+    fn slice_with_tags(&mut self) -> (&[Self::Item], &[ItemTag]) {
         (self.data.as_slice(), &self.tags)
     }
     fn consume(&mut self, n: usize) {

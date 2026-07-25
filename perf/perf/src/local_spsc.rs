@@ -20,11 +20,8 @@ use futuresdr::runtime::buffer::Tags;
 use futuresdr::runtime::dev::ItemTag;
 use futuresdr::runtime::dev::LocalBlockNotifier;
 use futuresdr::tracing::warn;
-use once_cell::sync::Lazy;
 use vmcircbuffer::double_mapped_buffer::DoubleMappedBuffer;
 use vmcircbuffer::double_mapped_buffer::pagesize;
-
-static EMPTY_TAGS: Lazy<Vec<ItemTag>> = Lazy::new(Vec::new);
 
 struct Inner<T> {
     _buffer: DoubleMappedBuffer<T>,
@@ -408,8 +405,8 @@ where
         unsafe { slice::from_raw_parts(inner_ref.base.add(offset), avail) }
     }
 
-    fn slice_with_tags(&mut self) -> (&[Self::Item], &Vec<ItemTag>) {
-        (self.slice(), &EMPTY_TAGS)
+    fn slice_with_tags(&mut self) -> (&[Self::Item], &[ItemTag]) {
+        (self.slice(), &[])
     }
 
     fn consume(&mut self, n: usize) {

@@ -883,11 +883,10 @@ impl<D: CpuSample> BufferReader for D2HReader<D> {
 impl<D: CpuSample + Pod> CpuBufferReader for D2HReader<D> {
     type Item = D;
 
-    fn slice_with_tags(&mut self) -> (&[Self::Item], &Vec<ItemTag>) {
-        static TAGS: Vec<ItemTag> = vec![];
+    fn slice_with_tags(&mut self) -> (&[Self::Item], &[ItemTag]) {
         if self.buffer.is_none() {
             let Some(buffer) = self.inbound.lock().unwrap().pop_front() else {
-                return (&[], &TAGS);
+                return (&[], &[]);
             };
             let slice = buffer
                 .buffer
@@ -903,7 +902,7 @@ impl<D: CpuSample + Pod> CpuBufferReader for D2HReader<D> {
         let buffer = self.buffer.as_ref().unwrap();
         let data = bytemuck::try_cast_slice(&buffer.slice[buffer.byte_offset..])
             .expect("CubeCL D2H reader: mapped buffer alignment invalid");
-        (data, &TAGS)
+        (data, &[])
     }
 
     fn consume(&mut self, amount: usize) {

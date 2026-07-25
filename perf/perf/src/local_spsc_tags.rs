@@ -426,7 +426,7 @@ where
         unsafe { slice::from_raw_parts(inner_ref.base.add(offset), avail) }
     }
 
-    fn slice_with_tags(&mut self) -> (&[Self::Item], &Vec<ItemTag>) {
+    fn slice_with_tags(&mut self) -> (&[Self::Item], &[ItemTag]) {
         debug_assert!(!self.inner.is_null(), "reader not connected");
         let inner = self.inner;
         let inner_ref = unsafe { &*inner };

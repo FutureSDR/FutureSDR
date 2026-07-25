@@ -211,7 +211,7 @@ where
         mo: &mut MessageOutputs,
         _meta: &BlockMeta,
     ) -> Result<()> {
-        let tags = self.inputs[0].slice_with_tags().1.clone();
+        let tags = self.inputs[0].slice_with_tags().1.to_vec();
         let bufs: Vec<&[Complex32]> = self.inputs.iter_mut().map(|b| b.slice()).collect();
 
         let streamer = self.streamer.as_mut().unwrap();

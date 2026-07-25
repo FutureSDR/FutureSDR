@@ -961,7 +961,7 @@ pub trait CpuBufferReader: BufferReader + Default {
     ///
     /// The returned slice starts at the next unread item. Tags use indices
     /// relative to this slice.
-    fn slice_with_tags(&mut self) -> (&[Self::Item], &Vec<ItemTag>);
+    fn slice_with_tags(&mut self) -> (&[Self::Item], &[ItemTag]);
     /// Get readable slice.
     fn slice(&mut self) -> &[Self::Item] {
         self.slice_with_tags().0
