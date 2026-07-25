@@ -203,6 +203,7 @@ where
     ) -> Result<()> {
         let (mut input, in_tags) = self.input.slice_with_tags();
         let (out, mut out_tags) = self.output.slice_with_tags();
+        let mut next_tag_index = None;
 
         // info!("eq: input {} output {} tags {:?}", input.len(), out.len(), tags);
         if let Some((index, _freq)) = in_tags.iter().find_map(|x| match x {
@@ -226,6 +227,7 @@ where
                 self.pending_frame_tag = None;
             } else {
                 input = &input[0..*index];
+                next_tag_index = Some(*index);
             }
         }
 
@@ -378,10 +380,40 @@ where
         self.input.consume(i * 64);
         self.output.produce(o * 48);
 
+        if next_tag_index == Some(i * 64) {
+            io.call_again = true;
+        }
+
         if self.input.finished() && i == max_i {
             io.finished = true;
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futuresdr::runtime::mocker::Mocker;
+    use futuresdr::runtime::mocker::Reader;
+    use futuresdr::runtime::mocker::Writer;
+
+    #[test]
+    fn calls_again_at_tag_boundary() {
+        let mut block = FrameEqualizer::<Reader<Complex32>, Writer<u8>>::new();
+        block.input.set_with_tags(
+            vec![Complex32::new(0.0, 0.0); 128],
+            vec![ItemTag {
+                index: 64,
+                tag: Tag::NamedF32("wifi_start".to_string(), 0.0),
+            }],
+        );
+        block.output.reserve(48);
+
+        let mut mocker = Mocker::new(block);
+        mocker.run();
+
+        assert!(matches!(mocker.state, State::Sync2));
     }
 }

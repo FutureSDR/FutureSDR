@@ -137,6 +137,7 @@ where
         _b: &BlockMeta,
     ) -> Result<()> {
         let (mut input, in_tags) = self.input.slice_with_tags();
+        let mut next_tag_index = None;
 
         if let Some((index, any)) = in_tags.iter().find_map(|x| match x {
             ItemTag {
@@ -165,6 +166,7 @@ where
                 }
             } else {
                 input = &input[0..*index];
+                next_tag_index = Some(*index);
             }
         }
 
@@ -213,7 +215,7 @@ where
         }
 
         self.input.consume(i * 48);
-        if broke_early && i < max_i {
+        if (broke_early && i < max_i) || next_tag_index == Some(i * 48) {
             io.call_again = true;
         }
         if self.input.finished() && i == max_i {
@@ -222,5 +224,32 @@ where
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futuresdr::runtime::mocker::Mocker;
+    use futuresdr::runtime::mocker::Reader;
+
+    #[test]
+    fn calls_again_at_tag_boundary() {
+        let next_frame = FrameParam::new(Mcs::Bpsk_1_2, 100);
+        let mut block = Decoder::<Reader<u8>>::new();
+        block.frame_param = FrameParam::new(Mcs::Bpsk_1_2, 200);
+        block.input.set_with_tags(
+            vec![0; 96],
+            vec![ItemTag {
+                index: 48,
+                tag: Tag::NamedAny("wifi_start".to_string(), Box::new(next_frame.clone())),
+            }],
+        );
+
+        let mut mocker = Mocker::new(block);
+        mocker.run();
+
+        assert_eq!(mocker.frame_param, next_frame);
+        assert_eq!(mocker.copied, 1);
     }
 }

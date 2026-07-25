@@ -112,6 +112,7 @@ where
         let (out, mut out_tags) = self.output.slice_with_tags();
 
         let mut input_limit = input.len();
+        let mut next_tag_index = None;
 
         // println!("long tags {:?}", &tags);
         if let Some((index, freq)) = in_tags.iter().find_map(|x| match x {
@@ -131,6 +132,7 @@ where
                 self.state = State::Sync(*freq);
             } else {
                 input_limit = std::cmp::min(input_limit, *index);
+                next_tag_index = Some(input_limit);
                 if input_limit < 80 {
                     self.input.consume(input_limit);
                     io.call_again = true;
@@ -139,6 +141,7 @@ where
             }
         }
 
+        let consumed;
         match self.state {
             State::Broken => {
                 // Ignore samples before the first wifi_start tag. This can happen
@@ -146,6 +149,7 @@ where
                 if input_limit > 0 {
                     self.input.consume(input_limit);
                 }
+                consumed = input_limit;
             }
             State::Sync(freq_offset_short) => {
                 if input.len() >= SEARCH_WINDOW + 128 && out.len() >= 128 {
@@ -166,6 +170,9 @@ where
                     io.call_again = true;
 
                     self.state = State::Copy(0, freq_offset);
+                    consumed = offset + 128;
+                } else {
+                    consumed = 0;
                 }
             }
             State::Copy(n_copied, freq_offset) => {
@@ -182,7 +189,14 @@ where
                 self.input.consume(syms * 80);
                 self.output.produce(syms * 64);
                 self.state = State::Copy(n_copied + syms, freq_offset);
+                consumed = syms * 80;
             }
+        }
+
+        if next_tag_index
+            .is_some_and(|index| consumed <= index && index.saturating_sub(consumed) < 80)
+        {
+            io.call_again = true;
         }
 
         if self.input.finished() && input_len - input_limit < 80 {
@@ -274,6 +288,24 @@ mod tests {
             vec![Complex32::new(0.0, 0.0); 100],
             vec![ItemTag {
                 index: 10,
+                tag: Tag::NamedF32("wifi_start".to_string(), 0.0),
+            }],
+        );
+        block.output.reserve(128);
+
+        let mut mocker = Mocker::new(block);
+        mocker.run();
+
+        assert!(matches!(mocker.state, State::Sync(_)));
+    }
+
+    #[test]
+    fn calls_again_after_processing_prefix_before_tag() {
+        let mut block = SyncLong::<Reader<Complex32>, Writer<Complex32>>::new();
+        block.input.set_with_tags(
+            vec![Complex32::new(0.0, 0.0); 1_000],
+            vec![ItemTag {
+                index: 800,
                 tag: Tag::NamedF32("wifi_start".to_string(), 0.0),
             }],
         );
