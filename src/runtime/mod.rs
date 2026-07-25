@@ -313,9 +313,6 @@ pub enum Error {
     /// Conversion to or from a [`Pmt`] failed.
     #[error("PMT conversion error")]
     PmtConversionError,
-    /// A lock that should be immediately available was poisoned or contended.
-    #[error("Error while locking a Mutex that should not be contended or poisoned")]
-    LockError,
     /// Conversion between Seify arguments and PMTs failed.
     #[cfg(feature = "seify")]
     #[error("Seify Args conversion error")]

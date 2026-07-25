@@ -817,11 +817,10 @@ impl Flowgraph {
         block: &mut dyn BlockObject,
         block_id: BlockId,
     ) -> Result<&mut K, Error> {
-        if (block as &dyn std::any::Any).is::<LocalWrappedKernel<K>>() {
-            return (block as &mut dyn std::any::Any)
-                .downcast_mut::<LocalWrappedKernel<K>>()
-                .map(|block| &mut block.kernel)
-                .ok_or(Error::LockError);
+        if let Some(block) =
+            (block as &mut dyn std::any::Any).downcast_mut::<LocalWrappedKernel<K>>()
+        {
+            return Ok(&mut block.kernel);
         }
         Err(Error::ValidationError(format!(
             "local block {:?} has unexpected type for {}",

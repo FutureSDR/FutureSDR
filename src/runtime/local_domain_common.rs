@@ -356,7 +356,11 @@ impl LocalRunningState {
             .blocks
             .iter()
             .position(|(id, _)| *id == local_id)
-            .ok_or(Error::LockError)?;
+            .ok_or_else(|| {
+                Error::RuntimeError(format!(
+                    "local block {block_id:?} was taken more than once during one run"
+                ))
+            })?;
         Ok(self.blocks.swap_remove(pos).1)
     }
 
@@ -628,7 +632,9 @@ impl LocalDomainState {
         let (src_local, src_id) = src;
         let (dst_local, dst_id) = dst;
         if src_local == dst_local {
-            return Err(Error::LockError);
+            return Err(Error::ValidationError(
+                "stream self-connections are not supported".to_string(),
+            ));
         }
         let invalid_block = if src_local >= self.slots.len() {
             src_id
@@ -642,7 +648,9 @@ impl LocalDomainState {
                 std::slice::GetDisjointMutError::IndexOutOfBounds => {
                     Error::InvalidBlock(invalid_block)
                 }
-                std::slice::GetDisjointMutError::OverlappingIndices => Error::LockError,
+                std::slice::GetDisjointMutError::OverlappingIndices => {
+                    Error::ValidationError("stream self-connections are not supported".to_string())
+                }
             })?;
         let src_block = src_slot
             .as_mut()
@@ -995,7 +1003,7 @@ mod tests {
         let block = running.take_block(2, BlockId(7)).unwrap();
         assert!(matches!(
             running.take_block(2, BlockId(7)),
-            Err(Error::LockError)
+            Err(Error::RuntimeError(_))
         ));
         running.restore_block(2, BlockId(7), block).unwrap();
 

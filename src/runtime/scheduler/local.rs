@@ -290,11 +290,15 @@ impl<'a, Shutdown> LocalDomainRunSpec<'a, Shutdown> {
             LocalDomainMessage::StopRun => LocalDomainControl::Stop,
             LocalDomainMessage::Terminate => LocalDomainControl::Stop,
             LocalDomainMessage::Build { reply, .. } => {
-                let _ = reply.send(Err(Error::LockError));
+                let _ = reply.send(Err(Error::RuntimeError(
+                    "cannot build a block while its local domain is running".to_string(),
+                )));
                 LocalDomainControl::Continue
             }
             LocalDomainMessage::Run { reply, .. } => {
-                let _ = reply.send(Err(Error::LockError));
+                let _ = reply.send(Err(Error::RuntimeError(
+                    "local domain is already running".to_string(),
+                )));
                 LocalDomainControl::Continue
             }
             LocalDomainMessage::Exec(_) => {

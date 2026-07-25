@@ -78,7 +78,6 @@ fn stream_self_connection_is_rejected() -> Result<()> {
     let copy = fg.add(Copy::<f32>::new())?;
 
     match fg.stream(&copy, |b| b.output(), &copy, |b| b.input()) {
-        Err(Error::LockError) => Ok(()),
         Err(Error::ValidationError(msg)) => {
             assert!(msg.contains("self-connections"));
             Ok(())

@@ -70,13 +70,21 @@ pub(super) fn typed_kernel_mut_from_object<K: 'static>(
         return (block as &mut dyn Any)
             .downcast_mut::<WrappedKernel<K>>()
             .map(|block| &mut block.kernel)
-            .ok_or(Error::LockError);
+            .ok_or_else(|| {
+                Error::RuntimeError(format!(
+                    "block {block_id:?} changed type during mutable access"
+                ))
+            });
     }
     if (block as &dyn Any).is::<LocalWrappedKernel<K>>() {
         return (block as &mut dyn Any)
             .downcast_mut::<LocalWrappedKernel<K>>()
             .map(|block| &mut block.kernel)
-            .ok_or(Error::LockError);
+            .ok_or_else(|| {
+                Error::RuntimeError(format!(
+                    "local block {block_id:?} changed type during mutable access"
+                ))
+            });
     }
     Err(unexpected_type::<K>(block_id))
 }
@@ -128,7 +136,9 @@ pub(super) fn typed_guard_mut<'a, K: 'static>(
 fn ensure_normal_slot(blocks: &[BlockSlot], block_id: BlockId) -> Result<(), Error> {
     match blocks.get(block_id.0) {
         Some(slot) if slot.is_normal() => Ok(()),
-        Some(_) => Err(Error::LockError),
+        Some(_) => Err(Error::ValidationError(
+            "direct block access requires a normal-domain block".to_string(),
+        )),
         None => Err(Error::InvalidBlock(block_id)),
     }
 }

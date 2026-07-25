@@ -114,7 +114,9 @@ impl FlowgraphDomains {
         if location.is_normal() {
             self.normal().block(location.domain_slot, location.block_id)
         } else {
-            Err(Error::LockError)
+            Err(Error::ValidationError(
+                "direct block access requires a normal-domain block".to_string(),
+            ))
         }
     }
 
@@ -126,7 +128,9 @@ impl FlowgraphDomains {
             self.normal_mut()
                 .block_mut(location.domain_slot, location.block_id)
         } else {
-            Err(Error::LockError)
+            Err(Error::ValidationError(
+                "direct block access requires a normal-domain block".to_string(),
+            ))
         }
     }
 
@@ -450,7 +454,9 @@ impl NormalDomain {
         let (first_slot, first_id) = first;
         let (second_slot, second_id) = second;
         if first_slot == second_slot {
-            return Err(Error::LockError);
+            return Err(Error::ValidationError(
+                "stream self-connections are not supported".to_string(),
+            ));
         }
 
         let invalid_block = if first_slot >= self.slots.len() {
@@ -465,7 +471,9 @@ impl NormalDomain {
                 std::slice::GetDisjointMutError::IndexOutOfBounds => {
                     Error::InvalidBlock(invalid_block)
                 }
-                std::slice::GetDisjointMutError::OverlappingIndices => Error::LockError,
+                std::slice::GetDisjointMutError::OverlappingIndices => {
+                    Error::ValidationError("stream self-connections are not supported".to_string())
+                }
             })?;
 
         let first_block = first_slot_ref.block_mut(first_id)?;
