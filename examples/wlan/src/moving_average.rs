@@ -85,10 +85,8 @@ where
                 io.call_again = true;
             }
         } else {
-            let m = std::cmp::min(
-                std::cmp::min(MAX_ITER, (input_len + 1).saturating_sub(self.len)),
-                out.len(),
-            );
+            let processable = (input_len + 1).saturating_sub(self.len);
+            let m = std::cmp::min(std::cmp::min(MAX_ITER, processable), out_len);
 
             if m > 0 {
                 let mut sum = input[0..(self.len - 1)].iter().sum();
@@ -101,7 +99,11 @@ where
                 self.output.produce(m);
             }
 
-            if self.input.finished() && m == (input_len + 1).saturating_sub(self.len) {
+            if m < processable && m < out_len {
+                io.call_again = true;
+            }
+
+            if self.input.finished() && m == processable {
                 io.finished = true;
             };
         }
@@ -152,5 +154,21 @@ mod test {
         let (output, _) = mocker.output.get();
 
         assert_eq!(output, vec![0.0, 3.0, 5.0, 7.0]);
+    }
+
+    #[test]
+    fn mov_avg_reschedules_at_iteration_limit() {
+        let len = MAX_ITER + 2;
+        let mut block = MovingAverage::<f32, Reader<_>, Writer<_>>::new(2);
+        block.input().set(vec![1.0; len]);
+        block.output().reserve(len);
+
+        let mut mocker = Mocker::new(block);
+        mocker.run();
+        let (output, _) = mocker.output.get();
+
+        assert_eq!(output.len(), len);
+        assert_eq!(output[0], 0.0);
+        assert!(output[1..].iter().all(|&sample| sample == 2.0));
     }
 }
