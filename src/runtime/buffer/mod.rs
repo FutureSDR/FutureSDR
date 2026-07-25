@@ -8,6 +8,15 @@
 //! Application code normally uses the default buffer types exposed by existing
 //! blocks. Custom block and runtime-extension authors use the traits in this
 //! module to select a buffer family or implement a new transport.
+//!
+//! # Stream termination and fanout
+//!
+//! When a block finishes, each of its input readers notifies the upstream block
+//! that the corresponding writer is no longer needed. The upstream block then
+//! finishes as a whole and notifies every reader connected to all of its output
+//! writers. For a writer with multiple readers, one reader finishing therefore
+//! stops further production for every reader. The other readers may still
+//! process items already present in their buffers.
 
 // ==================== BURN =======================
 #[cfg(feature = "burn")]
@@ -682,7 +691,9 @@ pub trait BufferReader: Any {
     /// Notify upstream writers that this reader is done.
     ///
     /// Implementations usually forward this signal through the peer inbox handle
-    /// so the upstream block can stop producing to this port.
+    /// so the upstream block can stop producing. The upstream block finishes as
+    /// a whole; for a fanout writer this also stops further production for its
+    /// other readers, although they may still drain already-buffered items.
     fn notify_finished(&mut self) -> impl Future<Output = ()>
     where
         Self: Sized;
@@ -877,6 +888,10 @@ pub trait BufferWriter: Any {
     /// The corresponding matching reader.
     type Reader: BufferReader<Inbox = Self::Inbox>;
     /// Maximum number of downstream readers supported by this writer.
+    ///
+    /// Fanout readers share the writer's termination fate: when any reader
+    /// finishes, the upstream block finishes and stops producing for all readers.
+    /// Remaining readers may still drain items already present in their buffers.
     fn max_readers(&self) -> usize {
         1
     }
