@@ -251,8 +251,8 @@ impl<'a, LS: LocalScheduler> LocalDomainContext<'a, LS> {
         KS: 'static,
         KD: 'static,
         B: BufferWriter + 'static,
-        FS: FnOnce(&mut KS) -> &mut B + Send + 'static,
-        FD: FnOnce(&mut KD) -> &mut B::Reader + Send + 'static,
+        FS: FnOnce(&mut KS) -> &mut B,
+        FD: FnOnce(&mut KD) -> &mut B::Reader,
     {
         block_on(
             self.stream_local_async::<KS, KD, B, FS, FD>(src_block, src_port, dst_block, dst_port),
@@ -271,8 +271,8 @@ impl<'a, LS: LocalScheduler> LocalDomainContext<'a, LS> {
         KS: 'static,
         KD: 'static,
         B: BufferWriter + 'static,
-        FS: FnOnce(&mut KS) -> &mut B + Send + 'static,
-        FD: FnOnce(&mut KD) -> &mut B::Reader + Send + 'static,
+        FS: FnOnce(&mut KS) -> &mut B,
+        FD: FnOnce(&mut KD) -> &mut B::Reader,
     {
         let mut inner = self.inner.borrow_mut();
         if src_block.flowgraph_id != inner.flowgraph_id {
@@ -334,8 +334,8 @@ impl<'a, LS: LocalScheduler> LocalDomainContext<'a, LS> {
         KS: 'static,
         KD: 'static,
         B: BufferWriter + 'static,
-        FS: FnOnce(&mut KS) -> &mut B + Send + 'static,
-        FD: FnOnce(&mut KD) -> &mut B::Reader + Send + 'static,
+        FS: FnOnce(&mut KS) -> &mut B,
+        FD: FnOnce(&mut KD) -> &mut B::Reader,
     {
         self.stream_local_async(src_block, src_port, dst_block, dst_port)
             .await

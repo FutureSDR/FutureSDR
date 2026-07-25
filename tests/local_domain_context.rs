@@ -7,6 +7,7 @@ use futuresdr::runtime::BlockId;
 use futuresdr::runtime::Error;
 use futuresdr::runtime::buffer::LocalCpuReader;
 use futuresdr::runtime::buffer::LocalCpuWriter;
+use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
@@ -29,6 +30,38 @@ fn connect_macro_works_in_local_domain_context() -> Result<()> {
         let snk = ctx.add(NullSink::<u8, LocalCpuReader<u8>>::new());
 
         connect!(ctx, src ~> head ~> snk);
+
+        Ok(snk)
+    })?;
+
+    run_and_check(fg, snk)
+}
+
+#[test]
+fn local_port_selectors_can_capture_non_send_state() -> Result<()> {
+    let mut fg = Flowgraph::new();
+    let local = fg.local_domain()?;
+
+    let snk = fg.with_local_domain(local, |ctx| {
+        let src = ctx.add(NullSource::<u8, LocalCpuWriter<u8>>::new());
+        let head = ctx.add(Head::<u8, LocalCpuReader<u8>, LocalCpuWriter<u8>>::new(10));
+        let snk = ctx.add(NullSink::<u8, LocalCpuReader<u8>>::new());
+        let state = Rc::new(());
+        let src_state = state.clone();
+
+        ctx.stream_local(
+            &src,
+            move |block| {
+                let _ = &src_state;
+                block.output()
+            },
+            &head,
+            move |block| {
+                let _ = &state;
+                block.input()
+            },
+        )?;
+        connect!(ctx, head ~> snk);
 
         Ok(snk)
     })?;
