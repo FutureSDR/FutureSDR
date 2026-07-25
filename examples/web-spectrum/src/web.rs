@@ -497,7 +497,7 @@ async fn run(
         })
         .await?;
 
-    let gui_domain = fg.main_thread_local_domain()?;
+    let gui_domain = fg.main_thread_domain()?;
     let snk = fg
         .with_local_domain_async(gui_domain, async move |ctx: &LocalDomainContext<'_>| {
             Ok(ctx.add(Sink::new(set_time_data, set_waterfall_data)))

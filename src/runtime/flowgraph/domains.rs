@@ -26,12 +26,14 @@ enum FlowgraphDomain {
 /// first entry in the same domain table that stores user-created local domains.
 pub(super) struct FlowgraphDomains {
     domains: Vec<FlowgraphDomain>,
+    main_thread_domain_id: Option<usize>,
 }
 
 impl FlowgraphDomains {
     pub(super) fn new() -> Self {
         Self {
             domains: vec![FlowgraphDomain::Normal(NormalDomain::new())],
+            main_thread_domain_id: None,
         }
     }
 
@@ -73,6 +75,19 @@ impl FlowgraphDomains {
     pub(super) fn push_local(&mut self, domain: LocalDomainRuntime) -> usize {
         let domain_id = self.domains.len();
         self.domains.push(FlowgraphDomain::Local(domain));
+        domain_id
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub(super) fn main_thread_domain_id(&self) -> Option<usize> {
+        self.main_thread_domain_id
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub(super) fn push_main_thread(&mut self, domain: LocalDomainRuntime) -> usize {
+        debug_assert!(self.main_thread_domain_id.is_none());
+        let domain_id = self.push_local(domain);
+        self.main_thread_domain_id = Some(domain_id);
         domain_id
     }
 
@@ -202,10 +217,14 @@ impl FlowgraphDomains {
     }
 
     pub(super) fn into_running(self) -> Result<(RunningFlowgraphDomains, NormalBlocks), Error> {
+        let Self {
+            domains: flowgraph_domains,
+            main_thread_domain_id,
+        } = self;
         let mut normal_blocks = None;
-        let mut domains = Vec::with_capacity(self.domains.len());
+        let mut domains = Vec::with_capacity(flowgraph_domains.len());
 
-        for domain in self.domains {
+        for domain in flowgraph_domains {
             match domain {
                 FlowgraphDomain::Normal(domain) => {
                     if normal_blocks.is_some() {
@@ -227,7 +246,13 @@ impl FlowgraphDomains {
             Error::RuntimeError("flowgraph missing implicit normal domain".to_string())
         })?;
 
-        Ok((RunningFlowgraphDomains { domains }, normal_blocks))
+        Ok((
+            RunningFlowgraphDomains {
+                domains,
+                main_thread_domain_id,
+            },
+            normal_blocks,
+        ))
     }
 }
 
@@ -248,6 +273,7 @@ enum RunningFlowgraphDomain {
 /// the scheduler returns stopped blocks.
 pub(super) struct RunningFlowgraphDomains {
     domains: Vec<RunningFlowgraphDomain>,
+    main_thread_domain_id: Option<usize>,
 }
 
 impl RunningFlowgraphDomains {
@@ -269,9 +295,14 @@ impl RunningFlowgraphDomains {
         self,
         stopped_domains: Vec<StoppedDomain>,
     ) -> Result<FlowgraphDomains, Error> {
-        let mut stopped_by_domain = Self::stopped_by_domain(self.domains.len(), stopped_domains)?;
-        let mut domains = Vec::with_capacity(self.domains.len());
-        for (domain_id, domain) in self.domains.into_iter().enumerate() {
+        let Self {
+            domains: running_domains,
+            main_thread_domain_id,
+        } = self;
+        let mut stopped_by_domain =
+            Self::stopped_by_domain(running_domains.len(), stopped_domains)?;
+        let mut domains = Vec::with_capacity(running_domains.len());
+        for (domain_id, domain) in running_domains.into_iter().enumerate() {
             let stopped = stopped_by_domain[domain_id].take();
             match (domain, stopped) {
                 (RunningFlowgraphDomain::Normal(domain), Some(stopped)) => {
@@ -310,7 +341,10 @@ impl RunningFlowgraphDomains {
             }
         }
 
-        Ok(FlowgraphDomains { domains })
+        Ok(FlowgraphDomains {
+            domains,
+            main_thread_domain_id,
+        })
     }
 
     fn cleanup_stopped_domains(self, stopped_domains: Vec<StoppedDomain>) -> Result<(), Error> {

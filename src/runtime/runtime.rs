@@ -89,9 +89,10 @@ impl<S> Drop for Runtime<S> {
 impl Runtime<DefaultScheduler> {
     /// Construct a runtime using the default main-thread WASM scheduler.
     ///
-    /// WASM runtimes do not start a native control-port server. Use
+    /// Normal blocks run on the browser main thread without requiring shared
+    /// memory or a worker script. Use
     /// [`WasmScheduler`](crate::runtime::scheduler::WasmScheduler) explicitly
-    /// with [`Runtime::with_scheduler`] when worker-backed execution is desired.
+    /// for worker-backed execution.
     pub fn new() -> Self {
         Self::with_scheduler(DefaultScheduler::default())
     }

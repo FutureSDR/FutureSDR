@@ -1,6 +1,7 @@
 use futures::task::AtomicWaker;
 use std::cell::Cell;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::fmt;
 use std::future::Future;
@@ -25,7 +26,7 @@ use crate::runtime::local_domain::LocalDomainInbox;
 static NEXT_LOCAL_DOMAIN_KEY: AtomicUsize = AtomicUsize::new(0);
 
 /// Runtime-unique identity for one local-domain execution resource.
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
 pub(crate) struct LocalDomainKey(usize);
 
 impl LocalDomainKey {
@@ -507,23 +508,28 @@ fn fail_closed_message(msg: BlockMessage) -> Error {
 
 #[derive(Debug)]
 struct CurrentLocalDomain {
-    key: LocalDomainKey,
     inboxes: Vec<Option<(BlockId, LocalBlockInbox)>>,
 }
 
 thread_local! {
-    static CURRENT_LOCAL_DOMAIN: RefCell<Option<CurrentLocalDomain>> = const { RefCell::new(None) };
+    static CURRENT_LOCAL_DOMAINS: RefCell<HashMap<LocalDomainKey, CurrentLocalDomain>> =
+        RefCell::new(HashMap::new());
 }
 
 /// Guard for a same-thread local-domain fast-path context.
 pub(crate) struct LocalDomainContextGuard {
+    key: LocalDomainKey,
     previous: Option<CurrentLocalDomain>,
 }
 
 impl Drop for LocalDomainContextGuard {
     fn drop(&mut self) {
-        CURRENT_LOCAL_DOMAIN.with(|current| {
-            current.replace(self.previous.take());
+        CURRENT_LOCAL_DOMAINS.with(|current| {
+            let mut current = current.borrow_mut();
+            current.remove(&self.key);
+            if let Some(previous) = self.previous.take() {
+                current.insert(self.key, previous);
+            }
         });
     }
 }
@@ -533,32 +539,27 @@ pub(crate) fn enter_local_domain_context(
     key: LocalDomainKey,
     inboxes: Vec<Option<(BlockId, LocalBlockInbox)>>,
 ) -> LocalDomainContextGuard {
-    CURRENT_LOCAL_DOMAIN.with(|current| LocalDomainContextGuard {
-        previous: current.replace(Some(CurrentLocalDomain { key, inboxes })),
+    CURRENT_LOCAL_DOMAINS.with(|current| LocalDomainContextGuard {
+        key,
+        previous: current
+            .borrow_mut()
+            .insert(key, CurrentLocalDomain { inboxes }),
     })
 }
 
 fn current_local_inbox(key: LocalDomainKey, addr: LocalBlockAddr) -> Option<LocalBlockInbox> {
-    CURRENT_LOCAL_DOMAIN.with(|current| {
+    CURRENT_LOCAL_DOMAINS.with(|current| {
         let current = current.borrow();
-        let current = current.as_ref()?;
-        if current.key != key {
-            return None;
-        }
-
+        let current = current.get(&key)?;
         let (block_id, inbox) = current.inboxes.get(addr.local_id)?.as_ref()?;
         (*block_id == addr.block_id).then(|| inbox.clone())
     })
 }
 
 fn has_current_local_inbox(key: LocalDomainKey, addr: LocalBlockAddr) -> bool {
-    CURRENT_LOCAL_DOMAIN.with(|current| {
+    CURRENT_LOCAL_DOMAINS.with(|current| {
         let current = current.borrow();
-        current.as_ref().is_some_and(|current| {
-            if current.key != key {
-                return false;
-            }
-
+        current.get(&key).is_some_and(|current| {
             current
                 .inboxes
                 .get(addr.local_id)
@@ -939,6 +940,29 @@ mod tests {
         assert!(current_local_inbox(key, LocalBlockAddr::new(BlockId(8), 1)).is_none());
         assert!(current_local_inbox(key, LocalBlockAddr::new(BlockId(7), 0)).is_none());
         assert!(current_local_inbox(key, LocalBlockAddr::new(BlockId(7), 2)).is_none());
+    }
+
+    #[test]
+    fn current_local_inboxes_keep_overlapping_domains_independent() {
+        let first_key = LocalDomainKey::new();
+        let second_key = LocalDomainKey::new();
+        let (first, _first_rx) = LocalBlockInboxReader::pair();
+        let (second, _second_rx) = LocalBlockInboxReader::pair();
+        let first_addr = LocalBlockAddr::new(BlockId(3), 0);
+        let second_addr = LocalBlockAddr::new(BlockId(8), 0);
+
+        let first_guard = enter_local_domain_context(first_key, vec![Some((BlockId(3), first))]);
+        let second_guard = enter_local_domain_context(second_key, vec![Some((BlockId(8), second))]);
+
+        assert!(has_current_local_inbox(first_key, first_addr));
+        assert!(has_current_local_inbox(second_key, second_addr));
+
+        drop(first_guard);
+        assert!(!has_current_local_inbox(first_key, first_addr));
+        assert!(has_current_local_inbox(second_key, second_addr));
+
+        drop(second_guard);
+        assert!(!has_current_local_inbox(second_key, second_addr));
     }
 
     #[test]
