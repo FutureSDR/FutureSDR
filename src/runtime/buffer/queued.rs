@@ -98,6 +98,8 @@ use crate::runtime::buffer::ThreadSafeConnect;
 use crate::runtime::config;
 use crate::runtime::dev::ItemTag;
 
+const DEFAULT_BUFFER_COUNT: usize = 2;
+
 #[derive(Debug)]
 struct BufferEmpty<D: CpuSample> {
     buffer: Box<[D]>,
@@ -202,6 +204,7 @@ where
 {
     core: PortCore<I>,
     state: ConnectionState<ConnectedWriter<D, S, I>>,
+    min_buffers: usize,
     current: Option<CurrentBuffer<D>>,
     tags: Vec<ItemTag>,
 }
@@ -229,6 +232,7 @@ where
     reader: PortEndpoint<BlockInbox>,
     reader_min_items: Option<usize>,
     reader_min_buffer_size: Option<usize>,
+    reader_min_buffers: usize,
     _state: PhantomData<fn() -> S>,
     _item: PhantomData<D>,
 }
@@ -242,6 +246,7 @@ where
 {
     connected: ConnectedReader<D, S, BlockInbox>,
     min_buffer_size: usize,
+    min_buffers: usize,
 }
 
 impl<D, S, I> Writer<D, S, I>
@@ -255,9 +260,19 @@ where
         Self {
             core: PortCore::with_requirements(BufferRequirements::with_min_items(1)),
             state: ConnectionState::disconnected(),
+            min_buffers: DEFAULT_BUFFER_COUNT,
             current: None,
             tags: Vec::new(),
         }
+    }
+
+    /// Set the minimum number of backing buffers allocated for this connection.
+    pub fn set_min_buffers(&mut self, count: usize) {
+        assert!(count > 0, "a queue-backed buffer needs at least one chunk");
+        if self.state.is_connected() {
+            warn!("buffer count configured after buffer is connected. This has no effect");
+        }
+        self.min_buffers = count;
     }
 }
 
@@ -319,13 +334,14 @@ where
         };
 
         min_items = std::cmp::max(min_items, reserved_items + 1);
+        let min_buffers = self.min_buffers.max(dest.min_buffers);
 
         let state = S::new(State {
             writer_input: VecDeque::new(),
             reader_input: VecDeque::new(),
         });
         state.with_mut(|state| {
-            for _ in 0..2 {
+            for _ in 0..min_buffers {
                 state.writer_input.push_back(BufferEmpty {
                     buffer: vec![D::default(); min_items].into_boxed_slice(),
                 });
@@ -336,6 +352,8 @@ where
             .set_min_buffer_size_in_items(min_items - reserved_items);
         dest.core
             .set_min_buffer_size_in_items(min_items - reserved_items);
+        self.min_buffers = min_buffers;
+        dest.min_buffers = min_buffers;
 
         self.state.set_connected(ConnectedWriter {
             state: state.clone(),
@@ -400,6 +418,7 @@ where
             reader: PortEndpoint::new(reader.core.inbox().clone(), reader.core.port_id()),
             reader_min_items: reader.core.min_items(),
             reader_min_buffer_size: reader.core.min_buffer_size_in_items(),
+            reader_min_buffers: reader.min_buffers,
             _state: PhantomData,
             _item: PhantomData,
         }
@@ -420,13 +439,14 @@ where
 
         min_items = std::cmp::max(min_items, reserved_items + 1);
         let min_buffer_size = min_items - reserved_items;
+        let min_buffers = self.min_buffers.max(token.reader_min_buffers);
 
         let state = S::new(State {
             writer_input: VecDeque::new(),
             reader_input: VecDeque::new(),
         });
         state.with_mut(|state| {
-            for _ in 0..2 {
+            for _ in 0..min_buffers {
                 state.writer_input.push_back(BufferEmpty {
                     buffer: vec![D::default(); min_items].into_boxed_slice(),
                 });
@@ -434,6 +454,7 @@ where
         });
 
         self.core.set_min_buffer_size_in_items(min_buffer_size);
+        self.min_buffers = min_buffers;
         self.state.set_connected(ConnectedWriter {
             state: state.clone(),
             reserved_items,
@@ -449,6 +470,7 @@ where
                 _marker: PhantomData,
             },
             min_buffer_size,
+            min_buffers,
         }
     }
 
@@ -456,6 +478,7 @@ where
         reader
             .core
             .set_min_buffer_size_in_items(token.min_buffer_size);
+        reader.min_buffers = token.min_buffers;
         reader.state.set_connected(token.connected);
     }
 }
@@ -556,6 +579,7 @@ where
 {
     core: PortCore<I>,
     state: ConnectionState<ConnectedReader<D, S, I>>,
+    min_buffers: usize,
     current: Option<CurrentBuffer<D>>,
     tags: Vec<ItemTag>,
     finished: bool,
@@ -585,10 +609,20 @@ where
         Self {
             core: PortCore::new_unbound(),
             state: ConnectionState::disconnected(),
+            min_buffers: DEFAULT_BUFFER_COUNT,
             current: None,
             tags: Vec::new(),
             finished: false,
         }
+    }
+
+    /// Set the minimum number of backing buffers allocated for this connection.
+    pub fn set_min_buffers(&mut self, count: usize) {
+        assert!(count > 0, "a queue-backed buffer needs at least one chunk");
+        if self.state.is_connected() {
+            warn!("buffer count configured after buffer is connected. This has no effect");
+        }
+        self.min_buffers = count;
     }
 }
 
@@ -867,6 +901,27 @@ mod tests {
 
         let input = CpuBufferReader::slice(&mut reader);
         assert_eq!(input, &[9, 8, 7]);
+
+        Ok(())
+    }
+
+    #[test]
+    fn local_cpu_buffer_honors_buffer_count() -> Result<(), Error> {
+        let mut writer = local::Writer::<u8>::default();
+        let mut reader = local::Reader::<u8>::default();
+
+        BufferWriter::init(&mut writer, BlockId(0), PortIndex::new(0), local_inbox());
+        BufferReader::init(&mut reader, BlockId(1), PortIndex::new(0), local_inbox());
+
+        CpuBufferWriter::set_min_buffer_size_in_items(&mut writer, 4);
+        reader.set_min_buffers(3);
+        BufferWriter::connect(&mut writer, &mut reader);
+
+        for _ in 0..3 {
+            assert_eq!(CpuBufferWriter::slice(&mut writer).len(), 4);
+            CpuBufferWriter::produce(&mut writer, 4);
+        }
+        assert!(CpuBufferWriter::slice(&mut writer).is_empty());
 
         Ok(())
     }
