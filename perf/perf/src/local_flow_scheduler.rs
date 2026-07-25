@@ -165,86 +165,79 @@ impl LocalScheduler for LocalFlowScheduler {
         task.detach();
     }
 
-    fn run<'a, T: 'a>(
-        &'a self,
-        future: impl Future<Output = T> + 'a,
-    ) -> Pin<Box<dyn Future<Output = T> + 'a>> {
-        drive_until(self.queues.clone(), future, false)
+    async fn run<'a, T: 'a>(&'a self, future: impl Future<Output = T> + 'a) -> T {
+        drive_until(self.queues.clone(), future, false).await
     }
 
-    fn run_local_domain<'a, Shutdown>(
+    async fn run_local_domain<'a, Shutdown>(
         &'a self,
         mut spec: LocalDomainRunSpec<'a, Shutdown>,
-    ) -> Pin<Box<dyn Future<Output = Result<(), Error>> + 'a>>
+    ) -> Result<(), Error>
     where
         Shutdown: Future + Unpin + 'a,
     {
-        Box::pin(async move {
-            let block_ids = spec.blocks().collect::<Vec<_>>();
-            let priorities = block_priorities(&block_ids, spec.topology().stream_edges());
-            self.queues.reset_block_queues(block_ids.len());
+        let block_ids = spec.blocks().collect::<Vec<_>>();
+        let priorities = block_priorities(&block_ids, spec.topology().stream_edges());
+        self.queues.reset_block_queues(block_ids.len());
 
-            let result = async {
-                let tasks = FuturesUnordered::new();
-                let mut stop_handles = Vec::new();
+        let result = async {
+            let tasks = FuturesUnordered::new();
+            let mut stop_handles = Vec::new();
 
-                for block_id in block_ids {
-                    let block = spec.take_block(block_id)?;
-                    stop_handles.push(block.stop_handle());
-                    let priority = priorities[&block_id];
-                    tasks.push(self.spawn_block(priority, block.run()));
-                }
-
-                self.detach(self.spawn(spec.external_inbox_forwarder()));
-
-                let n_tasks = tasks.len();
-                let _local_context = spec.enter_context();
-                let finished = drive_until(
-                    self.queues.clone(),
-                    run_domain_until_stopped(&mut spec, tasks, stop_handles, n_tasks),
-                    true,
-                )
-                .await;
-
-                finished?
-                    .into_iter()
-                    .try_for_each(|block| spec.restore_block(block))
+            for block_id in block_ids {
+                let block = spec.take_block(block_id)?;
+                stop_handles.push(block.stop_handle());
+                let priority = priorities[&block_id];
+                tasks.push(self.spawn_block(priority, block.run()));
             }
+
+            self.detach(self.spawn(spec.external_inbox_forwarder()));
+
+            let n_tasks = tasks.len();
+            let _local_context = spec.enter_context();
+            let finished = drive_until(
+                self.queues.clone(),
+                run_domain_until_stopped(&mut spec, tasks, stop_handles, n_tasks),
+                true,
+            )
             .await;
 
-            self.queues.clear_block_queues();
-            result
-        })
+            finished?
+                .into_iter()
+                .try_for_each(|block| spec.restore_block(block))
+        }
+        .await;
+
+        self.queues.clear_block_queues();
+        result
     }
 }
 
-fn drive_until<'a, T: 'a>(
+async fn drive_until<'a, T: 'a>(
     queues: Arc<ReadyQueues>,
     future: impl Future<Output = T> + 'a,
     include_blocks: bool,
-) -> Pin<Box<dyn Future<Output = T> + 'a>> {
-    Box::pin(async move {
-        let run_forever = async {
-            let mut block_runs = 0usize;
+) -> T {
+    let run_forever = async {
+        let mut block_runs = 0usize;
 
-            loop {
-                for _ in 0..RUNNABLE_BATCH_BUDGET {
-                    let runnable = queues.runnable(include_blocks, &mut block_runs).await;
-                    runnable.run();
-                }
-
-                yield_now().await;
+        loop {
+            for _ in 0..RUNNABLE_BATCH_BUDGET {
+                let runnable = queues.runnable(include_blocks, &mut block_runs).await;
+                runnable.run();
             }
-        };
 
-        futures::pin_mut!(future);
-        futures::pin_mut!(run_forever);
-
-        match select(future, run_forever).await {
-            Either::Left((output, _)) => output,
-            Either::Right((output, _)) => output,
+            yield_now().await;
         }
-    })
+    };
+
+    futures::pin_mut!(future);
+    futures::pin_mut!(run_forever);
+
+    match select(future, run_forever).await {
+        Either::Left((output, _)) => output,
+        Either::Right((output, _)) => output,
+    }
 }
 
 async fn run_domain_until_stopped<'a, Shutdown>(

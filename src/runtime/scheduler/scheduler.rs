@@ -1,5 +1,4 @@
 use futures::future::Future;
-use std::pin::Pin;
 
 use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
@@ -148,17 +147,15 @@ impl RunnableBlock {
     }
 
     /// Run this normal-domain block to completion and return its stopped state.
-    pub fn run(self) -> Pin<Box<dyn Future<Output = StoppedBlock> + Send + 'static>> {
-        Box::pin(async move {
-            let Self {
-                block_id,
-                mut block,
-                main_channel,
-                ..
-            } = self;
-            block.run(main_channel).await;
-            StoppedBlock { block_id, block }
-        })
+    pub async fn run(self) -> StoppedBlock {
+        let Self {
+            block_id,
+            mut block,
+            main_channel,
+            ..
+        } = self;
+        block.run(main_channel).await;
+        StoppedBlock { block_id, block }
     }
 }
 

@@ -18,7 +18,6 @@ use futuresdr::runtime::scheduler::Scheduler;
 use futuresdr::runtime::scheduler::SmolScheduler;
 use futuresdr::runtime::scheduler::Task;
 use std::future::Future;
-use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::atomic::AtomicUsize;
@@ -72,22 +71,19 @@ impl LocalScheduler for CountingLocalScheduler {
         self.inner.detach(task);
     }
 
-    fn run<'a, T: 'a>(
-        &'a self,
-        future: impl Future<Output = T> + 'a,
-    ) -> Pin<Box<dyn Future<Output = T> + 'a>> {
+    async fn run<'a, T: 'a>(&'a self, future: impl Future<Output = T> + 'a) -> T {
         LOCAL_RUNS.fetch_add(1, Ordering::SeqCst);
-        self.inner.run(future)
+        self.inner.run(future).await
     }
 
-    fn run_local_domain<'a, Shutdown>(
+    async fn run_local_domain<'a, Shutdown>(
         &'a self,
         spec: LocalDomainRunSpec<'a, Shutdown>,
-    ) -> Pin<Box<dyn Future<Output = std::result::Result<(), Error>> + 'a>>
+    ) -> std::result::Result<(), Error>
     where
         Shutdown: Future + Unpin + 'a,
     {
-        BasicLocalScheduler::run_basic(self, spec)
+        BasicLocalScheduler::run_basic(self, spec).await
     }
 }
 
@@ -110,100 +106,94 @@ impl LocalScheduler for LowLevelLocalScheduler {
         self.inner.detach(task);
     }
 
-    fn run<'a, T: 'a>(
-        &'a self,
-        future: impl Future<Output = T> + 'a,
-    ) -> Pin<Box<dyn Future<Output = T> + 'a>> {
-        self.inner.run(future)
+    async fn run<'a, T: 'a>(&'a self, future: impl Future<Output = T> + 'a) -> T {
+        self.inner.run(future).await
     }
 
-    fn run_local_domain<'a, Shutdown>(
+    async fn run_local_domain<'a, Shutdown>(
         &'a self,
         mut spec: LocalDomainRunSpec<'a, Shutdown>,
-    ) -> Pin<Box<dyn Future<Output = std::result::Result<(), Error>> + 'a>>
+    ) -> std::result::Result<(), Error>
     where
         Shutdown: Future + Unpin + 'a,
     {
-        Box::pin(async move {
-            let mut block_order = spec.blocks().collect::<Vec<_>>();
-            block_order.reverse();
-            LOW_LEVEL_LOCAL_ORDER
-                .lock()
-                .unwrap()
-                .extend(block_order.iter().copied());
+        let mut block_order = spec.blocks().collect::<Vec<_>>();
+        block_order.reverse();
+        LOW_LEVEL_LOCAL_ORDER
+            .lock()
+            .unwrap()
+            .extend(block_order.iter().copied());
 
-            let mut tasks = FuturesUnordered::new();
-            let mut stop_handles = Vec::new();
-            for block_id in block_order {
-                let block = spec.take_block(block_id)?;
-                stop_handles.push(block.stop_handle());
-                tasks.push(self.spawn(block.run()));
-            }
+        let mut tasks = FuturesUnordered::new();
+        let mut stop_handles = Vec::new();
+        for block_id in block_order {
+            let block = spec.take_block(block_id)?;
+            stop_handles.push(block.stop_handle());
+            tasks.push(self.spawn(block.run()));
+        }
 
-            self.detach(self.spawn(spec.external_inbox_forwarder()));
+        self.detach(self.spawn(spec.external_inbox_forwarder()));
 
-            let n_tasks = tasks.len();
-            let _local_context = spec.enter_context();
-            let finished = self
-                .run(async {
-                    let mut finished = Vec::with_capacity(n_tasks);
-                    let mut shutdown_requested = false;
+        let n_tasks = tasks.len();
+        let _local_context = spec.enter_context();
+        let finished = self
+            .run(async {
+                let mut finished = Vec::with_capacity(n_tasks);
+                let mut shutdown_requested = false;
 
-                    while finished.len() < n_tasks {
-                        if shutdown_requested {
-                            match tasks.next().await {
-                                Some(done) => finished.push(done),
-                                None => break,
-                            }
-                            continue;
+                while finished.len() < n_tasks {
+                    if shutdown_requested {
+                        match tasks.next().await {
+                            Some(done) => finished.push(done),
+                            None => break,
                         }
-
-                        let event = {
-                            let next_event = spec.next_event();
-                            futures::pin_mut!(next_event);
-
-                            loop {
-                                let next_task = tasks.next();
-                                futures::pin_mut!(next_task);
-
-                                match futures::future::select(next_event.as_mut(), next_task).await
-                                {
-                                    futures::future::Either::Left((event, _)) => break Some(event),
-                                    futures::future::Either::Right((Some(done), _)) => {
-                                        finished.push(done);
-                                        if finished.len() == n_tasks {
-                                            break None;
-                                        }
-                                    }
-                                    futures::future::Either::Right((None, _)) => break None,
-                                }
-                            }
-                        };
-
-                        let Some(event) = event else {
-                            break;
-                        };
-
-                        let request_shutdown =
-                            spec.handle_event(event).await == LocalDomainControl::Stop;
-
-                        if request_shutdown {
-                            for stop in &stop_handles {
-                                let _ = stop.stop().await;
-                            }
-                            shutdown_requested = true;
-                        }
+                        continue;
                     }
 
-                    finished
-                })
-                .await;
+                    let event = {
+                        let next_event = spec.next_event();
+                        futures::pin_mut!(next_event);
 
-            for block in finished {
-                spec.restore_block(block)?;
-            }
-            Ok(())
-        })
+                        loop {
+                            let next_task = tasks.next();
+                            futures::pin_mut!(next_task);
+
+                            match futures::future::select(next_event.as_mut(), next_task).await {
+                                futures::future::Either::Left((event, _)) => break Some(event),
+                                futures::future::Either::Right((Some(done), _)) => {
+                                    finished.push(done);
+                                    if finished.len() == n_tasks {
+                                        break None;
+                                    }
+                                }
+                                futures::future::Either::Right((None, _)) => break None,
+                            }
+                        }
+                    };
+
+                    let Some(event) = event else {
+                        break;
+                    };
+
+                    let request_shutdown =
+                        spec.handle_event(event).await == LocalDomainControl::Stop;
+
+                    if request_shutdown {
+                        for stop in &stop_handles {
+                            let _ = stop.stop().await;
+                        }
+                        shutdown_requested = true;
+                    }
+                }
+
+                finished
+            })
+            .await;
+
+        for block in finished {
+            spec.restore_block(block)?;
+        }
+        Ok(())
     }
 }
 

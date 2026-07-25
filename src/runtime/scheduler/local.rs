@@ -39,6 +39,7 @@ use crate::runtime::yield_now;
 /// spawn non-`Send` futures. Most custom local schedulers should customize
 /// [`LocalScheduler::spawn`] and [`LocalScheduler::run`] and keep the default
 /// local-domain run loop.
+#[allow(async_fn_in_trait)]
 pub trait LocalScheduler: Default + 'static {
     /// Task handle returned by [`LocalScheduler::spawn`].
     type Task<T>: Future<Output = T> + 'static
@@ -52,20 +53,17 @@ pub trait LocalScheduler: Default + 'static {
     fn detach<T: 'static>(&self, task: Self::Task<T>);
 
     /// Drive this local scheduler until `future` completes.
-    fn run<'a, T: 'a>(
-        &'a self,
-        future: impl Future<Output = T> + 'a,
-    ) -> Pin<Box<dyn Future<Output = T> + 'a>>;
+    async fn run<'a, T: 'a>(&'a self, future: impl Future<Output = T> + 'a) -> T;
 
     /// Run one local scheduling domain until all its block tasks stop.
     ///
     /// Implementations may call [`BasicLocalScheduler::run_basic`] to reuse the
     /// standard FutureSDR local-domain run loop, or implement their own policy
     /// using the public [`LocalDomainRunSpec`] primitives.
-    fn run_local_domain<'a, Shutdown>(
+    async fn run_local_domain<'a, Shutdown>(
         &'a self,
         spec: LocalDomainRunSpec<'a, Shutdown>,
-    ) -> Pin<Box<dyn Future<Output = Result<(), Error>> + 'a>>
+    ) -> Result<(), Error>
     where
         Shutdown: Future + Unpin + 'a;
 }
@@ -144,22 +142,20 @@ impl RunnableLocalBlock {
     }
 
     /// Run this local block to completion and return its stopped state.
-    pub fn run(self) -> Pin<Box<dyn Future<Output = StoppedLocalBlock> + 'static>> {
-        Box::pin(async move {
-            let Self {
-                block_id,
-                local_id,
-                mut block,
-                main_channel,
-                ..
-            } = self;
-            block.as_mut().run(main_channel).await;
-            StoppedLocalBlock {
-                block_id,
-                local_id,
-                block,
-            }
-        })
+    pub async fn run(self) -> StoppedLocalBlock {
+        let Self {
+            block_id,
+            local_id,
+            mut block,
+            main_channel,
+            ..
+        } = self;
+        block.as_mut().run(main_channel).await;
+        StoppedLocalBlock {
+            block_id,
+            local_id,
+            block,
+        }
     }
 }
 
@@ -370,21 +366,18 @@ impl LocalScheduler for BasicLocalScheduler {
         task.detach();
     }
 
-    fn run<'a, T: 'a>(
-        &'a self,
-        future: impl Future<Output = T> + 'a,
-    ) -> Pin<Box<dyn Future<Output = T> + 'a>> {
-        Box::pin(self.executor.run(future))
+    async fn run<'a, T: 'a>(&'a self, future: impl Future<Output = T> + 'a) -> T {
+        self.executor.run(future).await
     }
 
-    fn run_local_domain<'a, Shutdown>(
+    async fn run_local_domain<'a, Shutdown>(
         &'a self,
         spec: LocalDomainRunSpec<'a, Shutdown>,
-    ) -> Pin<Box<dyn Future<Output = Result<(), Error>> + 'a>>
+    ) -> Result<(), Error>
     where
         Shutdown: Future + Unpin + 'a,
     {
-        BasicLocalScheduler::run_basic(self, spec)
+        BasicLocalScheduler::run_basic(self, spec).await
     }
 }
 
@@ -415,30 +408,25 @@ impl BasicLocalScheduler {
         ran
     }
 
-    fn run_until<'a, T: 'a>(
-        &'a self,
-        future: impl Future<Output = T> + 'a,
-    ) -> Pin<Box<dyn Future<Output = T> + 'a>> {
-        Box::pin(async move {
-            let mut future = Box::pin(future);
-            loop {
-                if let Some(output) = future.as_mut().now_or_never() {
-                    return output;
-                }
-
-                let ran = self.run_available();
-
-                if let Some(output) = future.as_mut().now_or_never() {
-                    return output;
-                }
-
-                if ran {
-                    yield_now().await;
-                } else {
-                    gloo_timers::future::TimeoutFuture::new(1).await;
-                }
+    async fn run_until<'a, T: 'a>(&'a self, future: impl Future<Output = T> + 'a) -> T {
+        let mut future = Box::pin(future);
+        loop {
+            if let Some(output) = future.as_mut().now_or_never() {
+                return output;
             }
-        })
+
+            let ran = self.run_available();
+
+            if let Some(output) = future.as_mut().now_or_never() {
+                return output;
+            }
+
+            if ran {
+                yield_now().await;
+            } else {
+                gloo_timers::future::TimeoutFuture::new(1).await;
+            }
+        }
     }
 }
 
@@ -470,21 +458,18 @@ impl LocalScheduler for BasicLocalScheduler {
         task.detach();
     }
 
-    fn run<'a, T: 'a>(
-        &'a self,
-        future: impl Future<Output = T> + 'a,
-    ) -> Pin<Box<dyn Future<Output = T> + 'a>> {
-        self.run_until(future)
+    async fn run<'a, T: 'a>(&'a self, future: impl Future<Output = T> + 'a) -> T {
+        self.run_until(future).await
     }
 
-    fn run_local_domain<'a, Shutdown>(
+    async fn run_local_domain<'a, Shutdown>(
         &'a self,
         spec: LocalDomainRunSpec<'a, Shutdown>,
-    ) -> Pin<Box<dyn Future<Output = Result<(), Error>> + 'a>>
+    ) -> Result<(), Error>
     where
         Shutdown: Future + Unpin + 'a,
     {
-        BasicLocalScheduler::run_basic(self, spec)
+        BasicLocalScheduler::run_basic(self, spec).await
     }
 }
 
@@ -496,15 +481,15 @@ impl BasicLocalScheduler {
     /// [`LocalScheduler::detach`], and [`LocalScheduler::run`] methods. Custom
     /// local schedulers that want the standard policy can call this from their
     /// [`LocalScheduler::run_local_domain`] implementation.
-    pub fn run_basic<'a, LS, Shutdown>(
+    pub async fn run_basic<'a, LS, Shutdown>(
         scheduler: &'a LS,
         spec: LocalDomainRunSpec<'a, Shutdown>,
-    ) -> Pin<Box<dyn Future<Output = Result<(), Error>> + 'a>>
+    ) -> Result<(), Error>
     where
         LS: LocalScheduler,
         Shutdown: Future + Unpin + 'a,
     {
-        run_local_domain_basic(scheduler, spec)
+        run_local_domain_basic(scheduler, spec).await
     }
 }
 
@@ -545,85 +530,80 @@ async fn forward_external_inboxes(mut external: Vec<(BlockInboxReader, LocalBloc
     }
 }
 
-fn run_local_domain_basic<'a, S, Shutdown>(
+async fn run_local_domain_basic<'a, S, Shutdown>(
     scheduler: &'a S,
     mut spec: LocalDomainRunSpec<'a, Shutdown>,
-) -> Pin<Box<dyn Future<Output = Result<(), Error>> + 'a>>
+) -> Result<(), Error>
 where
     S: LocalScheduler,
     Shutdown: Future + Unpin + 'a,
 {
-    Box::pin(async move {
-        let block_ids = spec.blocks().collect::<Vec<_>>();
-        let mut tasks = FuturesUnordered::new();
-        let mut stop_handles = Vec::new();
+    let block_ids = spec.blocks().collect::<Vec<_>>();
+    let mut tasks = FuturesUnordered::new();
+    let mut stop_handles = Vec::new();
 
-        for block_id in block_ids {
-            let block = spec.take_block(block_id)?;
-            stop_handles.push(block.stop_handle());
-            tasks.push(scheduler.spawn(block.run()));
-        }
+    for block_id in block_ids {
+        let block = spec.take_block(block_id)?;
+        stop_handles.push(block.stop_handle());
+        tasks.push(scheduler.spawn(block.run()));
+    }
 
-        scheduler.detach(scheduler.spawn(spec.external_inbox_forwarder()));
+    scheduler.detach(scheduler.spawn(spec.external_inbox_forwarder()));
 
-        let n_tasks = tasks.len();
-        let _local_context = spec.enter_context();
-        let finished = scheduler
-            .run(async {
-                let mut finished = Vec::with_capacity(n_tasks);
-                let mut shutdown_requested = false;
+    let n_tasks = tasks.len();
+    let _local_context = spec.enter_context();
+    let finished = scheduler
+        .run(async {
+            let mut finished = Vec::with_capacity(n_tasks);
+            let mut shutdown_requested = false;
 
-                while finished.len() < n_tasks {
-                    if shutdown_requested {
-                        match tasks.next().await {
-                            Some(done) => finished.push(done),
-                            None => break,
-                        }
-                        continue;
+            while finished.len() < n_tasks {
+                if shutdown_requested {
+                    match tasks.next().await {
+                        Some(done) => finished.push(done),
+                        None => break,
                     }
-
-                    let event = wait_for_event_preserving_receive(
-                        spec.next_event(),
-                        &mut tasks,
-                        &mut finished,
-                        n_tasks,
-                    )
-                    .await;
-
-                    let Some(event) = event else {
-                        break;
-                    };
-
-                    let request_shutdown =
-                        spec.handle_event(event).await == LocalDomainControl::Stop;
-
-                    if request_shutdown {
-                        for stop in &stop_handles {
-                            if let Err(e) = stop.stop().await {
-                                debug!(
-                                    "local domain tried to terminate block {:?}: {e}",
-                                    stop.id()
-                                );
-                            }
-                        }
-                        shutdown_requested = true;
-                    }
+                    continue;
                 }
 
-                finished
-            })
-            .await;
+                let event = wait_for_event_preserving_receive(
+                    spec.next_event(),
+                    &mut tasks,
+                    &mut finished,
+                    n_tasks,
+                )
+                .await;
 
-        finished
-            .into_iter()
-            .try_for_each(|block| spec.restore_block(block))
-    })
+                let Some(event) = event else {
+                    break;
+                };
+
+                let request_shutdown = spec.handle_event(event).await == LocalDomainControl::Stop;
+
+                if request_shutdown {
+                    for stop in &stop_handles {
+                        if let Err(e) = stop.stop().await {
+                            debug!("local domain tried to terminate block {:?}: {e}", stop.id());
+                        }
+                    }
+                    shutdown_requested = true;
+                }
+            }
+
+            finished
+        })
+        .await;
+
+    finished
+        .into_iter()
+        .try_for_each(|block| spec.restore_block(block))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::cell::Cell;
+    use std::pin::Pin;
     use std::rc::Rc;
     use std::task::Context;
     use std::task::Poll;
