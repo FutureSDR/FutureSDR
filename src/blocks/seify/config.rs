@@ -1,6 +1,10 @@
-use seify::Device;
-use seify::DeviceTrait;
+use seify::AntennaControl;
+use seify::BandwidthControl;
 use seify::Direction;
+use seify::DynDevice;
+use seify::FrequencyControl;
+use seify::GainControl;
+use seify::SampleRateControl;
 use std::collections::HashMap;
 
 use crate::runtime::Error;
@@ -59,12 +63,7 @@ impl Config {
     }
 
     /// Apply config to a device
-    pub fn apply<D: DeviceTrait + Clone>(
-        &self,
-        dev: &Device<D>,
-        channels: &[usize],
-        dir: Direction,
-    ) -> Result<(), Error> {
+    pub fn apply(&self, dev: &DynDevice, channels: &[usize], dir: Direction) -> Result<(), Error> {
         if let Some(chan) = self.selected_channel(channels)? {
             self.apply_channel(dev, dir, chan)?;
         } else {
@@ -76,12 +75,7 @@ impl Config {
         Ok(())
     }
 
-    fn apply_channel<D: DeviceTrait + Clone>(
-        &self,
-        dev: &Device<D>,
-        dir: Direction,
-        chan: usize,
-    ) -> Result<(), Error> {
+    fn apply_channel(&self, dev: &DynDevice, dir: Direction, chan: usize) -> Result<(), Error> {
         if let Some(ref a) = self.antenna {
             dev.set_antenna(dir, chan, a)?;
         }
@@ -89,7 +83,7 @@ impl Config {
             dev.set_bandwidth(dir, chan, b)?;
         }
         if let Some(f) = self.freq {
-            dev.set_frequency(dir, chan, f)?;
+            dev.set_frequency(dir, chan, f, Default::default())?;
         }
         if let Some(g) = self.gain {
             dev.set_gain(dir, chan, g)?;
@@ -108,19 +102,14 @@ impl Config {
     }
 
     /// Extracts a [`Config`] from a [`Device`], [`Direction`], and channel id.
-    pub fn from<D: DeviceTrait + Clone>(
-        dev: &Device<D>,
-        dir: Direction,
-        channel: usize,
-    ) -> Result<Self, Error> {
-        let inner = dev.impl_ref::<D>()?;
+    pub fn from(dev: &DynDevice, dir: Direction, channel: usize) -> Result<Self, Error> {
         Ok(Config {
             chan: None,
-            antenna: inner.antenna(dir, channel).ok(),
-            bandwidth: inner.bandwidth(dir, channel).ok(),
-            freq: inner.frequency(dir, channel).ok(),
-            gain: inner.gain(dir, channel).ok().flatten(),
-            sample_rate: inner.sample_rate(dir, channel).ok(),
+            antenna: dev.antenna(dir, channel).ok(),
+            bandwidth: dev.bandwidth(dir, channel).ok(),
+            freq: dev.frequency(dir, channel).ok(),
+            gain: dev.gain(dir, channel).ok().flatten(),
+            sample_rate: dev.sample_rate(dir, channel).ok(),
         })
     }
 }

@@ -1,6 +1,9 @@
-use seify::Device;
-use seify::DeviceTrait;
 use seify::Direction::Tx;
+use seify::DynDevice;
+use seify::DynTxStreamer;
+use seify::FrequencyControl;
+use seify::GainControl;
+use seify::SampleRateControl;
 use seify::TxStreamer;
 use std::time::Duration;
 
@@ -50,27 +53,25 @@ use crate::runtime::dev::prelude::*;
 #[message_inputs(freq, gain, sample_rate, cmd, config)]
 #[message_outputs(terminate_out)]
 #[type_name(SeifySink)]
-pub struct Sink<D, IN = DefaultCpuReader<Complex32>>
+pub struct Sink<IN = DefaultCpuReader<Complex32>>
 where
-    D: DeviceTrait + Clone,
     IN: CpuBufferReader<Item = Complex32>,
 {
     #[input]
     inputs: Vec<IN>,
     channels: Vec<usize>,
-    dev: Device<D>,
-    streamer: Option<D::TxStreamer>,
+    dev: DynDevice,
+    streamer: Option<DynTxStreamer>,
     start_time: Option<i64>,
     max_input_buffer_size_in_samples: usize,
 }
 
-impl<D, IN> Sink<D, IN>
+impl<IN> Sink<IN>
 where
-    D: DeviceTrait + Clone,
     IN: CpuBufferReader<Item = Complex32>,
 {
     pub(super) fn new(
-        dev: Device<D>,
+        dev: DynDevice,
         channels: Vec<usize>,
         start_time: Option<i64>,
         min_buffer_size: Option<usize>,
@@ -120,10 +121,16 @@ where
     ) -> Result<Pmt> {
         for c in &self.channels {
             match &p {
-                Pmt::F32(v) => self.dev.set_frequency(Tx, *c, *v as f64)?,
-                Pmt::F64(v) => self.dev.set_frequency(Tx, *c, *v)?,
-                Pmt::U32(v) => self.dev.set_frequency(Tx, *c, *v as f64)?,
-                Pmt::U64(v) => self.dev.set_frequency(Tx, *c, *v as f64)?,
+                Pmt::F32(v) => self
+                    .dev
+                    .set_frequency(Tx, *c, *v as f64, Default::default())?,
+                Pmt::F64(v) => self.dev.set_frequency(Tx, *c, *v, Default::default())?,
+                Pmt::U32(v) => self
+                    .dev
+                    .set_frequency(Tx, *c, *v as f64, Default::default())?,
+                Pmt::U64(v) => self
+                    .dev
+                    .set_frequency(Tx, *c, *v as f64, Default::default())?,
                 _ => return Ok(Pmt::InvalidValue),
             };
         }
@@ -192,9 +199,8 @@ where
 }
 
 #[doc(hidden)]
-impl<D, IN> Kernel for Sink<D, IN>
+impl<IN> Kernel for Sink<IN>
 where
-    D: DeviceTrait + Clone,
     IN: CpuBufferReader<Item = Complex32>,
 {
     async fn work(

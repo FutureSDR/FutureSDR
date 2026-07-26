@@ -1,8 +1,11 @@
 use anyhow::Context;
-use seify::Device;
-use seify::DeviceTrait;
 use seify::Direction::Rx;
+use seify::DynDevice;
+use seify::DynRxStreamer;
+use seify::FrequencyControl;
+use seify::GainControl;
 use seify::RxStreamer;
+use seify::SampleRateControl;
 use std::time::Duration;
 
 use crate::blocks::seify::Config;
@@ -53,26 +56,24 @@ use crate::runtime::dev::prelude::*;
 #[blocking]
 #[message_inputs(freq, gain, sample_rate, cmd, terminate, config, overflows)]
 #[type_name(SeifySource)]
-pub struct Source<D, OUT = DefaultCpuWriter<Complex32>>
+pub struct Source<OUT = DefaultCpuWriter<Complex32>>
 where
-    D: DeviceTrait + Clone,
     OUT: CpuBufferWriter<Item = Complex32>,
 {
     #[output]
     outputs: Vec<OUT>,
     channels: Vec<usize>,
-    dev: Device<D>,
-    streamer: Option<D::RxStreamer>,
+    dev: DynDevice,
+    streamer: Option<DynRxStreamer>,
     start_time: Option<i64>,
     overflows: u64,
 }
 
-impl<D, OUT> Source<D, OUT>
+impl<OUT> Source<OUT>
 where
-    D: DeviceTrait + Clone,
     OUT: CpuBufferWriter<Item = Complex32>,
 {
-    pub(super) fn new(dev: Device<D>, channels: Vec<usize>, start_time: Option<i64>) -> Self {
+    pub(super) fn new(dev: DynDevice, channels: Vec<usize>, start_time: Option<i64>) -> Self {
         assert!(!channels.is_empty());
 
         let mut outputs = Vec::new();
@@ -132,10 +133,16 @@ where
     ) -> Result<Pmt> {
         for c in &self.channels {
             match &p {
-                Pmt::F32(v) => self.dev.set_frequency(Rx, *c, *v as f64)?,
-                Pmt::F64(v) => self.dev.set_frequency(Rx, *c, *v)?,
-                Pmt::U32(v) => self.dev.set_frequency(Rx, *c, *v as f64)?,
-                Pmt::U64(v) => self.dev.set_frequency(Rx, *c, *v as f64)?,
+                Pmt::F32(v) => self
+                    .dev
+                    .set_frequency(Rx, *c, *v as f64, Default::default())?,
+                Pmt::F64(v) => self.dev.set_frequency(Rx, *c, *v, Default::default())?,
+                Pmt::U32(v) => self
+                    .dev
+                    .set_frequency(Rx, *c, *v as f64, Default::default())?,
+                Pmt::U64(v) => self
+                    .dev
+                    .set_frequency(Rx, *c, *v as f64, Default::default())?,
                 Pmt::Null => return Ok(Pmt::F64(self.dev.frequency(Rx, *c)?)),
                 _ => return Ok(Pmt::InvalidValue),
             };
@@ -156,7 +163,9 @@ where
                 Pmt::F64(v) => self.dev.set_gain(Rx, *c, *v)?,
                 Pmt::U32(v) => self.dev.set_gain(Rx, *c, *v as f64)?,
                 Pmt::U64(v) => self.dev.set_gain(Rx, *c, *v as f64)?,
-                Pmt::Null => return Ok(Pmt::F64(self.dev.gain(Rx, *c)?.unwrap_or(f64::NAN))),
+                Pmt::Null => {
+                    return Ok(Pmt::F64(self.dev.gain(Rx, *c)?.unwrap_or(f64::NAN)));
+                }
                 _ => return Ok(Pmt::InvalidValue),
             };
         }
@@ -217,9 +226,8 @@ where
 }
 
 #[doc(hidden)]
-impl<D, OUT> Kernel for Source<D, OUT>
+impl<OUT> Kernel for Source<OUT>
 where
-    D: DeviceTrait + Clone,
     OUT: CpuBufferWriter<Item = Complex32>,
 {
     async fn work(
@@ -241,9 +249,9 @@ where
             Ok(len) => {
                 self.outputs.iter_mut().for_each(|o| o.produce(len));
             }
-            Err(seify::Error::Overflow) => {
+            Err(seify::Error::Overrun) => {
                 self.overflows += 1;
-                warn!("Seify Source Overflow");
+                warn!("Seify Source Overrun");
             }
             Err(e) => {
                 error!("Seify Source Error: {:?}", e);

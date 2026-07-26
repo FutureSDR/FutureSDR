@@ -57,7 +57,7 @@ fn builder_compat_filter() -> Result<()> {
 fn builder_config() -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    let dev = seify::Device::from_args("driver=dummy")?;
+    let dev = seify::DynDevice::from_args("driver=dummy")?;
     let src = Builder::from_device(dev.clone())
         .channels(vec![0]) //testing, same as default
         .sample_rate(1e6)
@@ -82,7 +82,7 @@ fn config_freq_gain_ports() -> Result<()> {
     futuresdr::runtime::init();
     let mut fg = Flowgraph::new();
 
-    let dev = seify::Device::from_args("driver=dummy")?;
+    let dev = seify::DynDevice::from_args("driver=dummy")?;
     let src = Builder::from_device(dev.clone())
         .sample_rate(1e6)
         .frequency(100e6)
@@ -116,7 +116,7 @@ fn config_freq_gain_ports() -> Result<()> {
 fn src_config_cmd_map() -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    let dev = seify::Device::from_args("driver=dummy")?;
+    let dev = seify::DynDevice::from_args("driver=dummy")?;
 
     let src = Builder::from_device(dev.clone())
         .sample_rate(1e6)
@@ -161,7 +161,7 @@ fn src_config_cmd_map() -> Result<()> {
 fn sink_config_cmd_map() -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    let dev = seify::Device::from_args("driver=dummy")?;
+    let dev = seify::DynDevice::from_args("driver=dummy")?;
 
     let snk = Builder::from_device(dev.clone())
         .sample_rate(1e6)
@@ -203,7 +203,7 @@ fn sink_config_cmd_map() -> Result<()> {
 fn src_config_cmd_invalid_chan() -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    let dev = seify::Device::from_args("driver=dummy")?;
+    let dev = seify::DynDevice::from_args("driver=dummy")?;
     let src = Builder::from_device(dev.clone())
         .sample_rate(1e6)
         .frequency(100e6)
