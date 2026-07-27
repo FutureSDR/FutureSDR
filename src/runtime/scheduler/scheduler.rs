@@ -210,23 +210,15 @@ impl LocalDomainSpec {
 
 /// Running normal-domain state returned by a scheduler.
 pub struct NormalRunningDomain {
-    tasks: Vec<Task<StoppedBlock>>,
-    stop_handles: Vec<BlockStop>,
+    blocks: Vec<(Task<StoppedBlock>, BlockStop)>,
     stop_requested: bool,
 }
 
 impl NormalRunningDomain {
     /// Create a running normal domain from block task and stop-handle pairs.
     pub fn new(blocks: Vec<(Task<StoppedBlock>, BlockStop)>) -> Self {
-        let mut tasks = Vec::with_capacity(blocks.len());
-        let mut stop_handles = Vec::with_capacity(blocks.len());
-        for (task, stop) in blocks {
-            tasks.push(task);
-            stop_handles.push(stop);
-        }
         Self {
-            tasks,
-            stop_handles,
+            blocks,
             stop_requested: false,
         }
     }
@@ -238,7 +230,7 @@ impl NormalRunningDomain {
         }
         self.stop_requested = true;
 
-        for stop in &self.stop_handles {
+        for (_, stop) in &self.blocks {
             if let Err(e) = stop.stop().await {
                 debug!(
                     "normal domain tried to terminate block {:?}: {e}",
@@ -250,11 +242,11 @@ impl NormalRunningDomain {
 
     /// Await all normal-domain block tasks and return their blocks.
     pub(crate) async fn join(self) -> NormalBlocks {
-        let mut blocks = Vec::with_capacity(self.tasks.len());
-        for task in self.tasks {
-            blocks.push(task.await.into_block());
+        let mut stopped = Vec::with_capacity(self.blocks.len());
+        for (task, _) in self.blocks {
+            stopped.push(task.await.into_block());
         }
-        blocks
+        stopped
     }
 }
 
