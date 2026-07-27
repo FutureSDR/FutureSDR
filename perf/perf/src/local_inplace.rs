@@ -7,6 +7,7 @@ use futuresdr::runtime::Error;
 use futuresdr::runtime::PortIndex;
 use futuresdr::runtime::buffer::BufferInbox;
 use futuresdr::runtime::buffer::BufferReader;
+use futuresdr::runtime::buffer::BufferRequirements;
 use futuresdr::runtime::buffer::BufferWriter;
 use futuresdr::runtime::buffer::CpuSample;
 use futuresdr::runtime::buffer::InplaceBuffer;
@@ -185,6 +186,14 @@ where
     type Inbox = LocalBlockInbox;
     type Reader = Reader<T>;
 
+    fn buffer_requirements(&self) -> BufferRequirements {
+        self.core.requirements()
+    }
+
+    fn raise_buffer_requirements(&mut self, requirements: BufferRequirements) {
+        self.core.raise_requirements(requirements);
+    }
+
     fn init(&mut self, block_id: BlockId, port_id: PortIndex, inbox: LocalBlockInbox) {
         self.notifier = inbox.notifier();
         self.core.init(block_id, port_id, inbox);
@@ -318,6 +327,14 @@ where
     T: CpuSample,
 {
     type Inbox = LocalBlockInbox;
+
+    fn buffer_requirements(&self) -> BufferRequirements {
+        self.core.requirements()
+    }
+
+    fn raise_buffer_requirements(&mut self, requirements: BufferRequirements) {
+        self.core.raise_requirements(requirements);
+    }
 
     fn init(&mut self, block_id: BlockId, port_id: PortIndex, inbox: LocalBlockInbox) {
         self.notifier = inbox.notifier();

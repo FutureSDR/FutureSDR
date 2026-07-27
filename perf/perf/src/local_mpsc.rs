@@ -6,6 +6,7 @@ use futuresdr::runtime::PortIndex;
 use futuresdr::runtime::buffer::BufferInbox;
 use futuresdr::runtime::buffer::BufferNotifier;
 use futuresdr::runtime::buffer::BufferReader;
+use futuresdr::runtime::buffer::BufferRequirements;
 use futuresdr::runtime::buffer::BufferWriter;
 use futuresdr::runtime::buffer::ConnectionState;
 use futuresdr::runtime::buffer::CpuBufferReader;
@@ -120,6 +121,14 @@ where
 
     fn max_readers(&self) -> usize {
         usize::MAX
+    }
+
+    fn buffer_requirements(&self) -> BufferRequirements {
+        self.core.requirements()
+    }
+
+    fn raise_buffer_requirements(&mut self, requirements: BufferRequirements) {
+        self.core.raise_requirements(requirements);
     }
 
     fn init(&mut self, block_id: BlockId, port_id: PortIndex, inbox: LocalBlockInbox) {
@@ -249,20 +258,6 @@ where
         self.state.connected_mut().writer.produce(items, &[]);
     }
 
-    fn set_min_items(&mut self, n: usize) {
-        if self.state.is_connected() {
-            warn!("buffer size configured after buffer is connected. This has no effect");
-        }
-        self.core.set_min_items(n);
-    }
-
-    fn set_min_buffer_size_in_items(&mut self, n: usize) {
-        if self.state.is_connected() {
-            warn!("buffer size configured after buffer is connected. This has no effect");
-        }
-        self.core.set_min_buffer_size_in_items(n);
-    }
-
     fn max_items(&self) -> usize {
         self.core.min_buffer_size_in_items().unwrap_or(usize::MAX)
     }
@@ -341,6 +336,14 @@ where
 {
     type Inbox = LocalBlockInbox;
 
+    fn buffer_requirements(&self) -> BufferRequirements {
+        self.core.requirements()
+    }
+
+    fn raise_buffer_requirements(&mut self, requirements: BufferRequirements) {
+        self.core.raise_requirements(requirements);
+    }
+
     fn init(&mut self, block_id: BlockId, port_id: PortIndex, inbox: LocalBlockInbox) {
         self.notifier = inbox.notifier();
         self.core.init(block_id, port_id, inbox);
@@ -404,20 +407,6 @@ where
 
     fn consume(&mut self, amount: usize) {
         self.state.connected_mut().reader.consume(amount);
-    }
-
-    fn set_min_items(&mut self, n: usize) {
-        if self.state.is_connected() {
-            warn!("buffer size configured after buffer is connected. This has no effect");
-        }
-        self.core.set_min_items(n);
-    }
-
-    fn set_min_buffer_size_in_items(&mut self, n: usize) {
-        if self.state.is_connected() {
-            warn!("buffer size configured after buffer is connected. This has no effect");
-        }
-        self.core.set_min_buffer_size_in_items(n);
     }
 
     fn max_items(&self) -> usize {

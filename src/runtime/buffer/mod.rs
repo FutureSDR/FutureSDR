@@ -66,8 +66,8 @@ use crate::runtime::dev::Tag;
 
 /// Stream-buffer constraints configured on a port and exchanged during connection setup.
 ///
-/// Blocks configure these constraints through buffer-specific APIs such as
-/// [`CpuBufferReader::set_min_items`] and [`CpuBufferWriter::set_min_items`].
+/// Blocks configure these constraints through [`BufferReader::set_min_items`],
+/// [`BufferWriter::set_min_items`], and the corresponding buffer-size methods.
 /// Buffer implementations publish them through [`BufferReader::buffer_requirements`]
 /// and [`BufferWriter::buffer_requirements`]. Before `connect()` runs, the
 /// flowgraph merges peer requirements and passes them back through
@@ -295,12 +295,12 @@ mod tests {
     #[test]
     fn buffer_requirements_are_extracted_from_configured_ports() {
         let mut writer = super::DefaultCpuWriter::<u8>::default();
-        CpuBufferWriter::set_min_items(&mut writer, 4);
-        CpuBufferWriter::set_min_buffer_size_in_items(&mut writer, 32);
+        BufferWriter::set_min_items(&mut writer, 4);
+        BufferWriter::set_min_buffer_size_in_items(&mut writer, 32);
 
         let mut reader = super::DefaultCpuReader::<u8>::default();
-        CpuBufferReader::set_min_items(&mut reader, 8);
-        CpuBufferReader::set_min_buffer_size_in_items(&mut reader, 64);
+        BufferReader::set_min_items(&mut reader, 8);
+        BufferReader::set_min_buffer_size_in_items(&mut reader, 64);
 
         let writer_requirements = BufferWriter::buffer_requirements(&writer);
         let reader_requirements = BufferReader::buffer_requirements(&reader);
@@ -655,11 +655,19 @@ pub trait BufferReader: Any {
     /// Concrete inbox handle stored by this buffer.
     type Inbox: BufferInbox;
     /// Buffer requirements configured on this port.
-    fn buffer_requirements(&self) -> BufferRequirements {
-        BufferRequirements::new()
-    }
+    fn buffer_requirements(&self) -> BufferRequirements;
     /// Raise this port's configured requirements.
-    fn raise_buffer_requirements(&mut self, _requirements: BufferRequirements) {}
+    fn raise_buffer_requirements(&mut self, requirements: BufferRequirements);
+    /// Require at least `n` readable items when this port is presented to its block.
+    fn set_min_items(&mut self, n: usize) {
+        self.raise_buffer_requirements(BufferRequirements::with_min_items(n));
+    }
+    /// Require the connected stream buffer to hold at least `n` items.
+    fn set_min_buffer_size_in_items(&mut self, n: usize) {
+        let mut requirements = BufferRequirements::new();
+        requirements.set_min_buffer_size_in_items(n);
+        self.raise_buffer_requirements(requirements);
+    }
     /// Initialize the reader with its owning block, port index, and inbox.
     fn init(&mut self, block_id: BlockId, port_index: PortIndex, inbox: Self::Inbox);
     /// Initialize the reader from a block's available inbox handles.
@@ -883,11 +891,19 @@ pub trait BufferWriter: Any {
         1
     }
     /// Buffer requirements configured on this port.
-    fn buffer_requirements(&self) -> BufferRequirements {
-        BufferRequirements::new()
-    }
+    fn buffer_requirements(&self) -> BufferRequirements;
     /// Raise this port's configured requirements.
-    fn raise_buffer_requirements(&mut self, _requirements: BufferRequirements) {}
+    fn raise_buffer_requirements(&mut self, requirements: BufferRequirements);
+    /// Require at least `n` writable items when this port is presented to its block.
+    fn set_min_items(&mut self, n: usize) {
+        self.raise_buffer_requirements(BufferRequirements::with_min_items(n));
+    }
+    /// Require the connected stream buffer to hold at least `n` items.
+    fn set_min_buffer_size_in_items(&mut self, n: usize) {
+        let mut requirements = BufferRequirements::new();
+        requirements.set_min_buffer_size_in_items(n);
+        self.raise_buffer_requirements(requirements);
+    }
     /// Initialize the writer with its owning block, port index, and inbox.
     fn init(&mut self, block_id: BlockId, port_index: PortIndex, inbox: Self::Inbox);
     /// Initialize the writer from a block's available inbox handles.
@@ -958,10 +974,6 @@ pub trait CpuBufferReader: BufferReader + Default {
     /// `n` must not exceed the length of the last readable slice the block
     /// decided to consume.
     fn consume(&mut self, n: usize);
-    /// Set minimum number of readable items.
-    fn set_min_items(&mut self, n: usize);
-    /// Set minimum buffer size.
-    fn set_min_buffer_size_in_items(&mut self, n: usize);
     /// Return the maximum number of items that fit in the buffer.
     fn max_items(&self) -> usize;
 }
@@ -984,10 +996,6 @@ pub trait CpuBufferWriter: BufferWriter + Default {
     /// `n` must not exceed the number of items written into the last writable
     /// slice.
     fn produce(&mut self, n: usize);
-    /// Set minimum number of writable items.
-    fn set_min_items(&mut self, n: usize);
-    /// Set minimum buffer size.
-    fn set_min_buffer_size_in_items(&mut self, n: usize);
     /// Maximum writable items.
     fn max_items(&self) -> usize;
 }

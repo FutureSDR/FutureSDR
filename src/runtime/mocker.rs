@@ -12,6 +12,7 @@ use crate::runtime::PortIndex;
 use crate::runtime::block_on;
 use crate::runtime::buffer::BlockInbox;
 use crate::runtime::buffer::BufferReader;
+use crate::runtime::buffer::BufferRequirements;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::CpuBufferReader;
 use crate::runtime::buffer::CpuBufferWriter;
@@ -218,6 +219,7 @@ pub struct Reader<T: Debug + Send + 'static> {
     tags: Vec<ItemTag>,
     block_id: BlockId,
     port_id: PortIndex,
+    requirements: BufferRequirements,
 }
 
 impl<T: Debug + Send + 'static> Reader<T> {
@@ -246,12 +248,21 @@ impl<T: Debug + Send + 'static> Default for Reader<T> {
             tags: vec![],
             block_id: BlockId(0),
             port_id: PortIndex::new(0),
+            requirements: BufferRequirements::new(),
         }
     }
 }
 
 impl<T: Debug + Send + 'static> BufferReader for Reader<T> {
     type Inbox = BlockInbox;
+
+    fn buffer_requirements(&self) -> BufferRequirements {
+        self.requirements
+    }
+
+    fn raise_buffer_requirements(&mut self, requirements: BufferRequirements) {
+        self.requirements.merge(requirements);
+    }
 
     fn init(&mut self, block_id: BlockId, port_id: PortIndex, _inbox: BlockInbox) {
         self.block_id = block_id;
@@ -294,14 +305,6 @@ where
         }
     }
 
-    fn set_min_items(&mut self, _n: usize) {
-        warn!("set_min_items has no effect in with mocker");
-    }
-
-    fn set_min_buffer_size_in_items(&mut self, _n: usize) {
-        warn!("set_min_buffer_size_in_items has no effect in a mocker");
-    }
-
     fn max_items(&self) -> usize {
         self.data.len()
     }
@@ -319,6 +322,7 @@ pub struct Writer<T: Clone + Debug + Send + 'static> {
     produced: usize,
     block_id: BlockId,
     port_id: PortIndex,
+    requirements: BufferRequirements,
 }
 
 impl<T: Clone + Debug + Send + 'static> Default for Writer<T> {
@@ -329,6 +333,7 @@ impl<T: Clone + Debug + Send + 'static> Default for Writer<T> {
             produced: 0,
             block_id: BlockId(0),
             port_id: PortIndex::new(0),
+            requirements: BufferRequirements::new(),
         }
     }
 }
@@ -360,6 +365,14 @@ impl<T: Clone + Debug + Send + 'static> Writer<T> {
 impl<T: Clone + Debug + Send + 'static> BufferWriter for Writer<T> {
     type Inbox = BlockInbox;
     type Reader = Reader<T>;
+
+    fn buffer_requirements(&self) -> BufferRequirements {
+        self.requirements
+    }
+
+    fn raise_buffer_requirements(&mut self, requirements: BufferRequirements) {
+        self.requirements.merge(requirements);
+    }
 
     fn init(&mut self, block_id: BlockId, port_id: PortIndex, _inbox: BlockInbox) {
         self.block_id = block_id;
@@ -402,14 +415,6 @@ where
             "mocker writer produced more items than reserved"
         );
         self.produced += n;
-    }
-
-    fn set_min_items(&mut self, _n: usize) {
-        warn!("set_min_items has no effect in with mocker");
-    }
-
-    fn set_min_buffer_size_in_items(&mut self, _n: usize) {
-        warn!("set_min_buffer_size_in_items has no effect in a mocker");
     }
 
     fn max_items(&self) -> usize {

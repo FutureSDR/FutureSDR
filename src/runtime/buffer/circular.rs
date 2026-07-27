@@ -379,19 +379,6 @@ where
         (s, Tags::new(&mut self.tags, 0))
     }
 
-    fn set_min_items(&mut self, n: usize) {
-        if self.state.is_connected() {
-            warn!("buffer size configured after buffer is connected. This has no effect");
-        }
-        self.core.set_min_items(n);
-    }
-
-    fn set_min_buffer_size_in_items(&mut self, n: usize) {
-        if self.state.is_connected() {
-            warn!("buffer size configured after buffer is connected. This has no effect");
-        }
-        self.core.set_min_buffer_size_in_items(n);
-    }
     fn max_items(&self) -> usize {
         self.core.min_buffer_size_in_items().unwrap_or(usize::MAX)
     }
@@ -518,19 +505,6 @@ where
         self.state.connected_mut().reader.consume(amount);
     }
 
-    fn set_min_items(&mut self, n: usize) {
-        if self.state.is_connected() {
-            warn!("buffer size configured after buffer is connected. This has no effect");
-        }
-        self.core.set_min_items(n);
-    }
-
-    fn set_min_buffer_size_in_items(&mut self, n: usize) {
-        if self.state.is_connected() {
-            warn!("buffer size configured after buffer is connected. This has no effect");
-        }
-        self.core.set_min_buffer_size_in_items(n);
-    }
     fn max_items(&self) -> usize {
         self.core.min_buffer_size_in_items().unwrap_or(usize::MAX)
     }

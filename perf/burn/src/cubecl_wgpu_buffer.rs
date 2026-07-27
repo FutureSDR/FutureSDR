@@ -20,6 +20,7 @@ use futuresdr::runtime::Error;
 use futuresdr::runtime::PortIndex;
 use futuresdr::runtime::buffer::BlockInbox;
 use futuresdr::runtime::buffer::BufferReader;
+use futuresdr::runtime::buffer::BufferRequirements;
 use futuresdr::runtime::buffer::BufferWriter;
 use futuresdr::runtime::buffer::ConnectionState;
 use futuresdr::runtime::buffer::CpuBufferReader;
@@ -309,6 +310,14 @@ impl<D: CpuSample> BufferWriter for H2DWriter<D> {
     type Inbox = BlockInbox;
     type Reader = H2DReader<D>;
 
+    fn buffer_requirements(&self) -> BufferRequirements {
+        self.core.requirements()
+    }
+
+    fn raise_buffer_requirements(&mut self, requirements: BufferRequirements) {
+        self.core.raise_requirements(requirements);
+    }
+
     fn init(&mut self, block_id: BlockId, port_id: PortIndex, inbox: BlockInbox) {
         self.core.init(block_id, port_id, inbox);
     }
@@ -465,14 +474,6 @@ impl<D: CpuSample + Pod> CpuBufferWriter for H2DWriter<D> {
         }
     }
 
-    fn set_min_items(&mut self, _n: usize) {
-        warn!("set_min_items is not implemented for CubeCL H2D buffers");
-    }
-
-    fn set_min_buffer_size_in_items(&mut self, _n: usize) {
-        warn!("set_min_buffer_size_in_items is not implemented for CubeCL H2D buffers");
-    }
-
     fn max_items(&self) -> usize {
         usize::MAX
     }
@@ -591,6 +592,14 @@ impl<D: CpuSample> Default for H2DReader<D> {
 
 impl<D: CpuSample> BufferReader for H2DReader<D> {
     type Inbox = BlockInbox;
+
+    fn buffer_requirements(&self) -> BufferRequirements {
+        self.core.requirements()
+    }
+
+    fn raise_buffer_requirements(&mut self, requirements: BufferRequirements) {
+        self.core.raise_requirements(requirements);
+    }
 
     fn init(&mut self, block_id: BlockId, port_id: PortIndex, inbox: BlockInbox) {
         self.core.init(block_id, port_id, inbox);
@@ -721,6 +730,14 @@ impl<D: CpuSample> BufferWriter for D2HWriter<D> {
     type Inbox = BlockInbox;
     type Reader = D2HReader<D>;
 
+    fn buffer_requirements(&self) -> BufferRequirements {
+        self.core.requirements()
+    }
+
+    fn raise_buffer_requirements(&mut self, requirements: BufferRequirements) {
+        self.core.raise_requirements(requirements);
+    }
+
     fn init(&mut self, block_id: BlockId, port_id: PortIndex, inbox: BlockInbox) {
         self.core.init(block_id, port_id, inbox);
     }
@@ -839,6 +856,14 @@ impl<D: CpuSample> Default for D2HReader<D> {
 impl<D: CpuSample> BufferReader for D2HReader<D> {
     type Inbox = BlockInbox;
 
+    fn buffer_requirements(&self) -> BufferRequirements {
+        self.core.requirements()
+    }
+
+    fn raise_buffer_requirements(&mut self, requirements: BufferRequirements) {
+        self.core.raise_requirements(requirements);
+    }
+
     fn init(&mut self, block_id: BlockId, port_id: PortIndex, inbox: BlockInbox) {
         self.core.init(block_id, port_id, inbox);
     }
@@ -927,14 +952,6 @@ impl<D: CpuSample + Pod> CpuBufferReader for D2HReader<D> {
             self.state.connected().writer.inbox().notify();
             self.core.inbox().notify();
         }
-    }
-
-    fn set_min_items(&mut self, _n: usize) {
-        warn!("set_min_items is not implemented for CubeCL D2H buffers");
-    }
-
-    fn set_min_buffer_size_in_items(&mut self, _n: usize) {
-        warn!("set_min_buffer_size_in_items is not implemented for CubeCL D2H buffers");
     }
 
     fn max_items(&self) -> usize {

@@ -117,14 +117,6 @@ impl CpuBufferReader for NonSendReader {
         self.inner.consume(n);
     }
 
-    fn set_min_items(&mut self, n: usize) {
-        self.inner.set_min_items(n);
-    }
-
-    fn set_min_buffer_size_in_items(&mut self, n: usize) {
-        self.inner.set_min_buffer_size_in_items(n);
-    }
-
     fn max_items(&self) -> usize {
         self.inner.max_items()
     }
@@ -225,14 +217,6 @@ impl CpuBufferWriter for NonSendWriter {
 
     fn produce(&mut self, n: usize) {
         self.inner.produce(n);
-    }
-
-    fn set_min_items(&mut self, n: usize) {
-        self.inner.set_min_items(n);
-    }
-
-    fn set_min_buffer_size_in_items(&mut self, n: usize) {
-        self.inner.set_min_buffer_size_in_items(n);
     }
 
     fn max_items(&self) -> usize {

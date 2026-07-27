@@ -483,15 +483,6 @@ where
         }
     }
 
-    fn set_min_items(&mut self, n: usize) {
-        self.core.raise_min_items(n);
-    }
-
-    fn set_min_buffer_size_in_items(&mut self, n: usize) {
-        self.core
-            .raise_min_buffer_size_in_items(std::cmp::max(n, 1));
-    }
-
     fn max_items(&self) -> usize {
         warn!("max_items not implemented for circuit writer");
         1
@@ -653,14 +644,6 @@ where
                 self.core.inbox().notify();
             }
         }
-    }
-
-    fn set_min_items(&mut self, _n: usize) {
-        warn!("set_min_items not implemented for circuit reader");
-    }
-
-    fn set_min_buffer_size_in_items(&mut self, _n: usize) {
-        warn!("set_min_buffer_size_in_items not implemented for circuit reader");
     }
 
     fn max_items(&self) -> usize {

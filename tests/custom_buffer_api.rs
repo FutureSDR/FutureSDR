@@ -79,14 +79,6 @@ impl<T: CpuSample> CpuBufferReader for CustomReader<T> {
         self.data.drain(..n);
     }
 
-    fn set_min_items(&mut self, n: usize) {
-        self.core.set_min_items(n);
-    }
-
-    fn set_min_buffer_size_in_items(&mut self, n: usize) {
-        self.core.set_min_buffer_size_in_items(n);
-    }
-
     fn max_items(&self) -> usize {
         self.core.min_buffer_size_in_items().unwrap_or(usize::MAX)
     }
@@ -155,14 +147,6 @@ impl<T: CpuSample> CpuBufferWriter for CustomWriter<T> {
 
     fn produce(&mut self, _n: usize) {}
 
-    fn set_min_items(&mut self, n: usize) {
-        self.core.set_min_items(n);
-    }
-
-    fn set_min_buffer_size_in_items(&mut self, n: usize) {
-        self.core.set_min_buffer_size_in_items(n);
-    }
-
     fn max_items(&self) -> usize {
         self.core.min_buffer_size_in_items().unwrap_or(usize::MAX)
     }
@@ -189,12 +173,12 @@ fn custom_cpu_buffer_can_use_public_requirement_api() {
 #[test]
 fn custom_cpu_buffer_can_publish_and_absorb_requirements() {
     let mut writer = CustomWriter::<u8>::default();
-    CpuBufferWriter::set_min_items(&mut writer, 4);
-    CpuBufferWriter::set_min_buffer_size_in_items(&mut writer, 32);
+    BufferWriter::set_min_items(&mut writer, 4);
+    BufferWriter::set_min_buffer_size_in_items(&mut writer, 32);
 
     let mut reader = CustomReader::<u8>::default();
-    CpuBufferReader::set_min_items(&mut reader, 8);
-    CpuBufferReader::set_min_buffer_size_in_items(&mut reader, 64);
+    BufferReader::set_min_items(&mut reader, 8);
+    BufferReader::set_min_buffer_size_in_items(&mut reader, 64);
 
     let mut writer_requirements = BufferWriter::buffer_requirements(&writer);
     let reader_requirements = BufferReader::buffer_requirements(&reader);

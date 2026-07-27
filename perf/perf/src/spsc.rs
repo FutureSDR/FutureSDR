@@ -8,6 +8,7 @@ use futuresdr::runtime::Error;
 use futuresdr::runtime::PortIndex;
 use futuresdr::runtime::buffer::BlockInbox;
 use futuresdr::runtime::buffer::BufferReader;
+use futuresdr::runtime::buffer::BufferRequirements;
 use futuresdr::runtime::buffer::BufferWriter;
 use futuresdr::runtime::buffer::CpuBufferReader;
 use futuresdr::runtime::buffer::CpuBufferWriter;
@@ -18,7 +19,6 @@ use futuresdr::runtime::buffer::Tags;
 use futuresdr::runtime::buffer::ThreadSafeConnect;
 use futuresdr::runtime::dev::BlockNotifier;
 use futuresdr::runtime::dev::ItemTag;
-use futuresdr::tracing::warn;
 use vmcircbuffer::double_mapped_buffer::DoubleMappedBuffer;
 use vmcircbuffer::double_mapped_buffer::pagesize;
 
@@ -94,8 +94,6 @@ where
     tags: Vec<ItemTag>,
     last_space: usize,
     write_pos: usize,
-    min_items: Option<usize>,
-    min_buffer_size_in_items: Option<usize>,
 }
 
 impl<T> Writer<T>
@@ -113,8 +111,6 @@ where
             tags: Vec::new(),
             last_space: 0,
             write_pos: 0,
-            min_items: None,
-            min_buffer_size_in_items: None,
         }
     }
 
@@ -159,6 +155,14 @@ where
     type Inbox = BlockInbox;
     type Reader = Reader<T>;
 
+    fn buffer_requirements(&self) -> BufferRequirements {
+        self.core.requirements()
+    }
+
+    fn raise_buffer_requirements(&mut self, requirements: BufferRequirements) {
+        self.core.raise_requirements(requirements);
+    }
+
     fn init(&mut self, block_id: BlockId, port_id: PortIndex, inbox: BlockInbox) {
         self.notifier = inbox.notifier();
         self.core.init(block_id, port_id, inbox);
@@ -178,16 +182,16 @@ where
         let page_size = pagesize();
         let mut buffer_size = page_size;
 
-        let min_self = self.min_items.unwrap_or(1);
-        let min_reader = dest.min_items.unwrap_or(1);
+        let min_self = self.core.min_items().unwrap_or(1);
+        let min_reader = dest.core.min_items().unwrap_or(1);
         let mut min_bytes = (min_self + min_reader - 1) * T::SIZE.get();
 
-        let buffer_size_configured =
-            self.min_buffer_size_in_items.is_some() || dest.min_buffer_size_in_items.is_some();
+        let buffer_size_configured = self.core.min_buffer_size_in_items().is_some()
+            || dest.core.min_buffer_size_in_items().is_some();
 
         min_bytes = if buffer_size_configured {
-            let min_self = self.min_buffer_size_in_items.unwrap_or(0);
-            let min_reader = dest.min_buffer_size_in_items.unwrap_or(0);
+            let min_self = self.core.min_buffer_size_in_items().unwrap_or(0);
+            let min_reader = dest.core.min_buffer_size_in_items().unwrap_or(0);
             std::cmp::max(
                 min_bytes,
                 std::cmp::max(min_self, min_reader) * T::SIZE.get(),
@@ -210,8 +214,8 @@ where
             read_pos: PaddedAtomicUsize::new(0),
         });
 
-        self.min_buffer_size_in_items = Some(capacity);
-        dest.min_buffer_size_in_items = Some(capacity);
+        self.core.set_min_buffer_size_in_items(capacity);
+        dest.core.set_min_buffer_size_in_items(capacity);
         self.reader = dest.core.endpoint_if_bound();
         self.reader_notifier = dest.notifier.clone();
         self.inner = Some(inner.clone());
@@ -253,8 +257,8 @@ where
                 .endpoint_if_bound()
                 .expect("reader port not bound to a flowgraph"),
             reader_notifier: reader.notifier.clone(),
-            reader_min_items: reader.min_items,
-            reader_min_buffer_size_in_items: reader.min_buffer_size_in_items,
+            reader_min_items: reader.core.min_items(),
+            reader_min_buffer_size_in_items: reader.core.min_buffer_size_in_items(),
             _item: std::marker::PhantomData,
         }
     }
@@ -264,17 +268,17 @@ where
         let page_size = pagesize();
         let mut buffer_size = page_size;
 
-        let min_self = self.min_items.unwrap_or(1);
+        let min_self = self.core.min_items().unwrap_or(1);
         let min_reader = token.reader_min_items.unwrap_or(1);
         let mut min_bytes = (min_self + min_reader - 1) * T::SIZE.get();
 
-        let buffer_size_configured = self.min_buffer_size_in_items.is_some()
+        let buffer_size_configured = self.core.min_buffer_size_in_items().is_some()
             || token.reader_min_buffer_size_in_items.is_some();
         min_bytes = if buffer_size_configured {
             std::cmp::max(
                 min_bytes,
                 std::cmp::max(
-                    self.min_buffer_size_in_items.unwrap_or(0),
+                    self.core.min_buffer_size_in_items().unwrap_or(0),
                     token.reader_min_buffer_size_in_items.unwrap_or(0),
                 ) * T::SIZE.get(),
             )
@@ -296,7 +300,7 @@ where
             read_pos: PaddedAtomicUsize::new(0),
         });
 
-        self.min_buffer_size_in_items = Some(capacity);
+        self.core.set_min_buffer_size_in_items(capacity);
         self.reader = Some(token.reader);
         self.reader_notifier = token.reader_notifier;
         self.inner = Some(inner.clone());
@@ -314,7 +318,9 @@ where
     }
 
     fn finish_reader(reader: &mut Reader<T>, token: Self::WriterToken) {
-        reader.min_buffer_size_in_items = Some(token.inner.capacity);
+        reader
+            .core
+            .set_min_buffer_size_in_items(token.inner.capacity);
         reader.inner = Some(token.inner);
         reader.writer = Some(token.writer);
         reader.writer_notifier = token.writer_notifier;
@@ -371,25 +377,11 @@ where
         self.reader_notifier.notify();
     }
 
-    fn set_min_items(&mut self, n: usize) {
-        if self.connected {
-            warn!("buffer size configured after buffer is connected. This has no effect");
-        }
-        self.min_items = Some(n);
-    }
-
-    fn set_min_buffer_size_in_items(&mut self, n: usize) {
-        if self.connected {
-            warn!("buffer size configured after buffer is connected. This has no effect");
-        }
-        self.min_buffer_size_in_items = Some(n);
-    }
-
     fn max_items(&self) -> usize {
         self.inner
             .as_ref()
             .map(|inner| inner.capacity)
-            .or(self.min_buffer_size_in_items)
+            .or(self.core.min_buffer_size_in_items())
             .unwrap_or(usize::MAX)
     }
 }
@@ -406,8 +398,6 @@ where
     notifier: BlockNotifier,
     last_space: usize,
     read_pos: usize,
-    min_items: Option<usize>,
-    min_buffer_size_in_items: Option<usize>,
 }
 
 impl<T> Reader<T>
@@ -424,8 +414,6 @@ where
             notifier: BlockNotifier::new(),
             last_space: 0,
             read_pos: 0,
-            min_items: None,
-            min_buffer_size_in_items: None,
         }
     }
 }
@@ -456,6 +444,14 @@ where
     T: CpuSample,
 {
     type Inbox = BlockInbox;
+
+    fn buffer_requirements(&self) -> BufferRequirements {
+        self.core.requirements()
+    }
+
+    fn raise_buffer_requirements(&mut self, requirements: BufferRequirements) {
+        self.core.raise_requirements(requirements);
+    }
 
     fn init(&mut self, block_id: BlockId, port_id: PortIndex, inbox: BlockInbox) {
         self.notifier = inbox.notifier();
@@ -532,25 +528,11 @@ where
         self.writer_notifier.notify();
     }
 
-    fn set_min_items(&mut self, n: usize) {
-        if self.writer.is_some() {
-            warn!("buffer size configured after buffer is connected. This has no effect");
-        }
-        self.min_items = Some(n);
-    }
-
-    fn set_min_buffer_size_in_items(&mut self, n: usize) {
-        if self.writer.is_some() {
-            warn!("buffer size configured after buffer is connected. This has no effect");
-        }
-        self.min_buffer_size_in_items = Some(n);
-    }
-
     fn max_items(&self) -> usize {
         self.inner
             .as_ref()
             .map(|inner| inner.capacity)
-            .or(self.min_buffer_size_in_items)
+            .or(self.core.min_buffer_size_in_items())
             .unwrap_or(usize::MAX)
     }
 }

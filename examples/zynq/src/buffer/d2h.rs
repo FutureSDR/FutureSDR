@@ -11,6 +11,7 @@ use futuresdr::runtime::Error;
 use futuresdr::runtime::PortIndex;
 use futuresdr::runtime::buffer::BlockInbox;
 use futuresdr::runtime::buffer::BufferReader;
+use futuresdr::runtime::buffer::BufferRequirements;
 use futuresdr::runtime::buffer::BufferWriter;
 use futuresdr::runtime::buffer::ConnectionState;
 use futuresdr::runtime::buffer::CpuBufferReader;
@@ -108,6 +109,14 @@ where
 {
     type Inbox = BlockInbox;
     type Reader = Reader<D>;
+
+    fn buffer_requirements(&self) -> BufferRequirements {
+        self.core.requirements()
+    }
+
+    fn raise_buffer_requirements(&mut self, requirements: BufferRequirements) {
+        self.core.raise_requirements(requirements);
+    }
 
     fn init(&mut self, block_id: BlockId, port_id: PortIndex, inbox: BlockInbox) {
         self.core.init(block_id, port_id, inbox);
@@ -235,6 +244,14 @@ where
 {
     type Inbox = BlockInbox;
 
+    fn buffer_requirements(&self) -> BufferRequirements {
+        self.core.requirements()
+    }
+
+    fn raise_buffer_requirements(&mut self, requirements: BufferRequirements) {
+        self.core.raise_requirements(requirements);
+    }
+
     fn init(&mut self, block_id: BlockId, port_id: PortIndex, inbox: BlockInbox) {
         self.core.init(block_id, port_id, inbox);
     }
@@ -324,13 +341,6 @@ where
         }
     }
 
-    fn set_min_items(&mut self, _n: usize) {
-        warn!("set_min_items not yet implemented for Zynq buffers");
-    }
-
-    fn set_min_buffer_size_in_items(&mut self, _n: usize) {
-        warn!("set_min_buffer_size_in_items not yet implemented for Zynq buffers");
-    }
     fn max_items(&self) -> usize {
         warn!("max_items not yet implemented for Zynq buffers");
         usize::MAX

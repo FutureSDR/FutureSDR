@@ -548,22 +548,6 @@ where
         }
     }
 
-    fn set_min_items(&mut self, n: usize) {
-        if self.state.is_connected() {
-            warn!("set_min_items called after buffer is created. this has no effect");
-        }
-        self.core.set_min_items(n);
-    }
-
-    fn set_min_buffer_size_in_items(&mut self, n: usize) {
-        if self.state.is_connected() {
-            warn!(
-                "set_min_buffer_size_in_items called after buffer is created. this has no effect"
-            );
-        }
-        self.core.set_min_buffer_size_in_items(n);
-    }
-
     fn max_items(&self) -> usize {
         self.core.min_buffer_size_in_items().unwrap_or(usize::MAX)
     }
@@ -817,20 +801,6 @@ where
         }
     }
 
-    fn set_min_items(&mut self, n: usize) {
-        if self.state.is_connected() {
-            warn!("buffer size configured after buffer is connected. This has no effect");
-        }
-        self.core.set_min_items(n);
-    }
-
-    fn set_min_buffer_size_in_items(&mut self, n: usize) {
-        if self.state.is_connected() {
-            warn!("buffer size configured after buffer is connected. This has no effect");
-        }
-        self.core.set_min_buffer_size_in_items(n);
-    }
-
     fn max_items(&self) -> usize {
         self.core.min_buffer_size_in_items().unwrap_or(usize::MAX)
     }
@@ -857,8 +827,8 @@ mod tests {
         BufferWriter::init(&mut writer, BlockId(0), PortIndex::new(0), local_inbox());
         BufferReader::init(&mut reader, BlockId(1), PortIndex::new(0), local_inbox());
 
-        CpuBufferWriter::set_min_buffer_size_in_items(&mut writer, 5);
-        CpuBufferReader::set_min_items(&mut reader, 1);
+        BufferWriter::set_min_buffer_size_in_items(&mut writer, 5);
+        BufferReader::set_min_items(&mut reader, 1);
         BufferWriter::connect(&mut writer, &mut reader);
 
         BufferWriter::validate(&writer)?;
@@ -886,7 +856,7 @@ mod tests {
         BufferWriter::init(&mut writer, BlockId(0), PortIndex::new(0), local_inbox());
         BufferReader::init(&mut reader, BlockId(1), PortIndex::new(0), local_inbox());
 
-        CpuBufferWriter::set_min_buffer_size_in_items(&mut writer, 8);
+        BufferWriter::set_min_buffer_size_in_items(&mut writer, 8);
         BufferWriter::connect(&mut writer, &mut reader);
 
         let out = CpuBufferWriter::slice(&mut writer);
@@ -910,7 +880,7 @@ mod tests {
         BufferWriter::init(&mut writer, BlockId(0), PortIndex::new(0), local_inbox());
         BufferReader::init(&mut reader, BlockId(1), PortIndex::new(0), local_inbox());
 
-        CpuBufferWriter::set_min_buffer_size_in_items(&mut writer, 4);
+        BufferWriter::set_min_buffer_size_in_items(&mut writer, 4);
         reader.set_min_buffers(3);
         BufferWriter::connect(&mut writer, &mut reader);
 
@@ -933,8 +903,8 @@ mod tests {
         BufferWriter::init(&mut writer, BlockId(0), PortIndex::new(0), writer_inbox);
         BufferReader::init(&mut reader, BlockId(1), PortIndex::new(0), reader_inbox);
 
-        CpuBufferWriter::set_min_buffer_size_in_items(&mut writer, 4);
-        CpuBufferReader::set_min_items(&mut reader, 2);
+        BufferWriter::set_min_buffer_size_in_items(&mut writer, 4);
+        BufferReader::set_min_items(&mut reader, 2);
         BufferWriter::connect(&mut writer, &mut reader);
 
         for values in [[1, 2, 3, 4], [5, 6, 7, 8]] {
