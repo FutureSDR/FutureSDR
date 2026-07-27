@@ -355,43 +355,33 @@ impl Kernel for WgpuSpectrum {
                         label: Some("web-spectrum-encoder"),
                     });
 
+            let mut result_is_ping = true;
             {
                 let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                    label: Some("web-spectrum-bit-reverse-pass"),
+                    label: Some("web-spectrum-compute-pass"),
                     timestamp_writes: None,
                 });
                 pass.set_pipeline(&self.state.bit_reverse_pipeline);
                 pass.set_bind_group(0, &self.state.bit_reverse_bind_group, &[]);
                 pass.dispatch_workgroups(fft_dispatch, 1, 1);
-            }
 
-            let mut result_is_ping = true;
-            for stage in 0..LOG_N {
-                let bind_group = if result_is_ping {
-                    &self.state.ping_to_pong_bind_groups[stage]
-                } else {
-                    &self.state.pong_to_ping_bind_groups[stage]
-                };
-                let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                    label: Some("web-spectrum-fft-stage-pass"),
-                    timestamp_writes: None,
-                });
                 pass.set_pipeline(&self.state.fft_stage_pipeline);
-                pass.set_bind_group(0, bind_group, &[]);
-                pass.dispatch_workgroups(fft_dispatch, 1, 1);
-                result_is_ping = !result_is_ping;
-            }
+                for stage in 0..LOG_N {
+                    let bind_group = if result_is_ping {
+                        &self.state.ping_to_pong_bind_groups[stage]
+                    } else {
+                        &self.state.pong_to_ping_bind_groups[stage]
+                    };
+                    pass.set_bind_group(0, bind_group, &[]);
+                    pass.dispatch_workgroups(fft_dispatch, 1, 1);
+                    result_is_ping = !result_is_ping;
+                }
 
-            {
                 let bind_group = if result_is_ping {
                     &self.state.reduce_ping_bind_group
                 } else {
                     &self.state.reduce_pong_bind_group
                 };
-                let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                    label: Some("web-spectrum-reduce-pass"),
-                    timestamp_writes: None,
-                });
                 pass.set_pipeline(&self.state.reduce_pipeline);
                 pass.set_bind_group(0, bind_group, &[]);
                 pass.dispatch_workgroups(magnitude_dispatch, 1, 1);
