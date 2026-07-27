@@ -1,6 +1,6 @@
 [build]
 target = "index-web.html"
-dist = "dist"
+dist = "dist-web"
 filehash = false
 release = true
 # public_url = "/spectrum/"
