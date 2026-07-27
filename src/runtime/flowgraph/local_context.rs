@@ -165,18 +165,7 @@ impl<'a, LS: LocalScheduler> LocalDomainContext<'a, LS> {
             )));
         }
 
-        let BlockPlacement::Local {
-            domain_id,
-            local_id,
-        } = block.placement
-        else {
-            return Err(Error::ValidationError(
-                "local-domain context requires local blocks".to_string(),
-            ));
-        };
-        if domain_id != inner.domain_id
-            || inner.state.local_id_for_block(block.id) != Some(local_id)
-        {
+        if inner.state.local_id_for_block(block.id).is_none() {
             return Err(Error::InvalidBlock(block.id));
         }
         Ok(())
@@ -193,10 +182,6 @@ impl<'a, LS: LocalScheduler> LocalDomainContext<'a, LS> {
         let local_id = inner.next_local_id;
         inner.next_local_id += 1;
         let domain_id = inner.domain_id;
-        let placement = BlockPlacement::Local {
-            domain_id,
-            local_id,
-        };
 
         let external = BlockEndpoint::domain_proxy(
             inner.domain_inbox.clone(),
@@ -233,7 +218,6 @@ impl<'a, LS: LocalScheduler> LocalDomainContext<'a, LS> {
         BlockRef {
             id: block_id,
             flowgraph_id: inner.flowgraph_id,
-            placement,
             _marker: PhantomData,
         }
     }
@@ -288,27 +272,14 @@ impl<'a, LS: LocalScheduler> LocalDomainContext<'a, LS> {
             )));
         }
 
-        let (
-            BlockPlacement::Local {
-                domain_id: src_domain,
-                local_id: src_local,
-            },
-            BlockPlacement::Local {
-                domain_id: dst_domain,
-                local_id: dst_local,
-            },
-        ) = (src_block.placement, dst_block.placement)
-        else {
-            return Err(Error::ValidationError(
-                "local-domain context stream connections require local blocks".to_string(),
-            ));
-        };
-
-        if src_domain != inner.domain_id || dst_domain != inner.domain_id {
-            return Err(Error::ValidationError(
-                "local-domain context stream connections require blocks in this domain".to_string(),
-            ));
-        }
+        let src_local = inner
+            .state
+            .local_id_for_block(src_block.id)
+            .ok_or(Error::InvalidBlock(src_block.id))?;
+        let dst_local = inner
+            .state
+            .local_id_for_block(dst_block.id)
+            .ok_or(Error::InvalidBlock(dst_block.id))?;
 
         let edge = {
             let (src, dst) = Flowgraph::two_local_state_kernels_mut::<KS, KD>(

@@ -145,7 +145,6 @@ impl<K> DerefMut for TypedBlockGuardMut<'_, K> {
 pub struct BlockRef<K> {
     pub(super) id: BlockId,
     pub(super) flowgraph_id: FlowgraphId,
-    pub(super) placement: BlockPlacement,
     pub(super) _marker: PhantomData<fn() -> K>,
 }
 
@@ -323,7 +322,6 @@ impl<K> Debug for BlockRef<K> {
         f.debug_struct("BlockRef")
             .field("id", &self.id)
             .field("flowgraph_id", &self.flowgraph_id)
-            .field("placement", &self.placement)
             .field("type_name", &std::any::type_name::<K>())
             .finish()
     }

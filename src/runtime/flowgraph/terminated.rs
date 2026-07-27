@@ -47,7 +47,7 @@ impl TerminatedFlowgraph {
         if block.flowgraph_id != self.id {
             return Err(Error::InvalidBlock(block.id));
         }
-        if self.blocks.get(block.id.0).map(BlockSlot::placement) != Some(block.placement) {
+        if self.blocks.get(block.id.0).is_none() {
             return Err(Error::InvalidBlock(block.id));
         }
         Ok(())

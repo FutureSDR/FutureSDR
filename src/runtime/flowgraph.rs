@@ -483,11 +483,10 @@ impl Flowgraph {
         )
     }
 
-    fn block_ref<K>(&self, block_id: BlockId, placement: BlockPlacement) -> BlockRef<K> {
+    fn block_ref<K>(&self, block_id: BlockId) -> BlockRef<K> {
         BlockRef {
             id: block_id,
             flowgraph_id: self.id,
-            placement,
             _marker: PhantomData,
         }
     }
@@ -507,7 +506,6 @@ impl Flowgraph {
     ) -> BlockRef<K> {
         let block_id = BlockId(self.blocks.len());
         let normal_id = self.domains.normal_mut().push_block(block);
-        let placement = BlockPlacement::Normal { normal_id };
         self.blocks.push(BlockSlot::normal(
             normal_id,
             inbox,
@@ -519,7 +517,7 @@ impl Flowgraph {
             instance_name,
             blocking,
         ));
-        self.block_ref(block_id, placement)
+        self.block_ref(block_id)
     }
 
     async fn add_kernel_to_domain_async<K>(
@@ -535,10 +533,6 @@ impl Flowgraph {
             .local_mut(domain_id)
             .ok_or_else(|| Error::ValidationError("invalid local domain".to_string()))?
             .reserve_block();
-        let placement = BlockPlacement::Local {
-            domain_id,
-            local_id,
-        };
         let block_id = BlockId(self.blocks.len());
         let domain_inbox = self
             .domains
@@ -585,7 +579,7 @@ impl Flowgraph {
             instance_name,
             K::is_blocking(),
         ));
-        Ok(self.block_ref(block_id, placement))
+        Ok(self.block_ref(block_id))
     }
 
     pub(crate) fn validate_block_ref<K>(&self, block: &BlockRef<K>) -> Result<(), Error> {
@@ -595,7 +589,7 @@ impl Flowgraph {
                 block.id, block.flowgraph_id, self.id
             )));
         }
-        if self.blocks.get(block.id.0).map(BlockSlot::placement) != Some(block.placement) {
+        if self.blocks.get(block.id.0).is_none() {
             return Err(Error::InvalidBlock(block.id));
         }
         Ok(())
