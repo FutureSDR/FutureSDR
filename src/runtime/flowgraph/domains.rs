@@ -243,7 +243,7 @@ impl RunningFlowgraphDomains {
 /// only blocks assigned to the implicit domain 0, without holes for local-domain
 /// blocks.
 pub(super) struct NormalDomain {
-    slots: Vec<NormalBlockSlot>,
+    slots: NormalBlocks,
 }
 
 impl NormalDomain {
@@ -253,7 +253,7 @@ impl NormalDomain {
 
     pub(super) fn push_block(&mut self, block: Box<dyn Block>) -> usize {
         let normal_id = self.slots.len();
-        self.slots.push(NormalBlockSlot::new(block));
+        self.slots.push(block);
         normal_id
     }
 
@@ -262,10 +262,14 @@ impl NormalDomain {
         normal_id: usize,
         block_id: BlockId,
     ) -> Result<&dyn BlockObject, Error> {
-        self.slots
+        let block = self
+            .slots
             .get(normal_id)
-            .ok_or(Error::InvalidBlock(block_id))?
-            .block(block_id)
+            .ok_or(Error::InvalidBlock(block_id))?;
+        if block.id() != block_id {
+            return Err(Error::InvalidBlock(block_id));
+        }
+        Ok(block.as_ref() as &dyn BlockObject)
     }
 
     pub(super) fn block_mut(
@@ -273,10 +277,14 @@ impl NormalDomain {
         normal_id: usize,
         block_id: BlockId,
     ) -> Result<&mut dyn BlockObject, Error> {
-        self.slots
+        let block = self
+            .slots
             .get_mut(normal_id)
-            .ok_or(Error::InvalidBlock(block_id))?
-            .block_mut(block_id)
+            .ok_or(Error::InvalidBlock(block_id))?;
+        if block.id() != block_id {
+            return Err(Error::InvalidBlock(block_id));
+        }
+        Ok(block.as_mut() as &mut dyn BlockObject)
     }
 
     pub(super) fn two_blocks_mut(
@@ -309,19 +317,26 @@ impl NormalDomain {
                 }
             })?;
 
-        let first_block = first_slot_ref.block_mut(first_id)?;
-        let second_block = second_slot_ref.block_mut(second_id)?;
-        Ok((first_block, second_block))
+        if first_slot_ref.id() != first_id {
+            return Err(Error::InvalidBlock(first_id));
+        }
+        if second_slot_ref.id() != second_id {
+            return Err(Error::InvalidBlock(second_id));
+        }
+        Ok((
+            first_slot_ref.as_mut() as &mut dyn BlockObject,
+            second_slot_ref.as_mut() as &mut dyn BlockObject,
+        ))
     }
 
     fn into_running(self) -> (RunningNormalDomain, NormalBlocks) {
         let mut running_slots = Vec::with_capacity(self.slots.len());
         let mut blocks = Vec::with_capacity(self.slots.len());
-        for slot in self.slots {
+        for block in self.slots {
             running_slots.push(RunningNormalBlockSlot {
-                block_id: slot.block_id,
+                block_id: block.id(),
             });
-            blocks.push(slot.block);
+            blocks.push(block);
         }
         (
             RunningNormalDomain {
@@ -329,36 +344,6 @@ impl NormalDomain {
             },
             blocks,
         )
-    }
-}
-
-struct NormalBlockSlot {
-    block_id: BlockId,
-    block: Box<dyn Block>,
-}
-
-impl NormalBlockSlot {
-    fn new(block: Box<dyn Block>) -> Self {
-        let block_id = block.id();
-        Self { block_id, block }
-    }
-
-    fn validate(&self, block_id: BlockId) -> Result<(), Error> {
-        if self.block_id == block_id {
-            Ok(())
-        } else {
-            Err(Error::InvalidBlock(block_id))
-        }
-    }
-
-    fn block(&self, block_id: BlockId) -> Result<&dyn BlockObject, Error> {
-        self.validate(block_id)?;
-        Ok(self.block.as_ref() as &dyn BlockObject)
-    }
-
-    fn block_mut(&mut self, block_id: BlockId) -> Result<&mut dyn BlockObject, Error> {
-        self.validate(block_id)?;
-        Ok(self.block.as_mut() as &mut dyn BlockObject)
     }
 }
 
@@ -379,7 +364,7 @@ impl RunningNormalDomain {
                 .position(|block| block.id() == slot.block_id)
                 .ok_or(Error::InvalidBlock(slot.block_id))?;
             let block = blocks.swap_remove(pos);
-            slots.push(NormalBlockSlot::new(block));
+            slots.push(block);
         }
 
         if let Some(block) = blocks.first() {

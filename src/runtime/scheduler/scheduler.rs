@@ -100,7 +100,6 @@ impl NormalDomainSpec {
             endpoint: block.inbox(),
         };
         Ok(RunnableBlock {
-            block_id,
             block,
             main_channel: self.main_channel.clone(),
             stop,
@@ -129,7 +128,6 @@ impl BlockStop {
 
 /// Opaque normal-domain block object that can be spawned by a [`Scheduler`].
 pub struct RunnableBlock {
-    block_id: BlockId,
     block: NormalBlock,
     main_channel: Sender<FlowgraphMessage>,
     stop: BlockStop,
@@ -138,7 +136,7 @@ pub struct RunnableBlock {
 impl RunnableBlock {
     /// Get the block id.
     pub fn id(&self) -> BlockId {
-        self.block_id
+        self.block.id()
     }
 
     /// Get a handle that can request this block to stop after it is spawned.
@@ -149,26 +147,24 @@ impl RunnableBlock {
     /// Run this normal-domain block to completion and return its stopped state.
     pub async fn run(self) -> StoppedBlock {
         let Self {
-            block_id,
             mut block,
             main_channel,
             ..
         } = self;
         block.run(main_channel).await;
-        StoppedBlock { block_id, block }
+        StoppedBlock { block }
     }
 }
 
 /// Opaque stopped normal-domain block state that must be restored to its domain.
 pub struct StoppedBlock {
-    block_id: BlockId,
     block: NormalBlock,
 }
 
 impl StoppedBlock {
     /// Get the block id.
     pub fn id(&self) -> BlockId {
-        self.block_id
+        self.block.id()
     }
 
     pub(crate) fn into_block(self) -> NormalBlock {
@@ -397,7 +393,6 @@ mod tests {
         let (_runnable, task) = async_task::spawn(
             async move {
                 StoppedBlock {
-                    block_id,
                     block: Box::new(TestBlock {
                         id: block_id,
                         endpoint: task_endpoint,

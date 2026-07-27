@@ -171,7 +171,6 @@ pub(crate) type LocalDomainAsyncExec = Box<
 >;
 
 struct LocalBlockSlot {
-    block_id: BlockId,
     block: Box<dyn LocalBlock>,
     inbox: LocalBlockInbox,
     external_inbox: Option<BlockInboxReader>,
@@ -179,11 +178,9 @@ struct LocalBlockSlot {
 
 impl LocalBlockSlot {
     fn new(mut block: Box<dyn LocalBlock>) -> Self {
-        let block_id = block.id();
         let inbox = block.local_inbox();
         let external_inbox = block.take_external_inbox_reader();
         Self {
-            block_id,
             block,
             inbox,
             external_inbox,
@@ -191,13 +188,11 @@ impl LocalBlockSlot {
     }
 
     fn from_running(
-        block_id: BlockId,
         block: Box<dyn LocalBlock>,
         inbox: LocalBlockInbox,
         external_inbox: Option<BlockInboxReader>,
     ) -> Self {
         Self {
-            block_id,
             block,
             inbox,
             external_inbox,
@@ -205,7 +200,7 @@ impl LocalBlockSlot {
     }
 
     fn validate(&self, block_id: BlockId) -> Result<(), Error> {
-        if self.block_id == block_id {
+        if self.block.id() == block_id {
             Ok(())
         } else {
             Err(Error::InvalidBlock(block_id))
@@ -289,11 +284,11 @@ impl LocalRunningState {
         let mut blocks = Vec::with_capacity(slots.len());
         for (local_id, slot) in slots {
             let LocalBlockSlot {
-                block_id,
                 block,
                 inbox,
                 external_inbox,
             } = slot;
+            let block_id = block.id();
             running_slots.push(LocalRunningSlot {
                 local_id,
                 block_id,
@@ -519,7 +514,6 @@ impl LocalDomainState {
                 continue;
             }
             self.slots[slot.local_id] = Some(LocalBlockSlot::from_running(
-                slot.block_id,
                 block,
                 slot.inbox,
                 slot.external_inbox,
@@ -546,9 +540,10 @@ impl LocalDomainState {
     }
 
     pub(crate) fn local_id_for_block(&self, block_id: BlockId) -> Option<usize> {
-        self.slots
-            .iter()
-            .position(|slot| slot.as_ref().is_some_and(|slot| slot.block_id == block_id))
+        self.slots.iter().position(|slot| {
+            slot.as_ref()
+                .is_some_and(|slot| slot.block.id() == block_id)
+        })
     }
 
     fn validate_addr(&self, addr: LocalBlockAddr) -> Result<usize, Error> {

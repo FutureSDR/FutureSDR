@@ -123,7 +123,6 @@ impl LocalBlockStop {
 
 /// Opaque local block object that can be spawned by a [`LocalScheduler`].
 pub struct RunnableLocalBlock {
-    block_id: BlockId,
     local_id: usize,
     block: Box<dyn LocalBlock>,
     main_channel: Sender<FlowgraphMessage>,
@@ -133,7 +132,7 @@ pub struct RunnableLocalBlock {
 impl RunnableLocalBlock {
     /// Get the block id.
     pub fn id(&self) -> BlockId {
-        self.block_id
+        self.block.id()
     }
 
     /// Get a handle that can request this block to stop after it is spawned.
@@ -144,24 +143,18 @@ impl RunnableLocalBlock {
     /// Run this local block to completion and return its stopped state.
     pub async fn run(self) -> StoppedLocalBlock {
         let Self {
-            block_id,
             local_id,
             mut block,
             main_channel,
             ..
         } = self;
         block.as_mut().run(main_channel).await;
-        StoppedLocalBlock {
-            block_id,
-            local_id,
-            block,
-        }
+        StoppedLocalBlock { local_id, block }
     }
 }
 
 /// Opaque stopped local block state that must be restored to its domain.
 pub struct StoppedLocalBlock {
-    block_id: BlockId,
     local_id: usize,
     block: Box<dyn LocalBlock>,
 }
@@ -169,7 +162,7 @@ pub struct StoppedLocalBlock {
 impl StoppedLocalBlock {
     /// Get the block id.
     pub fn id(&self) -> BlockId {
-        self.block_id
+        self.block.id()
     }
 }
 
@@ -239,7 +232,6 @@ impl<'a, Shutdown> LocalDomainRunSpec<'a, Shutdown> {
             external_inbox,
         };
         Ok(RunnableLocalBlock {
-            block_id,
             local_id,
             block,
             main_channel: self.main_channel.clone(),
@@ -323,8 +315,9 @@ impl<'a, Shutdown> LocalDomainRunSpec<'a, Shutdown> {
 
     /// Restore stopped local block state to this domain.
     pub fn restore_block(&mut self, block: StoppedLocalBlock) -> Result<(), Error> {
+        let block_id = block.id();
         self.state
-            .restore_block(block.local_id, block.block_id, block.block)
+            .restore_block(block.local_id, block_id, block.block)
     }
 }
 
