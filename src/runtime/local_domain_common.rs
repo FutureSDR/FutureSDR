@@ -267,21 +267,25 @@ async fn call_local_message(
 }
 
 struct LocalRunningSlot {
-    local_id: usize,
     block_id: BlockId,
+    block: Option<Box<dyn LocalBlock>>,
     inbox: LocalBlockInbox,
     external_inbox: Option<BlockInboxReader>,
 }
 
 pub(crate) struct LocalRunningState {
-    slots: Vec<LocalRunningSlot>,
-    blocks: Vec<(usize, Box<dyn LocalBlock>)>,
+    slots: Vec<Option<LocalRunningSlot>>,
 }
 
 impl LocalRunningState {
     fn new(slots: Vec<(usize, LocalBlockSlot)>) -> Self {
-        let mut running_slots = Vec::with_capacity(slots.len());
-        let mut blocks = Vec::with_capacity(slots.len());
+        let len = slots
+            .iter()
+            .map(|(local_id, _)| local_id + 1)
+            .max()
+            .unwrap_or(0);
+        let mut running_slots = Vec::with_capacity(len);
+        running_slots.resize_with(len, || None);
         for (local_id, slot) in slots {
             let LocalBlockSlot {
                 block,
@@ -289,26 +293,42 @@ impl LocalRunningState {
                 external_inbox,
             } = slot;
             let block_id = block.id();
-            running_slots.push(LocalRunningSlot {
-                local_id,
+            debug_assert!(running_slots[local_id].is_none());
+            running_slots[local_id] = Some(LocalRunningSlot {
                 block_id,
+                block: Some(block),
                 inbox,
                 external_inbox,
             });
-            blocks.push((local_id, block));
         }
 
         Self {
             slots: running_slots,
-            blocks,
         }
     }
 
     fn slot(&self, local_id: usize, block_id: BlockId) -> Result<&LocalRunningSlot, Error> {
         let slot = self
             .slots
-            .iter()
-            .find(|slot| slot.local_id == local_id)
+            .get(local_id)
+            .and_then(Option::as_ref)
+            .ok_or(Error::InvalidBlock(block_id))?;
+        if slot.block_id == block_id {
+            Ok(slot)
+        } else {
+            Err(Error::InvalidBlock(block_id))
+        }
+    }
+
+    fn slot_mut(
+        &mut self,
+        local_id: usize,
+        block_id: BlockId,
+    ) -> Result<&mut LocalRunningSlot, Error> {
+        let slot = self
+            .slots
+            .get_mut(local_id)
+            .and_then(Option::as_mut)
             .ok_or(Error::InvalidBlock(block_id))?;
         if slot.block_id == block_id {
             Ok(slot)
@@ -322,17 +342,14 @@ impl LocalRunningState {
         local_id: usize,
         block_id: BlockId,
     ) -> Result<Box<dyn LocalBlock>, Error> {
-        self.slot(local_id, block_id)?;
-        let pos = self
-            .blocks
-            .iter()
-            .position(|(id, _)| *id == local_id)
+        self.slot_mut(local_id, block_id)?
+            .block
+            .take()
             .ok_or_else(|| {
                 Error::RuntimeError(format!(
                     "local block {block_id:?} was taken more than once during one run"
                 ))
-            })?;
-        Ok(self.blocks.swap_remove(pos).1)
+            })
     }
 
     pub(crate) fn restore_block(
@@ -341,42 +358,38 @@ impl LocalRunningState {
         block_id: BlockId,
         block: Box<dyn LocalBlock>,
     ) -> Result<(), Error> {
-        self.slot(local_id, block_id)?;
-        if self.blocks.iter().any(|(id, _)| *id == local_id) {
+        let slot = self.slot_mut(local_id, block_id)?;
+        if slot.block.is_some() {
             return Err(Error::RuntimeError(format!(
                 "local block slot for {block_id:?} was restored while occupied"
             )));
         }
-        self.blocks.push((local_id, block));
+        slot.block = Some(block);
         Ok(())
     }
 
     pub(crate) fn take_external_inbox(&mut self, local_id: usize) -> Option<BlockInboxReader> {
         self.slots
-            .iter_mut()
-            .find(|slot| slot.local_id == local_id)
+            .get_mut(local_id)
+            .and_then(Option::as_mut)
             .and_then(|slot| slot.external_inbox.take())
     }
 
     pub(crate) fn inbox(&self, local_id: usize) -> Option<LocalBlockInbox> {
         self.slots
-            .iter()
-            .find(|slot| slot.local_id == local_id)
+            .get(local_id)
+            .and_then(Option::as_ref)
             .map(|slot| slot.inbox.clone())
     }
 
     pub(crate) fn inboxes_by_local_id(&self) -> Vec<Option<(BlockId, LocalBlockInbox)>> {
-        let len = self
-            .slots
+        self.slots
             .iter()
-            .map(|slot| slot.local_id + 1)
-            .max()
-            .unwrap_or(0);
-        let mut inboxes = vec![None; len];
-        for slot in &self.slots {
-            inboxes[slot.local_id] = Some((slot.block_id, slot.inbox.clone()));
-        }
-        inboxes
+            .map(|slot| {
+                slot.as_ref()
+                    .map(|slot| (slot.block_id, slot.inbox.clone()))
+            })
+            .collect()
     }
 
     pub(crate) async fn push_message(
@@ -481,52 +494,39 @@ impl LocalDomainState {
         Ok(LocalRunningState::new(running_slots))
     }
 
-    pub(crate) fn finish_run(&mut self, mut running: LocalRunningState) -> Result<(), Error> {
+    pub(crate) fn finish_run(&mut self, running: LocalRunningState) -> Result<(), Error> {
         let mut result = Ok(());
-        for slot in running.slots {
-            let block = match running
-                .blocks
-                .iter()
-                .position(|(local_id, _)| *local_id == slot.local_id)
-            {
-                Some(pos) => running.blocks.swap_remove(pos).1,
-                None => {
-                    if result.is_ok() {
-                        result = Err(Error::RuntimeError(format!(
-                            "local block {:?} was not restored after run",
-                            slot.block_id
-                        )));
-                    }
-                    continue;
+        for (local_id, slot) in running.slots.into_iter().enumerate() {
+            let Some(slot) = slot else {
+                continue;
+            };
+            let Some(block) = slot.block else {
+                if result.is_ok() {
+                    result = Err(Error::RuntimeError(format!(
+                        "local block {:?} was not restored after run",
+                        slot.block_id
+                    )));
                 }
+                continue;
             };
 
-            if self.slots.len() <= slot.local_id {
-                self.slots.resize_with(slot.local_id + 1, || None);
+            if self.slots.len() <= local_id {
+                self.slots.resize_with(local_id + 1, || None);
             }
-            if self.slots[slot.local_id].is_some() {
+            if self.slots[local_id].is_some() {
                 if result.is_ok() {
                     result = Err(Error::RuntimeError(format!(
                         "local block slot {} was occupied while finishing a run",
-                        slot.local_id
+                        local_id
                     )));
                 }
                 continue;
             }
-            self.slots[slot.local_id] = Some(LocalBlockSlot::from_running(
+            self.slots[local_id] = Some(LocalBlockSlot::from_running(
                 block,
                 slot.inbox,
                 slot.external_inbox,
             ));
-        }
-
-        if let Some((_, block)) = running.blocks.first()
-            && result.is_ok()
-        {
-            result = Err(Error::RuntimeError(format!(
-                "local block {:?} did not belong to the running domain",
-                block.id()
-            )));
         }
 
         result
