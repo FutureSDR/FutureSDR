@@ -12,38 +12,6 @@ use super::types::BlockLocation;
 use super::types::TypedBlockGuard;
 use super::types::TypedBlockGuardMut;
 
-pub(super) fn raw_block(
-    domains: &FlowgraphDomains,
-    location: BlockLocation,
-) -> Result<&dyn BlockObject, Error> {
-    domains.direct_block(location)
-}
-
-pub(super) fn raw_block_mut(
-    domains: &mut FlowgraphDomains,
-    location: BlockLocation,
-) -> Result<&mut dyn BlockObject, Error> {
-    domains.direct_block_mut(location)
-}
-
-pub(super) fn typed_wrapped_block_from_object<K: 'static>(
-    block: &dyn BlockObject,
-    block_id: BlockId,
-) -> Result<&WrappedKernel<K>, Error> {
-    (block as &dyn Any)
-        .downcast_ref::<WrappedKernel<K>>()
-        .ok_or_else(|| unexpected_type::<K>(block_id))
-}
-
-pub(super) fn typed_wrapped_block_mut_from_object<K: 'static>(
-    block: &mut dyn BlockObject,
-    block_id: BlockId,
-) -> Result<&mut WrappedKernel<K>, Error> {
-    (block as &mut dyn Any)
-        .downcast_mut::<WrappedKernel<K>>()
-        .ok_or_else(|| unexpected_type::<K>(block_id))
-}
-
 pub(super) fn typed_kernel_ref_from_object<K: 'static>(
     block: &dyn BlockObject,
     block_id: BlockId,
@@ -84,27 +52,14 @@ pub(super) fn typed_kernel_mut_from_object<K: 'static>(
     Err(unexpected_type::<K>(block_id))
 }
 
-pub(super) fn typed_wrapped_block<K: 'static>(
-    domains: &FlowgraphDomains,
-    location: BlockLocation,
-) -> Result<&WrappedKernel<K>, Error> {
-    let block = raw_block(domains, location)?;
-    typed_wrapped_block_from_object(block, location.block_id)
-}
-
-pub(super) fn typed_wrapped_block_mut<K: 'static>(
-    domains: &mut FlowgraphDomains,
-    location: BlockLocation,
-) -> Result<&mut WrappedKernel<K>, Error> {
-    let block = raw_block_mut(domains, location)?;
-    typed_wrapped_block_mut_from_object(block, location.block_id)
-}
-
 pub(super) fn typed_guard<'a, K: 'static>(
     domains: &'a FlowgraphDomains,
     location: BlockLocation,
 ) -> Result<TypedBlockGuard<'a, K>, Error> {
-    let wrapped = typed_wrapped_block(domains, location)?;
+    let block = domains.direct_block(location)?;
+    let wrapped = (block as &dyn Any)
+        .downcast_ref::<WrappedKernel<K>>()
+        .ok_or_else(|| unexpected_type::<K>(location.block_id))?;
     Ok(TypedBlockGuard {
         id: wrapped.id,
         meta: &wrapped.meta,
@@ -116,7 +71,10 @@ pub(super) fn typed_guard_mut<'a, K: 'static>(
     domains: &'a mut FlowgraphDomains,
     location: BlockLocation,
 ) -> Result<TypedBlockGuardMut<'a, K>, Error> {
-    let wrapped = typed_wrapped_block_mut(domains, location)?;
+    let block = domains.direct_block_mut(location)?;
+    let wrapped = (block as &mut dyn Any)
+        .downcast_mut::<WrappedKernel<K>>()
+        .ok_or_else(|| unexpected_type::<K>(location.block_id))?;
     Ok(TypedBlockGuardMut {
         id: wrapped.id,
         meta: &mut wrapped.meta,
