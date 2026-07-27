@@ -1,3 +1,4 @@
+use bytemuck::cast_slice;
 use futuresdr::blocks::wasm::HackRf;
 use futuresdr::runtime::dev::prelude::*;
 use leptos::web_sys::HtmlInputElement;
@@ -448,12 +449,7 @@ impl Kernel for Sink {
             if now_ms - self.last_update_ms >= 33.0 {
                 let offset = (n_frames - 1) * FFT_SIZE;
                 let samples = &input[offset..offset + FFT_SIZE];
-                let bytes = unsafe {
-                    let l = samples.len() * 4;
-                    let p = samples.as_ptr();
-                    std::slice::from_raw_parts(p as *const u8, l)
-                };
-                let bytes = Vec::from(bytes);
+                let bytes = cast_slice(samples).to_vec();
                 let time_disposed = self.time_data.try_set(bytes.clone()).is_some();
                 let waterfall_disposed = self.waterfall_data.try_set(bytes).is_some();
                 if time_disposed && waterfall_disposed {
