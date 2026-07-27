@@ -370,16 +370,17 @@ pub(super) async fn prepare_flowgraph(
     let Flowgraph {
         id,
         blocks,
-        domains: graph_domains,
+        domains: mut graph_domains,
         stream_edges: _,
         message_edges: _,
     } = flowgraph;
     let (placements, registry) = running_registry(
-        &graph_domains,
+        &mut graph_domains,
         blocks,
         stream_edges_public,
         message_edges_public,
-    );
+    )
+    .await?;
 
     Ok(PreparedFlowgraph {
         id,
@@ -501,28 +502,27 @@ fn validate_stream_graph(flowgraph: &Flowgraph) -> Result<(), Error> {
     Ok(())
 }
 
-fn running_registry(
-    domains: &FlowgraphDomains,
+async fn running_registry(
+    domains: &mut FlowgraphDomains,
     block_slots: Vec<BlockSlot>,
     stream_edges: Vec<Edge>,
     message_edges: Vec<Edge>,
-) -> (Vec<BlockPlacement>, Arc<RunningFlowgraphRegistry>) {
+) -> Result<(Vec<BlockPlacement>, Arc<RunningFlowgraphRegistry>), Error> {
     let mut placements = Vec::with_capacity(block_slots.len());
     let mut blocks = Vec::with_capacity(block_slots.len());
     for (id, entry) in block_slots.into_iter().enumerate() {
         let block_id = BlockId(id);
-        let runtime_names = if entry.is_normal()
-            && let Ok(block) = domains.direct_block(entry.location(block_id))
-        {
-            let type_name = block.type_name().to_string();
-            let instance_name = block
-                .instance_name()
-                .map(str::to_string)
-                .unwrap_or_else(|| type_name.clone());
-            Some((type_name, instance_name))
-        } else {
-            None
-        };
+        let location = entry.location(block_id);
+        let (type_name, instance_name) = domains
+            .with_block_mut(location, |block| {
+                let type_name = block.type_name().to_string();
+                let instance_name = block
+                    .instance_name()
+                    .map(str::to_string)
+                    .unwrap_or_else(|| type_name.clone());
+                Ok((type_name, instance_name))
+            })
+            .await?;
         let BlockSlot {
             placement,
             endpoint,
@@ -530,12 +530,8 @@ fn running_registry(
             stream_outputs,
             message_inputs,
             message_outputs,
-            type_name,
-            instance_name,
             blocking,
         } = entry;
-        let (type_name, instance_name) =
-            runtime_names.unwrap_or_else(|| (type_name.to_string(), instance_name));
         placements.push(placement);
         blocks.push(RunningBlockEntry::new(
             endpoint,
@@ -556,14 +552,14 @@ fn running_registry(
         ));
     }
 
-    (
+    Ok((
         placements,
         Arc::new(RunningFlowgraphRegistry::new(
             blocks,
             stream_edges,
             message_edges,
         )),
-    )
+    ))
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
@@ -574,6 +570,7 @@ mod tests {
     use crate::runtime::FlowgraphMessage;
     use crate::runtime::PortId;
     use crate::runtime::channel::mpsc::channel;
+    use crate::runtime::wrapped_kernel::LocalWrappedKernel;
 
     use super::*;
 
@@ -625,6 +622,36 @@ mod tests {
             )]
         );
 
+        Ok(())
+    }
+
+    #[test]
+    fn preparation_reads_local_block_metadata() -> Result<(), Error> {
+        let mut fg = Flowgraph::new();
+        let local = fg.local_domain()?;
+        let src = fg.with_local_domain(local, |ctx| Ok(ctx.add(NullSource::<f32>::new())))?;
+        let snk = fg.add(NullSink::<f32>::new())?;
+        fg.stream_dyn(src, "output", snk, "input")?;
+
+        let location = fg.location(src.id())?;
+        crate::runtime::block_on(fg.with_block_mut(location, move |block| {
+            let block = (block as &mut dyn std::any::Any)
+                .downcast_mut::<LocalWrappedKernel<NullSource<f32>>>()
+                .ok_or_else(|| Error::InvalidBlock(location.block_id))?;
+            block.meta.set_instance_name("local-source");
+            Ok(())
+        }))?;
+
+        let (main_channel, _main_rx) = channel::<FlowgraphMessage>(8);
+        let prepared = crate::runtime::block_on(prepare_flowgraph(fg, main_channel))?;
+        let description = prepared.registry.describe();
+        let src = description
+            .blocks
+            .iter()
+            .find(|block| block.id == src.id())
+            .unwrap();
+
+        assert_eq!(src.instance_name, "local-source");
         Ok(())
     }
 }

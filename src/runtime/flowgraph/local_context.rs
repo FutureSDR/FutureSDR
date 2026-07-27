@@ -176,7 +176,7 @@ impl<'a, LS: LocalScheduler> LocalDomainContext<'a, LS> {
         inner.next_block_id += 1;
         let domain_id = inner.domain_id;
         let domain_inbox = inner.domain_inbox.clone();
-        let (local_id, (inbox, stream_inputs, stream_outputs, type_name, instance_name)) =
+        let (local_id, (inbox, stream_inputs, stream_outputs)) =
             inner.state.add_block(|local_id| {
                 let external = BlockEndpoint::domain_proxy(
                     domain_inbox,
@@ -190,18 +190,7 @@ impl<'a, LS: LocalScheduler> LocalDomainContext<'a, LS> {
                 let inbox = block.inbox();
                 let stream_inputs = stream_input_names(&mut block.kernel);
                 let stream_outputs = stream_output_names(&mut block.kernel);
-                let type_name = K::type_name();
-                let instance_name = block.meta.instance_name().unwrap_or(type_name).to_string();
-                (
-                    Box::new(block),
-                    (
-                        inbox,
-                        stream_inputs,
-                        stream_outputs,
-                        type_name,
-                        instance_name,
-                    ),
-                )
+                (Box::new(block), (inbox, stream_inputs, stream_outputs))
             });
         inner.entries.push(LocalDomainContextEntry {
             block_id,
@@ -213,8 +202,6 @@ impl<'a, LS: LocalScheduler> LocalDomainContext<'a, LS> {
                 stream_outputs,
                 K::message_inputs(),
                 K::message_outputs(),
-                type_name,
-                instance_name,
                 K::is_blocking(),
             ),
         });

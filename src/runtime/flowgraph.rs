@@ -9,7 +9,6 @@ use crate::runtime::Error;
 use crate::runtime::FlowgraphId;
 use crate::runtime::PortId;
 use crate::runtime::Result;
-use crate::runtime::block::Block;
 use crate::runtime::block::BlockObject;
 use crate::runtime::block_inbox::BlockEndpoint;
 use crate::runtime::block_inbox::LocalBlockAddr;
@@ -63,13 +62,10 @@ pub(super) struct BlockSlot {
     stream_outputs: Vec<String>,
     message_inputs: &'static [&'static str],
     message_outputs: &'static [&'static str],
-    type_name: &'static str,
-    instance_name: String,
     blocking: bool,
 }
 
 impl BlockSlot {
-    #[allow(clippy::too_many_arguments)]
     fn normal(
         normal_id: usize,
         endpoint: BlockEndpoint,
@@ -77,8 +73,6 @@ impl BlockSlot {
         stream_outputs: Vec<String>,
         message_inputs: &'static [&'static str],
         message_outputs: &'static [&'static str],
-        type_name: &'static str,
-        instance_name: String,
         blocking: bool,
     ) -> Self {
         Self {
@@ -88,8 +82,6 @@ impl BlockSlot {
             stream_outputs,
             message_inputs,
             message_outputs,
-            type_name,
-            instance_name,
             blocking,
         }
     }
@@ -103,8 +95,6 @@ impl BlockSlot {
         stream_outputs: Vec<String>,
         message_inputs: &'static [&'static str],
         message_outputs: &'static [&'static str],
-        type_name: &'static str,
-        instance_name: String,
         blocking: bool,
     ) -> Self {
         Self {
@@ -117,8 +107,6 @@ impl BlockSlot {
             stream_outputs,
             message_inputs,
             message_outputs,
-            type_name,
-            instance_name,
             blocking,
         }
     }
@@ -157,10 +145,6 @@ impl BlockSlot {
 
     fn message_outputs(&self) -> &'static [&'static str] {
         self.message_outputs
-    }
-
-    fn is_normal(&self) -> bool {
-        matches!(self.placement, BlockPlacement::Normal { .. })
     }
 }
 
@@ -438,19 +422,17 @@ impl Flowgraph {
         let inbox = b.inbox();
         let stream_inputs = stream_input_names(&mut b.kernel);
         let stream_outputs = stream_output_names(&mut b.kernel);
-        let type_name = K::type_name();
-        let instance_name = b.meta.instance_name().unwrap_or(type_name).to_string();
-        self.add_normal_block(
-            Box::new(b),
+        let normal_id = self.domains.normal_mut().push_block(Box::new(b));
+        self.blocks.push(BlockSlot::normal(
+            normal_id,
             inbox,
             stream_inputs,
             stream_outputs,
             <K as KernelInterface>::message_inputs(),
             <K as KernelInterface>::message_outputs(),
-            type_name,
-            instance_name,
             K::is_blocking(),
-        )
+        ));
+        self.block_ref(block_id)
     }
 
     fn block_ref<K>(&self, block_id: BlockId) -> BlockRef<K> {
@@ -459,35 +441,6 @@ impl Flowgraph {
             flowgraph_id: self.id,
             _marker: PhantomData,
         }
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn add_normal_block<K>(
-        &mut self,
-        block: Box<dyn Block>,
-        inbox: BlockEndpoint,
-        stream_inputs: Vec<String>,
-        stream_outputs: Vec<String>,
-        message_inputs: &'static [&'static str],
-        message_outputs: &'static [&'static str],
-        type_name: &'static str,
-        instance_name: String,
-        blocking: bool,
-    ) -> BlockRef<K> {
-        let block_id = BlockId(self.blocks.len());
-        let normal_id = self.domains.normal_mut().push_block(block);
-        self.blocks.push(BlockSlot::normal(
-            normal_id,
-            inbox,
-            stream_inputs,
-            stream_outputs,
-            message_inputs,
-            message_outputs,
-            type_name,
-            instance_name,
-            blocking,
-        ));
-        self.block_ref(block_id)
     }
 
     async fn add_kernel_to_domain_async<K>(
@@ -521,7 +474,6 @@ impl Flowgraph {
                 Box::new(block)
             }))
             .await?;
-        let instance_name = format!("{}-{}", K::type_name(), block_id.0);
         self.blocks.push(BlockSlot::local(
             domain_id,
             build_info.local_id,
@@ -530,8 +482,6 @@ impl Flowgraph {
             build_info.stream_outputs,
             K::message_inputs(),
             K::message_outputs(),
-            K::type_name(),
-            instance_name,
             K::is_blocking(),
         ));
         Ok(self.block_ref(block_id))
