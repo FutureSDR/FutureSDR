@@ -18,8 +18,7 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
     scheduler: S,
     main_channel: Sender<FlowgraphMessage>,
     main_rx: Receiver<FlowgraphMessage>,
-    initialized: oneshot::Sender<Result<(), Error>>,
-    registry: oneshot::Sender<Arc<RunningFlowgraphRegistry>>,
+    startup: oneshot::Sender<Result<Arc<RunningFlowgraphRegistry>, Error>>,
     startup_committed: oneshot::Receiver<()>,
 ) -> Result<TerminatedFlowgraph, Error> {
     debug!("in run_flowgraph");
@@ -27,20 +26,20 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
     let prepared = match FlowgraphCompiler::compile(flowgraph, main_channel) {
         Ok(prepared) => prepared,
         Err(e) => {
-            send_initialized_error(initialized, e.clone());
+            send_startup_error(startup, e.clone());
             return Err(e);
         }
     };
     let prepared = match prepared.apply_connections().await {
         Ok(prepared) => prepared,
         Err(e) => {
-            send_initialized_error(initialized, e.clone());
+            send_startup_error(startup, e.clone());
             return Err(e);
         }
     };
 
     let running = match prepared
-        .start_initialized(&scheduler, &main_rx, initialized, registry)
+        .start_initialized(&scheduler, &main_rx, startup)
         .await
     {
         Ok(running) => running,
@@ -60,6 +59,9 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
     Ok(terminated)
 }
 
-fn send_initialized_error(initialized: oneshot::Sender<Result<(), Error>>, error: Error) {
-    let _ = initialized.send(Err(error));
+fn send_startup_error(
+    startup: oneshot::Sender<Result<Arc<RunningFlowgraphRegistry>, Error>>,
+    error: Error,
+) {
+    let _ = startup.send(Err(error));
 }

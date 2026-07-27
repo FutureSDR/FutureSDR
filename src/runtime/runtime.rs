@@ -325,8 +325,8 @@ async fn start_flowgraph<S: Scheduler>(
     let queue_size = config::config().queue_size;
     let (fg_inbox, fg_inbox_rx) = channel::<FlowgraphMessage>(queue_size);
 
-    let (tx, rx) = oneshot::channel::<Result<(), Error>>();
-    let (registry_tx, registry_rx) = oneshot::channel::<Arc<RunningFlowgraphRegistry>>();
+    let (startup_tx, startup_rx) =
+        oneshot::channel::<Result<Arc<RunningFlowgraphRegistry>, Error>>();
     let (commit_tx, commit_rx) = oneshot::channel::<()>();
     let (completion_tx, completion_rx) = oneshot::channel::<Result<TerminatedFlowgraph, Error>>();
     let cleanup_flowgraphs = flowgraphs.clone();
@@ -338,8 +338,7 @@ async fn start_flowgraph<S: Scheduler>(
             scheduler_clone,
             main_channel,
             fg_inbox_rx,
-            tx,
-            registry_tx,
+            startup_tx,
             commit_rx,
         )
         .await;
@@ -353,11 +352,9 @@ async fn start_flowgraph<S: Scheduler>(
     #[cfg(target_arch = "wasm32")]
     wasm_bindgen_futures::spawn_local(supervisor);
 
-    rx.await
+    let registry = startup_rx
+        .await
         .map_err(|_| Error::RuntimeError("run_flowgraph panicked".to_string()))??;
-    let registry = registry_rx.await.map_err(|_| {
-        Error::RuntimeError("run_flowgraph did not publish running flowgraph registry".to_string())
-    })?;
 
     let handle = FlowgraphHandle::new(id, fg_inbox, registry);
     flowgraphs.lock().await.insert(handle.clone());
@@ -534,8 +531,8 @@ mod tests {
         let (fg, init_entered_rx, release_init_tx) = startup_block_flowgraph(counters.clone());
         let queue_size = config::config().queue_size;
         let (fg_inbox, fg_inbox_rx) = channel::<FlowgraphMessage>(queue_size);
-        let (initialized_tx, initialized_rx) = oneshot::channel::<Result<(), Error>>();
-        let (registry_tx, registry_rx) = oneshot::channel::<Arc<RunningFlowgraphRegistry>>();
+        let (startup_tx, startup_rx) =
+            oneshot::channel::<Result<Arc<RunningFlowgraphRegistry>, Error>>();
         let (commit_tx, commit_rx) = oneshot::channel::<()>();
 
         runtime::block_on(async {
@@ -544,15 +541,13 @@ mod tests {
                 scheduler.clone(),
                 fg_inbox,
                 fg_inbox_rx,
-                initialized_tx,
-                registry_tx,
+                startup_tx,
                 commit_rx,
             ));
 
             init_entered_rx.await.unwrap();
             let _ = release_init_tx.send(());
-            initialized_rx.await.unwrap().unwrap();
-            registry_rx.await.unwrap();
+            startup_rx.await.unwrap().unwrap();
 
             drop(commit_tx);
             let result = task.await;

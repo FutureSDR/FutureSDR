@@ -195,8 +195,7 @@ impl PreparedFlowgraph {
         self,
         scheduler: &S,
         main_rx: &'a Receiver<FlowgraphMessage>,
-        initialized: oneshot::Sender<Result<(), Error>>,
-        registry_tx: oneshot::Sender<Arc<RunningFlowgraphRegistry>>,
+        startup: oneshot::Sender<Result<Arc<RunningFlowgraphRegistry>, Error>>,
     ) -> impl Future<Output = Result<RunningFlowgraph, Error>> + 'a {
         let Self {
             flowgraph,
@@ -222,7 +221,7 @@ impl PreparedFlowgraph {
             let normal_domain = match normal_domain {
                 Ok(domain) => domain,
                 Err(e) => {
-                    let _ = initialized.send(Err(e.clone()));
+                    let _ = startup.send(Err(e.clone()));
                     return Err(e);
                 }
             };
@@ -240,7 +239,7 @@ impl PreparedFlowgraph {
                     Ok(domain) => running.local_domains.push(domain),
                     Err(e) => {
                         running.cleanup().await;
-                        let _ = initialized.send(Err(e.clone()));
+                        let _ = startup.send(Err(e.clone()));
                         return Err(e);
                     }
                 }
@@ -250,23 +249,15 @@ impl PreparedFlowgraph {
                 Ok(active_blocks) => active_blocks,
                 Err(e) => {
                     running.cleanup().await;
-                    let _ = initialized.send(Err(e.clone()));
+                    let _ = startup.send(Err(e.clone()));
                     return Err(e);
                 }
             };
 
-            if registry_tx.send(running.registry.clone()).is_err() {
-                running.cleanup().await;
-                let e = Error::RuntimeError(
-                    "main thread dropped running flowgraph registry receiver".to_string(),
-                );
-                let _ = initialized.send(Err(e.clone()));
-                return Err(e);
-            }
-            if initialized.send(Ok(())).is_err() {
+            if startup.send(Ok(running.registry.clone())).is_err() {
                 running.cleanup().await;
                 return Err(Error::RuntimeError(
-                    "main thread panic during flowgraph init".to_string(),
+                    "main thread dropped flowgraph startup receiver".to_string(),
                 ));
             }
 
