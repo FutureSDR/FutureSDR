@@ -20,22 +20,22 @@ struct MessageHandler {
 /// One named message output port and its connected downstream handlers.
 #[derive(Debug)]
 struct MessageOutput {
-    name: String,
+    name: &'static str,
     handlers: Vec<MessageHandler>,
 }
 
 impl MessageOutput {
     /// Create a message output port.
-    fn new(name: &str) -> MessageOutput {
+    fn new(name: &'static str) -> MessageOutput {
         MessageOutput {
-            name: name.to_string(),
+            name,
             handlers: Vec::new(),
         }
     }
 
     /// Get the port name.
     fn name(&self) -> &str {
-        &self.name
+        self.name
     }
 
     /// Install one runtime-resolved downstream message input.
@@ -81,8 +81,8 @@ pub struct MessageOutputs {
 
 impl MessageOutputs {
     /// Create message outputs with the given port names.
-    pub fn new(block_id: BlockId, outputs: Vec<String>) -> Self {
-        let outputs = outputs.iter().map(|x| MessageOutput::new(x)).collect();
+    pub fn new(block_id: BlockId, outputs: &'static [&'static str]) -> Self {
+        let outputs = outputs.iter().copied().map(MessageOutput::new).collect();
         MessageOutputs { block_id, outputs }
     }
     /// Post data to all handlers connected to an output port.
@@ -145,7 +145,7 @@ mod tests {
     fn handler_sends_through_endpoint() {
         let (tx, rx) = channel(1);
         let endpoint = BlockInbox::new(tx, BlockNotifier::new()).into();
-        let mut outputs = MessageOutputs::new(BlockId(0), vec!["out".to_string()]);
+        let mut outputs = MessageOutputs::new(BlockId(0), &["out"]);
 
         outputs
             .connect(&PortId::from("out"), endpoint, &PortId::index(0))
@@ -163,7 +163,7 @@ mod tests {
     fn handler_accepts_indexed_ports() {
         let (tx, rx) = channel(1);
         let endpoint = BlockInbox::new(tx, BlockNotifier::new()).into();
-        let mut outputs = MessageOutputs::new(BlockId(0), vec!["out".to_string()]);
+        let mut outputs = MessageOutputs::new(BlockId(0), &["out"]);
 
         outputs
             .connect(&PortId::index(0), endpoint, &PortId::index(0))
@@ -179,7 +179,7 @@ mod tests {
 
     #[test]
     fn post_invalid_port_reports_block_id() {
-        let mut outputs = MessageOutputs::new(BlockId(7), vec!["out".to_string()]);
+        let mut outputs = MessageOutputs::new(BlockId(7), &["out"]);
         let result = block_on(outputs.post("missing", Pmt::U32(7)));
 
         assert!(matches!(

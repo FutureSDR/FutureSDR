@@ -208,10 +208,7 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> KernelWrapper<K, I> {
     fn with_inbox(kernel: K, id: BlockId, inbox: I) -> Self {
         Self {
             meta: BlockMeta::new(),
-            mo: MessageOutputs::new(
-                id,
-                K::message_outputs().iter().map(|x| x.to_string()).collect(),
-            ),
+            mo: MessageOutputs::new(id, K::message_outputs()),
             kernel,
             id,
             inbox,

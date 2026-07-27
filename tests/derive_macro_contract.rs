@@ -185,7 +185,7 @@ fn derive_exposes_message_metadata_and_dispatches_handlers() {
         call_again: false,
         finished: false,
     };
-    let mut mo = MessageOutputs::new(BlockId(0), vec!["out".to_string(), "done".to_string()]);
+    let mut mo = MessageOutputs::new(BlockId(0), &["out", "done"]);
     let meta = BlockMeta::new();
 
     let ret = futuresdr::runtime::block_on(block.call_handler(
