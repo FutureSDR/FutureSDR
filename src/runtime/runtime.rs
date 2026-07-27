@@ -78,12 +78,6 @@ impl Runtime<DefaultScheduler> {
     }
 }
 
-impl<S> Drop for Runtime<S> {
-    fn drop(&mut self) {
-        debug!("Runtime dropped");
-    }
-}
-
 #[cfg(target_arch = "wasm32")]
 impl Runtime<DefaultScheduler> {
     /// Construct a runtime using the default main-thread WASM scheduler.
@@ -294,10 +288,8 @@ struct FlowgraphRegistry {
 }
 
 impl FlowgraphRegistry {
-    fn insert(&mut self, handle: FlowgraphHandle) -> FlowgraphId {
-        let id = handle.id();
-        self.flowgraphs.insert(id, handle);
-        id
+    fn insert(&mut self, handle: FlowgraphHandle) {
+        self.flowgraphs.insert(handle.id(), handle);
     }
 
     fn remove(&mut self, id: FlowgraphId) {

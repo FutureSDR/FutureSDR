@@ -72,7 +72,6 @@ where
 {
     core: PortCore<I>,
     state: ConnectionState<ConnectedWriter<D, I>>,
-    finished: bool,
     tags: Vec<ItemTag>,
 }
 
@@ -116,7 +115,6 @@ where
         Self {
             core: PortCore::new_unbound(),
             state: ConnectionState::disconnected(),
-            finished: false,
             tags: vec![],
         }
     }
@@ -407,7 +405,6 @@ where
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("circular::Writer")
             .field("output_id", &self.core.port_id_if_bound())
-            .field("finished", &self.finished)
             .finish()
     }
 }
