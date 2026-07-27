@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="/favicon.ico" integrity="sha384-dFl6ag/qXmQ5UAh+4iLD+ODkQW60lrE2V6Ue2SOAPXWQWTpzhlbvj5pxMA3aNUJS"/>
+
+<script type="module">
+import init, * as bindings from '/frontend.js';
+const wasm = await init({ module_or_path: '/frontend_bg.wasm' });
+
+
+window.wasmBindings = bindings;
+
+
+dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
+
+</script>
+    <link rel="stylesheet" href="/style.css" integrity="sha384-jtw7SFIMdClfrxNdBLALyDGj7sTBOS/4XmcMt521JUfpYbeVbOGTcaABgIt9BLyu"/>
+    <title>FutureSDR :: ZigBee RX</title>
+  <link rel="modulepreload" href="/frontend.js" crossorigin="anonymous" integrity="sha384-SPEZyHKPp11GIydqUOCvsvd9EqrXxI8v7Y6dVrnRsivC4xJmvTbF5+aBknlSreEO"><link rel="preload" href="/frontend_bg.wasm" crossorigin="anonymous" integrity="sha384-CFj/g6DFk9Q/mhZCfvzgCw03/Wel8IQFj+Ex1gvLxbk11VPVWPZmGtd4uEBJ9LNX" as="fetch" type="application/wasm"></head>
+  <body class="bg-fs-gray">
+  </body>
+</html>
