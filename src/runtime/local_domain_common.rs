@@ -103,31 +103,28 @@ impl LocalDomainInbox {
     }
 }
 
-pub(crate) trait LocalDomainControllerAccess {
-    fn tx(&self) -> &Sender<LocalDomainMessage>;
-    fn key(&self) -> LocalDomainKey;
-}
-
 pub(crate) struct LocalDomainRuntimeBase<C> {
-    controller: C,
+    _controller: C,
+    inbox: LocalDomainInbox,
 }
 
 impl<C> LocalDomainRuntimeBase<C> {
-    pub(crate) fn from_controller(controller: C) -> Self {
-        Self { controller }
+    pub(crate) fn from_controller(controller: C, inbox: LocalDomainInbox) -> Self {
+        Self {
+            _controller: controller,
+            inbox,
+        }
     }
-}
 
-impl<C: LocalDomainControllerAccess> LocalDomainRuntimeBase<C> {
     pub(crate) fn inbox(&self) -> LocalDomainInbox {
-        LocalDomainInbox::new(self.controller.tx().clone(), self.controller.key())
+        self.inbox.clone()
     }
 
     pub(crate) async fn build(
         &self,
         builder: LocalBlockBuilder,
     ) -> Result<LocalBlockBuildInfo, Error> {
-        build_local_block(self.controller.tx(), builder).await
+        build_local_block(&self.inbox.tx, builder).await
     }
 
     pub(crate) async fn exec<R>(
@@ -141,7 +138,7 @@ impl<C: LocalDomainControllerAccess> LocalDomainRuntimeBase<C> {
     where
         R: Send + 'static,
     {
-        exec_local_domain(self.controller.tx(), f).await
+        exec_local_domain(&self.inbox.tx, f).await
     }
 
     pub(crate) async fn exec_with_scheduler<LS, R>(
@@ -157,7 +154,7 @@ impl<C: LocalDomainControllerAccess> LocalDomainRuntimeBase<C> {
         LS: LocalScheduler,
         R: Send + 'static,
     {
-        exec_with_scheduler::<LS, R>(self.controller.tx(), f).await
+        exec_with_scheduler::<LS, R>(&self.inbox.tx, f).await
     }
 }
 

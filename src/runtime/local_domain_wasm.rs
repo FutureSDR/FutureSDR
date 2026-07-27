@@ -15,7 +15,6 @@ use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::config::config;
 use crate::runtime::init;
 use crate::runtime::local_domain_common::IdleDomainAction;
-use crate::runtime::local_domain_common::LocalDomainControllerAccess;
 pub(crate) use crate::runtime::local_domain_common::LocalDomainInbox;
 use crate::runtime::local_domain_common::LocalDomainMessage;
 use crate::runtime::local_domain_common::LocalDomainRuntimeBase;
@@ -32,13 +31,15 @@ pub(crate) type LocalDomainRuntime = LocalDomainRuntimeBase<LocalDomainControlle
 
 impl LocalDomainRuntime {
     pub(crate) fn new<LS: LocalScheduler>() -> Result<Self, Error> {
-        Ok(Self::from_controller(LocalDomainController::new::<LS>()?))
+        let controller = LocalDomainController::new::<LS>()?;
+        let inbox = LocalDomainInbox::new(controller.tx.clone(), controller.key);
+        Ok(Self::from_controller(controller, inbox))
     }
 
     pub(crate) fn new_main_thread<LS: LocalScheduler>() -> Result<Self, Error> {
-        Ok(Self::from_controller(
-            LocalDomainController::new_main_thread::<LS>()?,
-        ))
+        let controller = LocalDomainController::new_main_thread::<LS>()?;
+        let inbox = LocalDomainInbox::new(controller.tx.clone(), controller.key);
+        Ok(Self::from_controller(controller, inbox))
     }
 }
 
@@ -103,16 +104,6 @@ impl LocalDomainController {
             worker: None,
             domain_id: None,
         })
-    }
-}
-
-impl LocalDomainControllerAccess for LocalDomainController {
-    fn tx(&self) -> &Sender<LocalDomainMessage> {
-        &self.tx
-    }
-
-    fn key(&self) -> LocalDomainKey {
-        self.key
     }
 }
 

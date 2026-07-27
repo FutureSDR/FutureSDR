@@ -8,7 +8,6 @@ use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::channel::oneshot;
 use crate::runtime::config;
 use crate::runtime::local_domain_common::IdleDomainAction;
-use crate::runtime::local_domain_common::LocalDomainControllerAccess;
 pub(crate) use crate::runtime::local_domain_common::LocalDomainInbox;
 use crate::runtime::local_domain_common::LocalDomainMessage;
 use crate::runtime::local_domain_common::LocalDomainRuntimeBase;
@@ -26,9 +25,9 @@ impl LocalDomainRuntime {
     }
 
     pub(crate) fn new_pinned<LS: LocalScheduler>(cpuid: Option<usize>) -> Result<Self, Error> {
-        Ok(Self::from_controller(LocalDomainController::new_pinned::<
-            LS,
-        >(cpuid)?))
+        let controller = LocalDomainController::new_pinned::<LS>(cpuid)?;
+        let inbox = LocalDomainInbox::new(controller.tx.clone(), controller.key);
+        Ok(Self::from_controller(controller, inbox))
     }
 }
 
@@ -70,16 +69,6 @@ impl LocalDomainController {
             terminate_tx: Some(terminate_tx),
             join: Some(join),
         })
-    }
-}
-
-impl LocalDomainControllerAccess for LocalDomainController {
-    fn tx(&self) -> &Sender<LocalDomainMessage> {
-        &self.tx
-    }
-
-    fn key(&self) -> LocalDomainKey {
-        self.key
     }
 }
 
