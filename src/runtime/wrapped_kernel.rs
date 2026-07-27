@@ -206,8 +206,10 @@ impl<K: KernelInterface + 'static> LocalWrappedKernel<K> {
 
 impl<K: KernelInterface + 'static, I: WrappedKernelInbox> KernelWrapper<K, I> {
     fn with_inbox(kernel: K, id: BlockId, inbox: I) -> Self {
+        let mut meta = BlockMeta::new();
+        meta.set_instance_name(format!("{}-{}", K::type_name(), id.0));
         Self {
-            meta: BlockMeta::new(),
+            meta,
             mo: MessageOutputs::new(id, K::message_outputs()),
             kernel,
             id,

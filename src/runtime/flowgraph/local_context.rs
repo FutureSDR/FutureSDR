@@ -184,9 +184,6 @@ impl<'a, LS: LocalScheduler> LocalDomainContext<'a, LS> {
                 );
                 let mut block =
                     LocalWrappedKernel::new_local_with_external(block, block_id, external);
-                block
-                    .meta
-                    .set_instance_name(format!("{}-{}", K::type_name(), block_id.0));
                 let inbox = block.inbox();
                 let stream_inputs = stream_input_names(&mut block.kernel);
                 let stream_outputs = stream_output_names(&mut block.kernel);

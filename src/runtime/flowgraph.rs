@@ -410,9 +410,6 @@ impl Flowgraph {
     {
         let block_id = BlockId(self.blocks.len());
         let mut b = WrappedKernel::new(block, block_id);
-        let block_name = <K as KernelInterface>::type_name();
-        b.meta
-            .set_instance_name(format!("{}-{}", block_name, block_id.0));
         let inbox = b.inbox();
         let stream_inputs = stream_input_names(&mut b.kernel);
         let stream_outputs = stream_output_names(&mut b.kernel);
@@ -459,11 +456,8 @@ impl Flowgraph {
                     domain_inbox,
                     LocalBlockAddr::new(block_id, local_id),
                 );
-                let mut block =
+                let block =
                     LocalWrappedKernel::new_local_with_external(block(), block_id, external);
-                block
-                    .meta
-                    .set_instance_name(format!("{}-{}", K::type_name(), block_id.0));
                 Box::new(block)
             }))
             .await?;
