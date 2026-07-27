@@ -32,19 +32,7 @@ impl seify::DeviceInfo for RxStreamOnly {
     fn info(&self) -> Result<seify::Args, seify::Error> {
         Ok(seify::Args::new())
     }
-}
 
-impl seify::dev::DynDeviceBackend for RxStreamOnly {
-    fn channel_info(&self) -> Option<&dyn seify::ChannelInfo> {
-        Some(self)
-    }
-
-    fn rx_device(&self) -> Option<&dyn seify::dev::DynRxDevice> {
-        Some(self)
-    }
-}
-
-impl seify::ChannelInfo for RxStreamOnly {
     fn num_channels(&self, direction: seify::Direction) -> Result<usize, seify::Error> {
         match direction {
             seify::Direction::Rx => Ok(1),
@@ -52,12 +40,14 @@ impl seify::ChannelInfo for RxStreamOnly {
         }
     }
 
-    fn full_duplex(
-        &self,
-        _direction: seify::Direction,
-        _channel: usize,
-    ) -> Result<bool, seify::Error> {
+    fn full_duplex(&self) -> Result<bool, seify::Error> {
         Ok(false)
+    }
+}
+
+impl seify::dev::DynDeviceBackend for RxStreamOnly {
+    fn rx_device(&self) -> Option<&dyn seify::dev::DynRxDevice> {
+        Some(self)
     }
 }
 

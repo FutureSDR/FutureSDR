@@ -1,5 +1,4 @@
 use seify::Args;
-use seify::ChannelInfo;
 use seify::Device;
 use seify::Direction;
 use seify::DynDevice;
@@ -155,7 +154,7 @@ impl<D> Builder<D> {
     /// Build Typed Seify Source
     pub fn build_source(self) -> Result<Source<D>, Error>
     where
-        D: RxDevice + ChannelInfo,
+        D: RxDevice,
     {
         self.config
             .apply(&self.ctrl, &self.channels, Direction::Rx)?;
@@ -171,7 +170,7 @@ impl<D> Builder<D> {
         self,
     ) -> Result<Source<D, B>, Error>
     where
-        D: RxDevice + ChannelInfo,
+        D: RxDevice,
     {
         self.config
             .apply(&self.ctrl, &self.channels, Direction::Rx)?;
@@ -185,7 +184,7 @@ impl<D> Builder<D> {
     /// Builder Typed Seify Sink
     pub fn build_sink(self) -> Result<Sink<D>, Error>
     where
-        D: TxDevice + ChannelInfo,
+        D: TxDevice,
     {
         self.config
             .apply(&self.ctrl, &self.channels, Direction::Tx)?;
@@ -202,7 +201,7 @@ impl<D> Builder<D> {
         self,
     ) -> Result<Sink<D, B>, Error>
     where
-        D: TxDevice + ChannelInfo,
+        D: TxDevice,
     {
         self.config
             .apply(&self.ctrl, &self.channels, Direction::Tx)?;

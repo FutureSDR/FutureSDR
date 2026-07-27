@@ -1,5 +1,4 @@
 use anyhow::Context;
-use seify::ChannelInfo;
 use seify::Device;
 use seify::Direction::Rx;
 use seify::DynDevice;
@@ -57,7 +56,7 @@ use crate::runtime::dev::prelude::*;
 #[type_name(SeifySource)]
 pub struct Source<D, OUT = DefaultCpuWriter<Complex32>>
 where
-    D: RxDevice + ChannelInfo,
+    D: RxDevice,
     OUT: CpuBufferWriter<Item = Complex32>,
 {
     #[output]
@@ -72,7 +71,7 @@ where
 
 impl<D, OUT> Source<D, OUT>
 where
-    D: RxDevice + ChannelInfo,
+    D: RxDevice,
     OUT: CpuBufferWriter<Item = Complex32>,
 {
     pub(super) fn new(
@@ -231,7 +230,7 @@ where
 #[doc(hidden)]
 impl<D, OUT> Kernel for Source<D, OUT>
 where
-    D: RxDevice + ChannelInfo,
+    D: RxDevice,
     OUT: CpuBufferWriter<Item = Complex32>,
 {
     async fn work(

@@ -1,4 +1,3 @@
-use seify::ChannelInfo;
 use seify::Device;
 use seify::Direction::Tx;
 use seify::DynDevice;
@@ -54,7 +53,7 @@ use crate::runtime::dev::prelude::*;
 #[type_name(SeifySink)]
 pub struct Sink<D, IN = DefaultCpuReader<Complex32>>
 where
-    D: TxDevice + ChannelInfo,
+    D: TxDevice,
     IN: CpuBufferReader<Item = Complex32>,
 {
     #[input]
@@ -69,7 +68,7 @@ where
 
 impl<D, IN> Sink<D, IN>
 where
-    D: TxDevice + ChannelInfo,
+    D: TxDevice,
     IN: CpuBufferReader<Item = Complex32>,
 {
     pub(super) fn new(
@@ -202,7 +201,7 @@ where
 #[doc(hidden)]
 impl<D, IN> Kernel for Sink<D, IN>
 where
-    D: TxDevice + ChannelInfo,
+    D: TxDevice,
     IN: CpuBufferReader<Item = Complex32>,
 {
     async fn work(
