@@ -315,7 +315,7 @@ mod tests {
 
 /// Binding state shared by all stream ports.
 #[derive(Debug, Clone)]
-pub enum PortBinding<I: BufferInbox = BlockInbox> {
+enum PortBinding<I: BufferInbox = BlockInbox> {
     /// Port is only constructed and not yet attached to a concrete block/port id.
     Unbound,
     /// Port is attached to a concrete block/port id inside a flowgraph.
@@ -364,24 +364,11 @@ impl<I: BufferInbox> PortCore<I> {
         matches!(self.binding, PortBinding::Bound { .. })
     }
 
-    /// The current binding state.
-    pub fn binding(&self) -> &PortBinding<I> {
-        &self.binding
-    }
-
     /// Get the bound block id.
     pub fn block_id(&self) -> BlockId {
         match &self.binding {
             PortBinding::Bound { block_id, .. } => *block_id,
             PortBinding::Unbound => panic!("port is not bound to a flowgraph"),
-        }
-    }
-
-    /// Get the bound block id if available.
-    pub fn block_id_if_bound(&self) -> Option<BlockId> {
-        match &self.binding {
-            PortBinding::Bound { block_id, .. } => Some(*block_id),
-            PortBinding::Unbound => None,
         }
     }
 
