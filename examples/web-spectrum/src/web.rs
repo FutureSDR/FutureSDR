@@ -385,7 +385,7 @@ pub fn Gui() -> impl IntoView {
                                             )
                                             .await
                                             {
-                                                let _ = set_start_error.try_set(Some(format!("failed to start flowgraph: {e}")));
+                                                let _ = set_start_error.try_set(Some(format!("flowgraph failed: {e}")));
                                             }
                                         }
                                     });
@@ -508,7 +508,9 @@ async fn run(
     let running = rt.start_async(fg).await?;
     let _ = set_handle.try_set(Some(running.handle()));
 
-    let _ = running.wait_async().await;
+    let result = running.wait_async().await;
+    let _ = set_handle.try_set(None);
 
+    result?;
     Ok(())
 }
