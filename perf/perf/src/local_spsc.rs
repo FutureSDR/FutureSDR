@@ -262,14 +262,6 @@ where
         self.discarded_tags.clear();
         self.reader_notifier.notify();
     }
-
-    fn max_items(&self) -> usize {
-        self.inner_owner
-            .as_ref()
-            .map(|inner| inner.capacity)
-            .or(self.core.min_buffer_size_in_items())
-            .unwrap_or(usize::MAX)
-    }
 }
 
 pub struct Reader<T>
@@ -429,12 +421,11 @@ where
         self.writer_notifier.notify();
     }
 
-    fn max_items(&self) -> usize {
+    fn max_contiguous_items(&self) -> Option<usize> {
         self.inner_owner
             .as_ref()
             .map(|inner| inner.capacity)
             .or(self.core.min_buffer_size_in_items())
-            .unwrap_or(usize::MAX)
     }
 }
 

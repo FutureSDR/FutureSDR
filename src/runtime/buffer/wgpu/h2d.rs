@@ -395,11 +395,6 @@ where
             self.state.connected().reader.inbox().notify();
         }
     }
-
-    fn max_items(&self) -> usize {
-        warn!("max_items not yet implemented for wgpu buffers");
-        usize::MAX
-    }
 }
 
 /// WGPU host-to-device reader that exposes full staging buffers.

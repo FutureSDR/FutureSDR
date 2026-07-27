@@ -79,8 +79,8 @@ impl<T: CpuSample> CpuBufferReader for CustomReader<T> {
         self.data.drain(..n);
     }
 
-    fn max_items(&self) -> usize {
-        self.core.min_buffer_size_in_items().unwrap_or(usize::MAX)
+    fn max_contiguous_items(&self) -> Option<usize> {
+        self.core.min_buffer_size_in_items()
     }
 }
 
@@ -146,10 +146,6 @@ impl<T: CpuSample> CpuBufferWriter for CustomWriter<T> {
     }
 
     fn produce(&mut self, _n: usize) {}
-
-    fn max_items(&self) -> usize {
-        self.core.min_buffer_size_in_items().unwrap_or(usize::MAX)
-    }
 }
 
 #[test]

@@ -64,7 +64,6 @@ pub struct Wgpu {
     output_buffers: Vec<Buffer>,
     storage_buffer: Buffer,
     n_input_buffers: usize,
-    n_output_buffers: usize,
 }
 
 impl Wgpu {
@@ -87,6 +86,7 @@ impl Wgpu {
         input.set_instance(instance.clone());
         let mut output = D2HWriter::new();
         output.set_instance(instance.clone());
+        output.inject_buffers_with_items(n_output_buffers, buffer_items as usize);
 
         Self {
             input,
@@ -97,7 +97,6 @@ impl Wgpu {
             output_buffers: Vec::new(),
             storage_buffer,
             n_input_buffers,
-            n_output_buffers,
         }
     }
 }
@@ -105,16 +104,6 @@ impl Wgpu {
 #[doc(hidden)]
 impl Kernel for Wgpu {
     async fn init(&mut self, _mo: &mut MessageOutputs, _b: &BlockMeta) -> Result<()> {
-        for _ in 0..self.n_output_buffers {
-            let output_buffer = self.instance.device.create_buffer(&BufferDescriptor {
-                label: None,
-                size: self.buffer_items * 4,
-                usage: BufferUsages::MAP_READ | BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            });
-            self.output_buffers.push(output_buffer);
-        }
-
         for _ in 0..self.n_input_buffers {
             let input_buffer = self.instance.device.create_buffer(&BufferDescriptor {
                 label: Some("wgpu_h2d_input_staging"),

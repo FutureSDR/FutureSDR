@@ -378,10 +378,6 @@ where
         let s = self.state.connected_mut().writer.slice(false);
         (s, Tags::new(&mut self.tags, 0))
     }
-
-    fn max_items(&self) -> usize {
-        self.core.min_buffer_size_in_items().unwrap_or(usize::MAX)
-    }
 }
 
 impl<D, I> fmt::Debug for Writer<D, I>
@@ -505,8 +501,8 @@ where
         self.state.connected_mut().reader.consume(amount);
     }
 
-    fn max_items(&self) -> usize {
-        self.core.min_buffer_size_in_items().unwrap_or(usize::MAX)
+    fn max_contiguous_items(&self) -> Option<usize> {
+        self.core.min_buffer_size_in_items()
     }
 }
 

@@ -257,10 +257,6 @@ where
         self.tags.clear();
         self.state.connected_mut().writer.produce(items, &[]);
     }
-
-    fn max_items(&self) -> usize {
-        self.core.min_buffer_size_in_items().unwrap_or(usize::MAX)
-    }
 }
 
 /// Same-thread circular CPU reader for [`Writer`].
@@ -409,8 +405,8 @@ where
         self.state.connected_mut().reader.consume(amount);
     }
 
-    fn max_items(&self) -> usize {
-        self.core.min_buffer_size_in_items().unwrap_or(usize::MAX)
+    fn max_contiguous_items(&self) -> Option<usize> {
+        self.core.min_buffer_size_in_items()
     }
 }
 

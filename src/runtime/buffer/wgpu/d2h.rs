@@ -42,6 +42,7 @@ pub struct Writer<D: CpuSample> {
     instance: Option<super::Instance>,
     core: PortCore,
     state: ConnectionState<ConnectedWriter>,
+    max_contiguous_items: Option<usize>,
 }
 
 #[derive(Debug)]
@@ -85,6 +86,7 @@ where
             instance: None,
             core: PortCore::new_unbound(),
             state: ConnectionState::disconnected(),
+            max_contiguous_items: None,
         }
     }
 
@@ -119,6 +121,12 @@ where
                 }),
                 _p: PhantomData,
             });
+        }
+        if n_buffers > 0 {
+            self.max_contiguous_items = Some(
+                self.max_contiguous_items
+                    .map_or(n_items, |current| current.min(n_items)),
+            );
         }
     }
 
@@ -183,6 +191,7 @@ where
 
         dest.state.set_connected(ConnectedReader {
             writer: PortEndpoint::new(self.core.inbox().clone(), self.core.port_id()),
+            max_contiguous_items: self.max_contiguous_items,
         });
     }
 
@@ -230,6 +239,7 @@ where
             instance: self.instance.clone(),
             connected: ConnectedReader {
                 writer: PortEndpoint::new(self.core.inbox().clone(), self.core.port_id()),
+                max_contiguous_items: self.max_contiguous_items,
             },
         }
     }
@@ -260,6 +270,7 @@ where
 #[derive(Debug)]
 struct ConnectedReader {
     writer: PortEndpoint,
+    max_contiguous_items: Option<usize>,
 }
 
 impl<D> Reader<D>
@@ -409,9 +420,8 @@ where
         }
     }
 
-    fn max_items(&self) -> usize {
-        warn!("max_items not yet implemented for wgpu buffers");
-        usize::MAX
+    fn max_contiguous_items(&self) -> Option<usize> {
+        self.state.connected().max_contiguous_items
     }
 }
 

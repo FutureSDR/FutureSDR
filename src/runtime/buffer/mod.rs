@@ -101,7 +101,7 @@ impl BufferRequirements {
         self.min_items
     }
 
-    /// Minimum buffer capacity requested by the port, in items.
+    /// Minimum contiguous capacity requested for each buffer page, in items.
     pub const fn min_buffer_size_in_items(&self) -> Option<usize> {
         self.min_buffer_size_in_items
     }
@@ -116,12 +116,12 @@ impl BufferRequirements {
         self.min_items = Some(self.min_items.unwrap_or(0).max(min_items));
     }
 
-    /// Configure the minimum buffer size in items.
+    /// Configure the minimum contiguous size of each buffer page, in items.
     pub fn set_min_buffer_size_in_items(&mut self, min_items: usize) {
         self.min_buffer_size_in_items = Some(min_items);
     }
 
-    /// Raise the minimum buffer capacity requirement to at least `min_items`.
+    /// Raise the minimum per-page capacity requirement to at least `min_items`.
     pub fn raise_min_buffer_size_in_items(&mut self, min_items: usize) {
         self.min_buffer_size_in_items =
             Some(self.min_buffer_size_in_items.unwrap_or(0).max(min_items));
@@ -429,7 +429,7 @@ impl<I: BufferInbox> PortCore<I> {
         self.requirements.raise_min_items(min_items);
     }
 
-    /// Minimum configured buffer size in items.
+    /// Minimum configured contiguous buffer-page size in items.
     pub fn min_buffer_size_in_items(&self) -> Option<usize> {
         self.requirements.min_buffer_size_in_items()
     }
@@ -453,12 +453,12 @@ impl<I: BufferInbox> PortCore<I> {
         self.requirements.merge(requirements);
     }
 
-    /// Configure the minimum buffer size in items.
+    /// Configure the minimum contiguous size of each buffer page, in items.
     pub fn set_min_buffer_size_in_items(&mut self, min_items: usize) {
         self.requirements.set_min_buffer_size_in_items(min_items);
     }
 
-    /// Raise the minimum buffer size in items.
+    /// Raise the minimum contiguous size of each buffer page, in items.
     pub fn raise_min_buffer_size_in_items(&mut self, min_items: usize) {
         self.requirements.raise_min_buffer_size_in_items(min_items);
     }
@@ -662,7 +662,7 @@ pub trait BufferReader: Any {
     fn set_min_items(&mut self, n: usize) {
         self.raise_buffer_requirements(BufferRequirements::with_min_items(n));
     }
-    /// Require the connected stream buffer to hold at least `n` items.
+    /// Require each connected buffer page to hold at least `n` contiguous items.
     fn set_min_buffer_size_in_items(&mut self, n: usize) {
         let mut requirements = BufferRequirements::new();
         requirements.set_min_buffer_size_in_items(n);
@@ -898,7 +898,7 @@ pub trait BufferWriter: Any {
     fn set_min_items(&mut self, n: usize) {
         self.raise_buffer_requirements(BufferRequirements::with_min_items(n));
     }
-    /// Require the connected stream buffer to hold at least `n` items.
+    /// Require each connected buffer page to hold at least `n` contiguous items.
     fn set_min_buffer_size_in_items(&mut self, n: usize) {
         let mut requirements = BufferRequirements::new();
         requirements.set_min_buffer_size_in_items(n);
@@ -974,8 +974,12 @@ pub trait CpuBufferReader: BufferReader + Default {
     /// `n` must not exceed the length of the last readable slice the block
     /// decided to consume.
     fn consume(&mut self, n: usize);
-    /// Return the maximum number of items that fit in the buffer.
-    fn max_items(&self) -> usize;
+    /// Return the maximum number of items that can be presented contiguously.
+    ///
+    /// For page-based buffers, this is the capacity of one page, not the
+    /// aggregate capacity of all pages on the edge. Returns `None` when the
+    /// capacity is not known before block execution starts.
+    fn max_contiguous_items(&self) -> Option<usize>;
 }
 
 /// CPU stream writer API.
@@ -996,8 +1000,6 @@ pub trait CpuBufferWriter: BufferWriter + Default {
     /// `n` must not exceed the number of items written into the last writable
     /// slice.
     fn produce(&mut self, n: usize);
-    /// Maximum writable items.
-    fn max_items(&self) -> usize;
 }
 
 /// Owned buffer chunk passed through an in-place stream circuit.

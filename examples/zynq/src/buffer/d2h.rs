@@ -20,7 +20,6 @@ use futuresdr::runtime::buffer::PortCore;
 use futuresdr::runtime::buffer::PortEndpoint;
 use futuresdr::runtime::buffer::ThreadSafeConnect;
 use futuresdr::runtime::dev::ItemTag;
-use futuresdr::tracing::warn;
 
 #[derive(Debug)]
 struct CurrentBuffer {
@@ -341,8 +340,7 @@ where
         }
     }
 
-    fn max_items(&self) -> usize {
-        warn!("max_items not yet implemented for Zynq buffers");
-        usize::MAX
+    fn max_contiguous_items(&self) -> Option<usize> {
+        None
     }
 }

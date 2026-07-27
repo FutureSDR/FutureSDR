@@ -321,19 +321,20 @@ where
             || dest.core.min_buffer_size_in_items().is_some();
         let reserved_items = dest.core.min_items().unwrap_or(0);
 
-        let mut min_items = if buffer_size_configured {
+        let mut page_items = if buffer_size_configured {
             let min_self = self.core.min_buffer_size_in_items().unwrap_or(0);
             let min_reader = dest.core.min_buffer_size_in_items().unwrap_or(0);
-            // `reserved_items` are look-ahead items kept before the readable
-            // slice so readers with `set_min_items` can span chunk boundaries.
-            // Configured buffer sizes describe usable items, so allocate the
-            // requested usable size in addition to the reserved prefix.
-            reserved_items + std::cmp::max(min_self, min_reader)
+            std::cmp::max(min_self, min_reader)
         } else {
             config::config().buffer_size / D::SIZE.get()
         };
 
-        min_items = std::cmp::max(min_items, reserved_items + 1);
+        page_items = page_items
+            .max(self.core.min_items().unwrap_or(1))
+            .max(dest.core.min_items().unwrap_or(1));
+        // The reader uses a prefix to preserve look-ahead across page
+        // boundaries. It is storage overhead in addition to the usable page.
+        let allocation_items = reserved_items + page_items;
         let min_buffers = self.min_buffers.max(dest.min_buffers);
 
         let state = S::new(State {
@@ -343,15 +344,13 @@ where
         state.with_mut(|state| {
             for _ in 0..min_buffers {
                 state.writer_input.push_back(BufferEmpty {
-                    buffer: vec![D::default(); min_items].into_boxed_slice(),
+                    buffer: vec![D::default(); allocation_items].into_boxed_slice(),
                 });
             }
         });
 
-        self.core
-            .set_min_buffer_size_in_items(min_items - reserved_items);
-        dest.core
-            .set_min_buffer_size_in_items(min_items - reserved_items);
+        self.core.set_min_buffer_size_in_items(page_items);
+        dest.core.set_min_buffer_size_in_items(page_items);
         self.min_buffers = min_buffers;
         dest.min_buffers = min_buffers;
 
@@ -429,16 +428,18 @@ where
             || token.reader_min_buffer_size.is_some();
         let reserved_items = token.reader_min_items.unwrap_or(0);
 
-        let mut min_items = if buffer_size_configured {
+        let mut page_items = if buffer_size_configured {
             let min_self = self.core.min_buffer_size_in_items().unwrap_or(0);
             let min_reader = token.reader_min_buffer_size.unwrap_or(0);
-            reserved_items + std::cmp::max(min_self, min_reader)
+            std::cmp::max(min_self, min_reader)
         } else {
             config::config().buffer_size / D::SIZE.get()
         };
 
-        min_items = std::cmp::max(min_items, reserved_items + 1);
-        let min_buffer_size = min_items - reserved_items;
+        page_items = page_items
+            .max(self.core.min_items().unwrap_or(1))
+            .max(token.reader_min_items.unwrap_or(1));
+        let allocation_items = reserved_items + page_items;
         let min_buffers = self.min_buffers.max(token.reader_min_buffers);
 
         let state = S::new(State {
@@ -448,12 +449,12 @@ where
         state.with_mut(|state| {
             for _ in 0..min_buffers {
                 state.writer_input.push_back(BufferEmpty {
-                    buffer: vec![D::default(); min_items].into_boxed_slice(),
+                    buffer: vec![D::default(); allocation_items].into_boxed_slice(),
                 });
             }
         });
 
-        self.core.set_min_buffer_size_in_items(min_buffer_size);
+        self.core.set_min_buffer_size_in_items(page_items);
         self.min_buffers = min_buffers;
         self.state.set_connected(ConnectedWriter {
             state: state.clone(),
@@ -469,7 +470,7 @@ where
                 writer: PortEndpoint::new(self.core.inbox().clone(), self.core.port_id()),
                 _marker: PhantomData,
             },
-            min_buffer_size,
+            min_buffer_size: page_items,
             min_buffers,
         }
     }
@@ -546,10 +547,6 @@ where
                 self.core.inbox().notify();
             }
         }
-    }
-
-    fn max_items(&self) -> usize {
-        self.core.min_buffer_size_in_items().unwrap_or(usize::MAX)
     }
 }
 
@@ -801,8 +798,8 @@ where
         }
     }
 
-    fn max_items(&self) -> usize {
-        self.core.min_buffer_size_in_items().unwrap_or(usize::MAX)
+    fn max_contiguous_items(&self) -> Option<usize> {
+        self.core.min_buffer_size_in_items()
     }
 }
 
@@ -891,6 +888,22 @@ mod tests {
         assert!(CpuBufferWriter::slice(&mut writer).is_empty());
 
         Ok(())
+    }
+
+    #[test]
+    fn local_cpu_buffer_applies_item_requirements_per_page() {
+        let mut writer = local::Writer::<u8>::default();
+        let mut reader = local::Reader::<u8>::default();
+
+        BufferWriter::init(&mut writer, BlockId(0), PortIndex::new(0), local_inbox());
+        BufferReader::init(&mut reader, BlockId(1), PortIndex::new(0), local_inbox());
+
+        BufferWriter::set_min_buffer_size_in_items(&mut writer, 4);
+        BufferReader::set_min_items(&mut reader, 8);
+        BufferWriter::connect(&mut writer, &mut reader);
+
+        assert_eq!(CpuBufferWriter::slice(&mut writer).len(), 8);
+        assert_eq!(reader.max_contiguous_items(), Some(8));
     }
 
     #[test]

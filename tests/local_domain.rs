@@ -117,8 +117,8 @@ impl CpuBufferReader for NonSendReader {
         self.inner.consume(n);
     }
 
-    fn max_items(&self) -> usize {
-        self.inner.max_items()
+    fn max_contiguous_items(&self) -> Option<usize> {
+        self.inner.max_contiguous_items()
     }
 }
 
@@ -217,10 +217,6 @@ impl CpuBufferWriter for NonSendWriter {
 
     fn produce(&mut self, n: usize) {
         self.inner.produce(n);
-    }
-
-    fn max_items(&self) -> usize {
-        self.inner.max_items()
     }
 }
 

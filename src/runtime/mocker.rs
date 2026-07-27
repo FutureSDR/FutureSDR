@@ -305,8 +305,8 @@ where
         }
     }
 
-    fn max_items(&self) -> usize {
-        self.data.len()
+    fn max_contiguous_items(&self) -> Option<usize> {
+        Some(self.data.len())
     }
 }
 
@@ -415,9 +415,5 @@ where
             "mocker writer produced more items than reserved"
         );
         self.produced += n;
-    }
-
-    fn max_items(&self) -> usize {
-        self.data.len() - self.produced
     }
 }

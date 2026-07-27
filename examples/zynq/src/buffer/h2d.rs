@@ -22,7 +22,6 @@ use futuresdr::runtime::buffer::Tags;
 use futuresdr::runtime::buffer::ThreadSafeConnect;
 use futuresdr::runtime::dev::ItemTag;
 use futuresdr::tracing::debug;
-use futuresdr::tracing::warn;
 
 #[derive(Debug)]
 struct CurrentBuffer {
@@ -248,11 +247,6 @@ where
 
             self.state.connected().reader.inbox().notify();
         }
-    }
-
-    fn max_items(&self) -> usize {
-        warn!("max_items not yet implemented for Zynq buffers");
-        usize::MAX
     }
 }
 

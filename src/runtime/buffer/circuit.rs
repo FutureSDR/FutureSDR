@@ -26,7 +26,6 @@ use crate::runtime::buffer::PortCore;
 use crate::runtime::buffer::PortEndpoint;
 use crate::runtime::buffer::Tags;
 use crate::runtime::buffer::ThreadSafeConnect;
-use crate::runtime::config::config;
 use crate::runtime::dev::ItemTag;
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -231,7 +230,7 @@ where
     core: PortCore<I>,
     state: ConnectionState<ConnectedWriter<T, I>>,
     inbound: EmptyBuffers<T, I>,
-    buffer_size_in_items: usize,
+    max_contiguous_items: Option<usize>,
     current: Option<Buffer<T, I>>,
     tags: Vec<ItemTag>,
 }
@@ -275,7 +274,7 @@ where
             core: PortCore::with_requirements(BufferRequirements::with_min_items(1)),
             state: ConnectionState::disconnected(),
             inbound: Arc::new(queue_new()),
-            buffer_size_in_items: config().buffer_size / T::SIZE.get(),
+            max_contiguous_items: None,
             current: None,
             tags: Vec::new(),
         }
@@ -331,6 +330,7 @@ where
         dest.state.set_connected(ConnectedReader {
             writer: PortEndpoint::new(self.core.inbox().clone(), self.core.port_id()),
             inbound,
+            max_contiguous_items: self.max_contiguous_items,
         });
     }
 
@@ -380,6 +380,7 @@ where
             connected: ConnectedReader {
                 writer: PortEndpoint::new(self.core.inbox().clone(), self.core.port_id()),
                 inbound,
+                max_contiguous_items: self.max_contiguous_items,
             },
         }
     }
@@ -422,7 +423,12 @@ where
     }
 
     fn inject_buffers_with_items(&mut self, n_buffers: usize, n_items: usize) {
-        self.buffer_size_in_items = n_items;
+        if n_buffers > 0 {
+            self.max_contiguous_items = Some(
+                self.max_contiguous_items
+                    .map_or(n_items, |current| current.min(n_items)),
+            );
+        }
         for _ in 0..n_buffers {
             queue_push(&self.inbound, Buffer::with_items(n_items));
         }
@@ -482,11 +488,6 @@ where
             }
         }
     }
-
-    fn max_items(&self) -> usize {
-        warn!("max_items not implemented for circuit writer");
-        1
-    }
 }
 
 /// Circuit Reader
@@ -508,6 +509,7 @@ where
 {
     writer: PortEndpoint<I>,
     inbound: FullBuffers<T, I>,
+    max_contiguous_items: Option<usize>,
 }
 
 impl<T, I> Reader<T, I>
@@ -646,8 +648,7 @@ where
         }
     }
 
-    fn max_items(&self) -> usize {
-        warn!("max_items not implemented for circuit reader");
-        1
+    fn max_contiguous_items(&self) -> Option<usize> {
+        self.state.connected().max_contiguous_items
     }
 }

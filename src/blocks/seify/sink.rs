@@ -63,7 +63,7 @@ where
     ctrl: DynDevice,
     streamer: Option<D::TxStreamer>,
     start_time: Option<i64>,
-    max_input_buffer_size_in_samples: usize,
+    max_input_buffer_size_in_samples: Option<usize>,
 }
 
 impl<D, IN> Sink<D, IN>
@@ -96,7 +96,7 @@ where
             ctrl,
             start_time,
             streamer: None,
-            max_input_buffer_size_in_samples: 0,
+            max_input_buffer_size_in_samples: None,
         }
     }
 
@@ -239,11 +239,19 @@ where
                     let ret = streamer.write(&bufs, None, true, 2_000_000)?;
                     debug_assert_eq!(ret, len);
                     ret
-                } else if len > self.max_input_buffer_size_in_samples {
-                    warn!(
-                        "input buffers of seify sink too small ({} samples) to fit complete burst ({len} samples). sending in non-burst mode",
-                        self.max_input_buffer_size_in_samples
-                    );
+                } else if self
+                    .max_input_buffer_size_in_samples
+                    .is_none_or(|max_items| len > max_items)
+                {
+                    if let Some(max_items) = self.max_input_buffer_size_in_samples {
+                        warn!(
+                            "input buffers of seify sink too small ({max_items} samples) to fit complete burst ({len} samples). sending in non-burst mode"
+                        );
+                    } else {
+                        warn!(
+                            "input buffer capacity of seify sink is unknown; cannot wait for complete burst ({len} samples). sending in non-burst mode"
+                        );
+                    }
                     let bufs: Vec<&[Complex32]> = bufs.iter().map(|b| &b[0..n]).collect();
                     let ret = streamer.write(&bufs, None, true, 2_000_000)?;
                     debug_assert_eq!(ret, n);
@@ -289,12 +297,12 @@ where
     }
 
     async fn init(&mut self, _mo: &mut MessageOutputs, _meta: &BlockMeta) -> Result<()> {
-        self.max_input_buffer_size_in_samples = self
-            .inputs
-            .iter_mut()
-            .map(|i| i.max_items())
-            .min()
-            .unwrap_or(0);
+        self.max_input_buffer_size_in_samples =
+            self.inputs.iter().try_fold(usize::MAX, |max_items, input| {
+                input
+                    .max_contiguous_items()
+                    .map(|items| max_items.min(items))
+            });
         self.streamer = Some(self.dev.tx_streamer(&self.channels)?);
         self.streamer
             .as_mut()

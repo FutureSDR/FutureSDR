@@ -360,6 +360,7 @@ where
         dest.state.set_connected(ConnectedReader {
             writer: PortEndpoint::new(self.core.inbox().clone(), self.core.port_id()),
             inbound,
+            max_contiguous_items: self.buffer_size_in_items * size_of::<E::Elem>() / SR::SIZE.get(),
         });
     }
 
@@ -409,6 +410,8 @@ where
             connected: ConnectedReader {
                 writer: PortEndpoint::new(self.core.inbox().clone(), self.core.port_id()),
                 inbound,
+                max_contiguous_items: self.buffer_size_in_items * size_of::<E::Elem>()
+                    / SR::SIZE.get(),
             },
         }
     }
@@ -514,11 +517,6 @@ where
             }
         }
     }
-
-    fn max_items(&self) -> usize {
-        warn!("max_items not implemented for burn writer");
-        1
-    }
 }
 
 /// Burn Reader
@@ -542,6 +540,7 @@ where
 {
     writer: PortEndpoint,
     inbound: FullBuffers<B, E, SR>,
+    max_contiguous_items: usize,
 }
 
 impl<B, E, SR> Reader<B, E, SR>
@@ -692,8 +691,7 @@ where
         }
     }
 
-    fn max_items(&self) -> usize {
-        warn!("max_items not implemented for burn reader");
-        1
+    fn max_contiguous_items(&self) -> Option<usize> {
+        Some(self.state.connected().max_contiguous_items)
     }
 }

@@ -473,10 +473,6 @@ impl<D: CpuSample + Pod> CpuBufferWriter for H2DWriter<D> {
             self.state.connected().reader.inbox().notify();
         }
     }
-
-    fn max_items(&self) -> usize {
-        usize::MAX
-    }
 }
 
 pub struct H2DReader<D: CpuSample> {
@@ -660,6 +656,7 @@ pub struct D2HWriter<D: CpuSample> {
     context: Option<CubeWgpuContext>,
     core: PortCore,
     state: ConnectionState<ConnectedWriter>,
+    max_contiguous_items: Option<usize>,
 }
 
 pub struct D2HThreadSafeConnectToken<D: CpuSample> {
@@ -672,6 +669,7 @@ pub struct D2HThreadSafeReturnToken<D: CpuSample> {
     outbound: Arc<Mutex<VecDeque<OutputBufferFull<D>>>>,
     context: Option<CubeWgpuContext>,
     connected: ConnectedReader,
+    max_contiguous_items: Option<usize>,
 }
 
 impl<D: CpuSample> D2HWriter<D> {
@@ -682,6 +680,7 @@ impl<D: CpuSample> D2HWriter<D> {
             context: None,
             core: PortCore::new_unbound(),
             state: ConnectionState::disconnected(),
+            max_contiguous_items: None,
         }
     }
 
@@ -706,6 +705,12 @@ impl<D: CpuSample> D2HWriter<D> {
                 capacity: n_items,
                 _p: PhantomData,
             });
+        }
+        if n_buffers > 0 {
+            self.max_contiguous_items = Some(
+                self.max_contiguous_items
+                    .map_or(n_items, |current| current.min(n_items)),
+            );
         }
     }
 
@@ -758,6 +763,7 @@ impl<D: CpuSample> BufferWriter for D2HWriter<D> {
         dest.inbound = self.outbound.clone();
         dest.outbound = self.inbound.clone();
         dest.context = self.context.clone();
+        dest.max_contiguous_items = self.max_contiguous_items;
         self.state.set_connected(ConnectedWriter {
             reader: PortEndpoint::new(dest.core.inbox().clone(), dest.core.port_id()),
         });
@@ -802,6 +808,7 @@ impl<D: CpuSample> ThreadSafeConnect for D2HWriter<D> {
             connected: ConnectedReader {
                 writer: PortEndpoint::new(self.core.inbox().clone(), self.core.port_id()),
             },
+            max_contiguous_items: self.max_contiguous_items,
         }
     }
 
@@ -809,6 +816,7 @@ impl<D: CpuSample> ThreadSafeConnect for D2HWriter<D> {
         reader.inbound = token.outbound;
         reader.outbound = token.inbound;
         reader.context = token.context;
+        reader.max_contiguous_items = token.max_contiguous_items;
         reader.state.set_connected(token.connected);
     }
 }
@@ -827,6 +835,7 @@ pub struct D2HReader<D: CpuSample> {
     core: PortCore,
     state: ConnectionState<ConnectedReader>,
     finished: bool,
+    max_contiguous_items: Option<usize>,
 }
 
 impl<D: CpuSample> D2HReader<D> {
@@ -839,6 +848,7 @@ impl<D: CpuSample> D2HReader<D> {
             core: PortCore::new_unbound(),
             state: ConnectionState::disconnected(),
             finished: false,
+            max_contiguous_items: None,
         }
     }
 
@@ -954,8 +964,8 @@ impl<D: CpuSample + Pod> CpuBufferReader for D2HReader<D> {
         }
     }
 
-    fn max_items(&self) -> usize {
-        usize::MAX
+    fn max_contiguous_items(&self) -> Option<usize> {
+        self.max_contiguous_items
     }
 }
 
