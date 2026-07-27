@@ -19,7 +19,6 @@ use crate::runtime::BlockMessage;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::block::LocalBlock;
-use crate::runtime::block_inbox::BlockEndpoint;
 use crate::runtime::block_inbox::BlockInboxReader;
 use crate::runtime::block_inbox::LocalBlockInbox;
 use crate::runtime::block_inbox::LocalDomainKey;
@@ -99,8 +98,7 @@ pub enum LocalDomainControl {
 #[derive(Clone)]
 pub struct LocalBlockStop {
     block_id: BlockId,
-    local_inbox: Option<LocalBlockInbox>,
-    external_inbox: Option<BlockEndpoint>,
+    inbox: LocalBlockInbox,
 }
 
 impl LocalBlockStop {
@@ -111,13 +109,7 @@ impl LocalBlockStop {
 
     /// Request this block to terminate.
     pub async fn stop(&self) -> Result<(), Error> {
-        if let Some(inbox) = &self.local_inbox {
-            inbox.send(BlockMessage::Terminate).await
-        } else if let Some(inbox) = &self.external_inbox {
-            inbox.send(BlockMessage::Terminate).await
-        } else {
-            Err(Error::InvalidBlock(self.block_id))
-        }
+        self.inbox.send(BlockMessage::Terminate).await
     }
 }
 
@@ -217,19 +209,18 @@ impl<'a, Shutdown> LocalDomainRunSpec<'a, Shutdown> {
             .iter()
             .find_map(|(id, local_id)| (*id == block_id).then_some(*local_id))
             .ok_or(Error::InvalidBlock(block_id))?;
-        let local_inbox = self.state.inbox(local_id);
+        let local_inbox = self
+            .state
+            .inbox(local_id)
+            .ok_or(Error::InvalidBlock(block_id))?;
         let block = self.state.take_block(local_id, block_id)?;
-        if let (Some(external_inbox), Some(local_inbox)) = (
-            self.state.take_external_inbox(local_id),
-            local_inbox.clone(),
-        ) {
-            self.external_inboxes.push((external_inbox, local_inbox));
+        if let Some(external_inbox) = self.state.take_external_inbox(local_id) {
+            self.external_inboxes
+                .push((external_inbox, local_inbox.clone()));
         }
-        let external_inbox = local_inbox.is_none().then(|| block.as_ref().inbox());
         let stop = LocalBlockStop {
             block_id,
-            local_inbox,
-            external_inbox,
+            inbox: local_inbox,
         };
         Ok(RunnableLocalBlock {
             local_id,
