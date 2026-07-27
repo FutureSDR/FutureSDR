@@ -1,9 +1,10 @@
 use futures::Future;
-use slab::Slab;
+use std::collections::HashMap;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::atomic::AtomicBool;
+use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 use wasm_bindgen::prelude::*;
 
@@ -60,10 +61,12 @@ impl LocalDomainController {
             terminate: terminate.clone(),
             runner: run_domain_boxed::<LS>,
         };
-        let domain_id = WASM_LOCAL_DOMAINS.lock().unwrap().insert(init);
-        let worker_script = default_worker_script();
+        let domain_id = NEXT_WASM_LOCAL_DOMAIN_ID.fetch_add(1, Ordering::Relaxed);
+        let previous = WASM_LOCAL_DOMAINS.lock().unwrap().insert(domain_id, init);
+        debug_assert!(previous.is_none());
+        let worker_script = worker_script();
         let worker = spawn_local_domain_worker(&worker_script, domain_id).map_err(|e| {
-            let _ = WASM_LOCAL_DOMAINS.lock().unwrap().try_remove(domain_id);
+            WASM_LOCAL_DOMAINS.lock().unwrap().remove(&domain_id);
             Error::RuntimeError(format!(
                 "failed to spawn WASM local-domain worker from {worker_script:?}: {e:?}. \
                  Serve a worker script that dispatches FutureSDR scheduler/local-domain init \
@@ -118,7 +121,7 @@ impl Drop for LocalDomainController {
         self.terminate.store(true, Ordering::Release);
         let _ = self.tx.try_send(LocalDomainMessage::Terminate);
         if let Some(id) = self.domain_id.take() {
-            let _ = WASM_LOCAL_DOMAINS.lock().unwrap().try_remove(id);
+            WASM_LOCAL_DOMAINS.lock().unwrap().remove(&id);
         }
         if let Some(worker) = self.worker.take() {
             worker.terminate();
@@ -126,18 +129,15 @@ impl Drop for LocalDomainController {
     }
 }
 
-static WASM_LOCAL_DOMAINS: once_cell::sync::Lazy<Mutex<Slab<WasmLocalDomainInit>>> =
-    once_cell::sync::Lazy::new(|| Mutex::new(Slab::new()));
+static NEXT_WASM_LOCAL_DOMAIN_ID: AtomicUsize = AtomicUsize::new(0);
+static WASM_LOCAL_DOMAINS: once_cell::sync::Lazy<Mutex<HashMap<usize, WasmLocalDomainInit>>> =
+    once_cell::sync::Lazy::new(|| Mutex::new(HashMap::new()));
 
 struct WasmLocalDomainInit {
     rx: mpsc::Receiver<LocalDomainMessage>,
     key: LocalDomainKey,
     terminate: Arc<AtomicBool>,
     runner: fn(WasmLocalDomainInit) -> Pin<Box<dyn Future<Output = ()>>>,
-}
-
-fn default_worker_script() -> String {
-    worker_script()
 }
 
 /// WASM local-domain worker entry point.
@@ -148,7 +148,7 @@ fn default_worker_script() -> String {
 #[wasm_bindgen]
 pub fn futuresdr_wasm_local_domain_worker_entry(domain_id: usize) {
     init();
-    let init = WASM_LOCAL_DOMAINS.lock().unwrap().try_remove(domain_id);
+    let init = WASM_LOCAL_DOMAINS.lock().unwrap().remove(&domain_id);
     if let Some(init) = init {
         wasm_bindgen_futures::spawn_local((init.runner)(init));
     } else {
