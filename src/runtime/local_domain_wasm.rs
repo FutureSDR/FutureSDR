@@ -111,6 +111,7 @@ impl Drop for LocalDomainController {
     fn drop(&mut self) {
         self.terminate.store(true, Ordering::Release);
         let _ = self.tx.try_send(LocalDomainMessage::Terminate);
+        let _ = self.tx.close();
         if let Some(id) = self.domain_id.take() {
             WASM_LOCAL_DOMAINS.lock().unwrap().remove(&id);
         }
