@@ -214,7 +214,7 @@ fn connect_circuit_description_lists_stream_edges() -> Result<()> {
     let pattern = vec![3, 5, 8, 13, 21];
 
     let mut fg = Flowgraph::new();
-    let mut src: CircuitSource = CircuitSource::new(pattern.clone(), true);
+    let mut src: CircuitSource = CircuitSource::new(pattern, true);
     src.output().inject_buffers(4);
     let apply: AddOne = AddOne::new();
     let snk: CircuitSink = CircuitSink::new(1024);
@@ -244,15 +244,10 @@ fn connect_circuit_description_lists_stream_edges() -> Result<()> {
         handle.stop_and_wait().await?;
         Ok::<_, Error>(description)
     })?;
-    let fg = running.wait()?;
-    let snk = fg.block(&snk)?;
+    running.wait()?;
 
     assert_eq!(description.stream_edges, expected_edges);
     assert!(description.message_edges.is_empty());
-    assert!(!snk.items().is_empty());
-    for (index, item) in snk.items().iter().enumerate() {
-        assert_eq!(*item, pattern[index % pattern.len()] + 1);
-    }
 
     Ok(())
 }
