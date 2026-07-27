@@ -18,8 +18,26 @@ use crate::runtime::buffer::DynThreadSafeToken;
 use crate::runtime::buffer::ThreadSafeConnect;
 
 use super::Flowgraph;
-use super::prepare::ResolvedEdge;
 use super::types::BlockLocation;
+
+#[derive(Debug, Copy, Clone)]
+pub(super) struct ResolvedEdge {
+    pub(super) src_block: BlockId,
+    pub(super) src_port: PortIndex,
+    pub(super) dst_block: BlockId,
+    pub(super) dst_port: PortIndex,
+}
+
+impl ResolvedEdge {
+    pub(super) fn from_indexed(edge: Edge) -> Self {
+        Self {
+            src_block: edge.src_block,
+            src_port: edge.src_port.index_value(),
+            dst_block: edge.dst_block,
+            dst_port: edge.dst_port.index_value(),
+        }
+    }
+}
 
 #[derive(Debug)]
 struct ResolvedStreamGroup {

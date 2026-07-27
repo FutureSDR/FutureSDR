@@ -159,26 +159,6 @@ impl BlockSlot {
         self.message_outputs
     }
 
-    fn stream_inputs(&self) -> &[String] {
-        &self.stream_inputs
-    }
-
-    fn stream_outputs(&self) -> &[String] {
-        &self.stream_outputs
-    }
-
-    fn type_name(&self) -> &'static str {
-        self.type_name
-    }
-
-    fn instance_name(&self) -> &str {
-        &self.instance_name
-    }
-
-    fn is_blocking(&self) -> bool {
-        self.blocking
-    }
-
     fn is_normal(&self) -> bool {
         matches!(self.placement, BlockPlacement::Normal { .. })
     }

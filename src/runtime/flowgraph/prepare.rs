@@ -9,14 +9,12 @@ use crate::runtime::Edge;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphId;
 use crate::runtime::FlowgraphMessage;
-use crate::runtime::PortIndex;
 use crate::runtime::Result;
 use crate::runtime::channel::mpsc::Receiver;
 use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::channel::oneshot;
 use crate::runtime::flowgraph_handle::RunningBlockEntry;
 use crate::runtime::flowgraph_handle::RunningFlowgraphRegistry;
-use crate::runtime::local_domain::LocalDomainInbox;
 use crate::runtime::scheduler::DomainTopology;
 use crate::runtime::scheduler::LocalDomainSpec;
 use crate::runtime::scheduler::LocalRunningDomain;
@@ -25,81 +23,15 @@ use crate::runtime::scheduler::NormalDomainSpec;
 use crate::runtime::scheduler::NormalRunningDomain;
 use crate::runtime::scheduler::Scheduler;
 
+use super::BlockSlot;
 use super::Flowgraph;
 use super::connector::FlowgraphConnector;
+use super::connector::ResolvedEdge;
+use super::domains::FlowgraphDomains;
 use super::domains::RunningFlowgraphDomains;
 use super::terminated::TerminatedFlowgraph;
 use super::types::BlockLocation;
 use super::types::BlockPlacement;
-
-struct LocalDomainPlan {
-    domain_id: usize,
-    inbox: LocalDomainInbox,
-    slots: Vec<(BlockId, usize)>,
-}
-
-#[derive(Debug, Copy, Clone)]
-pub(super) struct ResolvedEdge {
-    pub(super) src_block: BlockId,
-    pub(super) src_port: PortIndex,
-    pub(super) dst_block: BlockId,
-    pub(super) dst_port: PortIndex,
-}
-
-impl ResolvedEdge {
-    fn new(
-        src_block: BlockId,
-        src_port: PortIndex,
-        dst_block: BlockId,
-        dst_port: PortIndex,
-    ) -> Self {
-        Self {
-            src_block,
-            src_port,
-            dst_block,
-            dst_port,
-        }
-    }
-
-    fn from_indexed_stream_edge(edge: Edge) -> Self {
-        Self {
-            src_block: edge.src_block,
-            src_port: edge.src_port.index_value(),
-            dst_block: edge.dst_block,
-            dst_port: edge.dst_port.index_value(),
-        }
-    }
-
-    fn from_indexed_message_edge(edge: Edge) -> Self {
-        Self::new(
-            edge.src_block,
-            edge.src_port.index_value(),
-            edge.dst_block,
-            edge.dst_port.index_value(),
-        )
-    }
-}
-
-impl PartialEq for ResolvedEdge {
-    fn eq(&self, other: &Self) -> bool {
-        self.src_block == other.src_block
-            && self.src_port == other.src_port
-            && self.dst_block == other.dst_block
-            && self.dst_port == other.dst_port
-    }
-}
-
-impl Eq for ResolvedEdge {}
-
-struct GraphPlan {
-    registry: Arc<RunningFlowgraphRegistry>,
-    stream_edges: Vec<ResolvedEdge>,
-    message_edges: Vec<ResolvedEdge>,
-    stream_edges_public: Vec<Edge>,
-    message_edges_public: Vec<Edge>,
-    normal_block_ids: Vec<BlockId>,
-    local_domains: Vec<LocalDomainPlan>,
-}
 
 fn domain_topology(
     block_ids: &[BlockId],
@@ -124,73 +56,16 @@ fn domain_topology(
 }
 
 pub(super) struct PreparedFlowgraph {
-    flowgraph: Flowgraph,
+    id: FlowgraphId,
+    placements: Vec<BlockPlacement>,
+    graph_domains: FlowgraphDomains,
     registry: Arc<RunningFlowgraphRegistry>,
-    stream_edges: Vec<ResolvedEdge>,
-    message_edges: Vec<ResolvedEdge>,
     normal_topology: DomainTopology,
     local_domains: Vec<LocalDomainSpec>,
     main_channel: Sender<FlowgraphMessage>,
 }
 
 impl PreparedFlowgraph {
-    fn from_graph_plan(
-        flowgraph: Flowgraph,
-        plan: GraphPlan,
-        main_channel: Sender<FlowgraphMessage>,
-    ) -> Self {
-        let GraphPlan {
-            registry,
-            stream_edges,
-            message_edges,
-            stream_edges_public,
-            message_edges_public,
-            normal_block_ids,
-            local_domains,
-        } = plan;
-
-        let normal_topology = domain_topology(
-            &normal_block_ids,
-            &stream_edges_public,
-            &message_edges_public,
-        );
-        let local_domains = local_domains
-            .into_iter()
-            .map(|domain| {
-                let domain_id = domain.domain_id;
-                let block_ids = domain
-                    .slots
-                    .iter()
-                    .map(|(block_id, _)| *block_id)
-                    .collect::<Vec<_>>();
-                LocalDomainSpec::new(
-                    domain_id,
-                    domain.inbox,
-                    domain.slots,
-                    domain_topology(&block_ids, &stream_edges_public, &message_edges_public),
-                    main_channel.clone(),
-                )
-            })
-            .collect();
-
-        Self {
-            flowgraph,
-            registry,
-            stream_edges,
-            message_edges,
-            normal_topology,
-            local_domains,
-            main_channel,
-        }
-    }
-
-    pub(super) async fn apply_connections(mut self) -> Result<Self, Error> {
-        let mut connector = FlowgraphConnector::new(&mut self.flowgraph);
-        connector.apply_stream_edges(&self.stream_edges).await?;
-        connector.apply_message_edges(&self.message_edges).await?;
-        Ok(self)
-    }
-
     pub(super) fn start_initialized<'a, S: Scheduler>(
         self,
         scheduler: &S,
@@ -198,22 +73,14 @@ impl PreparedFlowgraph {
         startup: oneshot::Sender<Result<Arc<RunningFlowgraphRegistry>, Error>>,
     ) -> impl Future<Output = Result<RunningFlowgraph, Error>> + 'a {
         let Self {
-            flowgraph,
+            id,
+            placements,
+            graph_domains,
             registry,
-            stream_edges: _,
-            message_edges: _,
             normal_topology,
             local_domains,
             main_channel,
         } = self;
-        let Flowgraph {
-            id,
-            blocks,
-            domains: graph_domains,
-            stream_edges: _,
-            message_edges: _,
-        } = flowgraph;
-        let placements = blocks.into_iter().map(|block| block.placement()).collect();
         let (running_domains, normal_blocks) = graph_domains.into_running();
         let normal_spec = NormalDomainSpec::new(normal_blocks, normal_topology, main_channel);
         let normal_domain = scheduler.start_normal_domain(normal_spec);
@@ -448,226 +315,255 @@ impl RunningFlowgraph {
     }
 }
 
-pub(super) struct FlowgraphCompiler;
+pub(super) async fn prepare_flowgraph(
+    mut flowgraph: Flowgraph,
+    main_channel: Sender<FlowgraphMessage>,
+) -> Result<PreparedFlowgraph, Error> {
+    validate_stream_graph(&flowgraph)?;
 
-impl FlowgraphCompiler {
-    pub(super) fn compile(
-        mut flowgraph: Flowgraph,
-        main_channel: Sender<FlowgraphMessage>,
-    ) -> Result<PreparedFlowgraph, Error> {
-        let graph_plan = Self::compile_graph_plan(&flowgraph)?;
-        flowgraph.stream_edges.clear();
-        flowgraph.message_edges.clear();
-        Ok(PreparedFlowgraph::from_graph_plan(
-            flowgraph,
-            graph_plan,
-            main_channel,
-        ))
-    }
+    let raw_stream_edges = flowgraph
+        .stream_edges
+        .iter()
+        .map(|edge| edge.edge())
+        .collect::<Vec<_>>();
+    let stream_edges_public = raw_stream_edges
+        .iter()
+        .map(|edge| flowgraph.named_stream_edge(edge))
+        .collect::<Result<Vec<_>, _>>()?;
+    let stream_edges = stream_edges_public
+        .iter()
+        .map(|edge| flowgraph.indexed_stream_edge(edge))
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .map(ResolvedEdge::from_indexed)
+        .collect::<Vec<_>>();
+    let message_edges_public = flowgraph.message_edges.clone();
+    let message_edges = message_edges_public
+        .iter()
+        .map(|edge| flowgraph.indexed_message_edge(edge))
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .map(ResolvedEdge::from_indexed)
+        .collect::<Vec<_>>();
+    let block_locations = flowgraph.block_locations()?;
+    let normal_block_ids = block_locations
+        .iter()
+        .filter_map(|location| location.is_normal().then_some(location.block_id))
+        .collect::<Vec<_>>();
+    let normal_topology = domain_topology(
+        &normal_block_ids,
+        &stream_edges_public,
+        &message_edges_public,
+    );
+    let local_domains = local_domain_specs(
+        &flowgraph,
+        &block_locations,
+        &stream_edges_public,
+        &message_edges_public,
+        &main_channel,
+    );
 
-    fn compile_graph_plan(flowgraph: &Flowgraph) -> Result<GraphPlan, Error> {
-        Self::validate_stream_graph(flowgraph)?;
+    let mut connector = FlowgraphConnector::new(&mut flowgraph);
+    connector.apply_stream_edges(&stream_edges).await?;
+    connector.apply_message_edges(&message_edges).await?;
 
-        let raw_stream_edges = flowgraph
-            .stream_edges
-            .iter()
-            .map(|edge| edge.edge())
-            .collect::<Vec<_>>();
-        let stream_edges_public = raw_stream_edges
-            .iter()
-            .map(|edge| flowgraph.named_stream_edge(edge))
-            .collect::<Result<Vec<_>, _>>()?;
-        let indexed_stream_edges = stream_edges_public
-            .iter()
-            .map(|edge| flowgraph.indexed_stream_edge(edge))
-            .collect::<Result<Vec<_>, _>>()?;
-        let stream_edges = indexed_stream_edges
-            .into_iter()
-            .map(ResolvedEdge::from_indexed_stream_edge)
-            .collect::<Vec<_>>();
-        let message_edges_public = flowgraph.message_edges.clone();
-        let message_edges = message_edges_public
-            .iter()
-            .map(|edge| flowgraph.indexed_message_edge(edge))
-            .collect::<Result<Vec<_>, _>>()?
-            .into_iter()
-            .map(ResolvedEdge::from_indexed_message_edge)
-            .collect::<Vec<_>>();
-        let block_locations = flowgraph.block_locations()?;
+    let Flowgraph {
+        id,
+        blocks,
+        domains: graph_domains,
+        stream_edges: _,
+        message_edges: _,
+    } = flowgraph;
+    let (placements, registry) = running_registry(
+        &graph_domains,
+        blocks,
+        stream_edges_public,
+        message_edges_public,
+    );
 
-        let normal_block_ids = block_locations
-            .iter()
-            .filter_map(|location| location.is_normal().then_some(location.block_id))
-            .collect::<Vec<_>>();
-        let local_domains = Self::local_domain_plans(flowgraph, &block_locations);
-        let registry = Self::running_registry(
-            flowgraph,
-            stream_edges_public.clone(),
-            message_edges_public.clone(),
-        );
+    Ok(PreparedFlowgraph {
+        id,
+        placements,
+        graph_domains,
+        registry,
+        normal_topology,
+        local_domains,
+        main_channel,
+    })
+}
 
-        Ok(GraphPlan {
-            registry,
-            stream_edges,
-            message_edges,
-            stream_edges_public,
-            message_edges_public,
-            normal_block_ids,
-            local_domains,
-        })
-    }
-
-    fn local_domain_plans(
-        flowgraph: &Flowgraph,
-        block_locations: &[BlockLocation],
-    ) -> Vec<LocalDomainPlan> {
-        let mut local_slots_by_domain = vec![Vec::new(); flowgraph.domains.domain_len()];
-        for location in block_locations {
-            if location.is_local() {
-                local_slots_by_domain[location.domain_id]
-                    .push((location.block_id, location.domain_slot));
-            }
+fn local_domain_specs(
+    flowgraph: &Flowgraph,
+    block_locations: &[BlockLocation],
+    stream_edges: &[Edge],
+    message_edges: &[Edge],
+    main_channel: &Sender<FlowgraphMessage>,
+) -> Vec<LocalDomainSpec> {
+    let mut local_slots_by_domain = vec![Vec::new(); flowgraph.domains.domain_len()];
+    for location in block_locations {
+        if location.is_local() {
+            local_slots_by_domain[location.domain_id]
+                .push((location.block_id, location.domain_slot));
         }
-
-        flowgraph
-            .domains
-            .local_domain_ids()
-            .filter_map(|domain_id| {
-                let slots = std::mem::take(&mut local_slots_by_domain[domain_id]);
-                if slots.is_empty() {
-                    return None;
-                }
-                Some(LocalDomainPlan {
-                    domain_id,
-                    inbox: flowgraph
-                        .domains
-                        .local(domain_id)
-                        .expect("planned local domain disappeared")
-                        .inbox(),
-                    slots,
-                })
-            })
-            .collect()
     }
 
-    fn validate_stream_graph(flowgraph: &Flowgraph) -> Result<(), Error> {
-        let mut adjacency = vec![Vec::new(); flowgraph.blocks.len()];
-        let mut connected_inputs = Vec::with_capacity(flowgraph.stream_edges.len());
-        for edge in &flowgraph.stream_edges {
-            let (src, dst) = edge.endpoints();
-            if src == dst {
-                return Err(Error::ValidationError(format!(
-                    "stream self-connections are not supported ({src:?})"
-                )));
+    flowgraph
+        .domains
+        .local_domain_ids()
+        .filter_map(|domain_id| {
+            let slots = std::mem::take(&mut local_slots_by_domain[domain_id]);
+            if slots.is_empty() {
+                return None;
             }
-            if src.0 >= flowgraph.blocks.len() {
-                return Err(Error::InvalidBlock(src));
-            }
-            if dst.0 >= flowgraph.blocks.len() {
-                return Err(Error::InvalidBlock(dst));
-            }
-            let indexed_edge = flowgraph.indexed_stream_edge(&edge.edge)?;
-            if connected_inputs
+            let block_ids = slots
                 .iter()
-                .any(|(block, port)| *block == dst && port == &indexed_edge.dst_port.index_value())
-            {
-                let dst_port = flowgraph.stream_input_name(dst, &edge.edge.dst_port)?;
-                return Err(Error::ValidationError(format!(
-                    "stream input {:?}.{} has more than one connection",
-                    dst,
-                    dst_port.name()
-                )));
-            }
-            connected_inputs.push((dst, indexed_edge.dst_port.index_value()));
+                .map(|(block_id, _)| *block_id)
+                .collect::<Vec<_>>();
+            Some(LocalDomainSpec::new(
+                domain_id,
+                flowgraph
+                    .domains
+                    .local(domain_id)
+                    .expect("planned local domain disappeared")
+                    .inbox(),
+                slots,
+                domain_topology(&block_ids, stream_edges, message_edges),
+                main_channel.clone(),
+            ))
+        })
+        .collect()
+}
 
-            if edge.local_only {
-                let src_location = flowgraph.location(src)?;
-                let dst_location = flowgraph.location(dst)?;
-                Flowgraph::same_local_stream_locations(src_location, dst_location, false)?;
-            }
-            adjacency[src.0].push(dst.0);
+fn validate_stream_graph(flowgraph: &Flowgraph) -> Result<(), Error> {
+    let mut adjacency = vec![Vec::new(); flowgraph.blocks.len()];
+    let mut connected_inputs = Vec::with_capacity(flowgraph.stream_edges.len());
+    for edge in &flowgraph.stream_edges {
+        let (src, dst) = edge.endpoints();
+        if src == dst {
+            return Err(Error::ValidationError(format!(
+                "stream self-connections are not supported ({src:?})"
+            )));
         }
-
-        fn visit(node: usize, adjacency: &[Vec<usize>], marks: &mut [u8]) -> bool {
-            match marks[node] {
-                1 => return false,
-                2 => return true,
-                _ => {}
-            }
-
-            marks[node] = 1;
-            for &next in &adjacency[node] {
-                if !visit(next, adjacency, marks) {
-                    return false;
-                }
-            }
-            marks[node] = 2;
-            true
+        if src.0 >= flowgraph.blocks.len() {
+            return Err(Error::InvalidBlock(src));
         }
-
-        let mut marks = vec![0; flowgraph.blocks.len()];
-        for node in 0..flowgraph.blocks.len() {
-            if !visit(node, &adjacency, &mut marks) {
-                return Err(Error::ValidationError(
-                    "stream connections must form a directed acyclic graph".to_string(),
-                ));
-            }
+        if dst.0 >= flowgraph.blocks.len() {
+            return Err(Error::InvalidBlock(dst));
         }
+        let indexed_edge = flowgraph.indexed_stream_edge(&edge.edge)?;
+        if connected_inputs
+            .iter()
+            .any(|(block, port)| *block == dst && port == &indexed_edge.dst_port.index_value())
+        {
+            let dst_port = flowgraph.stream_input_name(dst, &edge.edge.dst_port)?;
+            return Err(Error::ValidationError(format!(
+                "stream input {:?}.{} has more than one connection",
+                dst,
+                dst_port.name()
+            )));
+        }
+        connected_inputs.push((dst, indexed_edge.dst_port.index_value()));
 
-        Ok(())
+        if edge.local_only {
+            let src_location = flowgraph.location(src)?;
+            let dst_location = flowgraph.location(dst)?;
+            Flowgraph::same_local_stream_locations(src_location, dst_location, false)?;
+        }
+        adjacency[src.0].push(dst.0);
     }
 
-    fn running_registry(
-        flowgraph: &Flowgraph,
-        stream_edges: Vec<Edge>,
-        message_edges: Vec<Edge>,
-    ) -> Arc<RunningFlowgraphRegistry> {
-        let mut blocks = Vec::with_capacity(flowgraph.blocks.len());
-        for (id, entry) in flowgraph.blocks.iter().enumerate() {
-            let block_id = BlockId(id);
-            let (type_name, instance_name) = if entry.is_normal()
-                && let Ok(block) = flowgraph.domains.direct_block(entry.location(block_id))
-            {
-                let type_name = block.type_name().to_string();
-                let instance_name = block.instance_name().unwrap_or(&type_name).to_string();
-                (type_name, instance_name)
-            } else {
-                (
-                    entry.type_name().to_string(),
-                    entry.instance_name().to_string(),
-                )
-            };
-            let description = BlockDescription {
+    fn visit(node: usize, adjacency: &[Vec<usize>], marks: &mut [u8]) -> bool {
+        match marks[node] {
+            1 => return false,
+            2 => return true,
+            _ => {}
+        }
+
+        marks[node] = 1;
+        for &next in &adjacency[node] {
+            if !visit(next, adjacency, marks) {
+                return false;
+            }
+        }
+        marks[node] = 2;
+        true
+    }
+
+    let mut marks = vec![0; flowgraph.blocks.len()];
+    for node in 0..flowgraph.blocks.len() {
+        if !visit(node, &adjacency, &mut marks) {
+            return Err(Error::ValidationError(
+                "stream connections must form a directed acyclic graph".to_string(),
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+fn running_registry(
+    domains: &FlowgraphDomains,
+    block_slots: Vec<BlockSlot>,
+    stream_edges: Vec<Edge>,
+    message_edges: Vec<Edge>,
+) -> (Vec<BlockPlacement>, Arc<RunningFlowgraphRegistry>) {
+    let mut placements = Vec::with_capacity(block_slots.len());
+    let mut blocks = Vec::with_capacity(block_slots.len());
+    for (id, entry) in block_slots.into_iter().enumerate() {
+        let block_id = BlockId(id);
+        let runtime_names = if entry.is_normal()
+            && let Ok(block) = domains.direct_block(entry.location(block_id))
+        {
+            let type_name = block.type_name().to_string();
+            let instance_name = block
+                .instance_name()
+                .map(str::to_string)
+                .unwrap_or_else(|| type_name.clone());
+            Some((type_name, instance_name))
+        } else {
+            None
+        };
+        let BlockSlot {
+            placement,
+            endpoint,
+            stream_inputs,
+            stream_outputs,
+            message_inputs,
+            message_outputs,
+            type_name,
+            instance_name,
+            blocking,
+        } = entry;
+        let (type_name, instance_name) =
+            runtime_names.unwrap_or_else(|| (type_name.to_string(), instance_name));
+        placements.push(placement);
+        blocks.push(RunningBlockEntry::new(
+            endpoint,
+            BlockDescription {
                 id: block_id,
                 status: BlockStatus::Running,
                 type_name,
                 instance_name,
-                stream_inputs: entry.stream_inputs().to_vec(),
-                stream_outputs: entry.stream_outputs().to_vec(),
-                message_inputs: entry
-                    .message_inputs()
+                stream_inputs,
+                stream_outputs,
+                message_inputs: message_inputs.iter().map(|name| name.to_string()).collect(),
+                message_outputs: message_outputs
                     .iter()
-                    .map(|n| n.to_string())
+                    .map(|name| name.to_string())
                     .collect(),
-                message_outputs: entry
-                    .message_outputs()
-                    .iter()
-                    .map(|n| n.to_string())
-                    .collect(),
-                blocking: entry.is_blocking(),
-            };
-            blocks.push(RunningBlockEntry::new(
-                entry.endpoint().clone(),
-                description,
-            ));
-        }
+                blocking,
+            },
+        ));
+    }
 
+    (
+        placements,
         Arc::new(RunningFlowgraphRegistry::new(
             blocks,
             stream_edges,
             message_edges,
-        ))
-    }
+        )),
+    )
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
@@ -682,17 +578,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn compiler_produces_explicit_prepared_flowgraph() -> Result<(), Error> {
+    fn preparation_produces_startup_state() -> Result<(), Error> {
         let mut fg = Flowgraph::new();
         let src = fg.add(NullSource::<f32>::new())?;
         let snk = fg.add(NullSink::<f32>::new())?;
         fg.stream_dyn(src, "output", snk, "input")?;
 
         let (main_channel, _main_rx) = channel::<FlowgraphMessage>(8);
-        let prepared = FlowgraphCompiler::compile(fg, main_channel)?;
+        let prepared = crate::runtime::block_on(prepare_flowgraph(fg, main_channel))?;
 
-        assert!(prepared.flowgraph.stream_edges.is_empty());
-        assert!(prepared.flowgraph.message_edges.is_empty());
+        assert_eq!(prepared.placements.len(), 2);
         let description = prepared.registry.describe();
         assert_eq!(
             description
@@ -709,16 +604,6 @@ mod tests {
                 .iter()
                 .all(|description| description.status == BlockStatus::Running)
         );
-        assert_eq!(
-            prepared.stream_edges,
-            &[ResolvedEdge::new(
-                src.id(),
-                PortIndex::new(0),
-                snk.id(),
-                PortIndex::new(0)
-            )]
-        );
-        assert!(prepared.message_edges.is_empty());
         assert_eq!(
             description.stream_edges,
             vec![Edge::new(

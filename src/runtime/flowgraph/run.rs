@@ -10,7 +10,7 @@ use crate::runtime::flowgraph_handle::RunningFlowgraphRegistry;
 use crate::runtime::scheduler::Scheduler;
 
 use super::Flowgraph;
-use super::prepare::FlowgraphCompiler;
+use super::prepare::prepare_flowgraph;
 use super::terminated::TerminatedFlowgraph;
 
 pub(crate) async fn run_flowgraph<S: Scheduler>(
@@ -23,17 +23,10 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
 ) -> Result<TerminatedFlowgraph, Error> {
     debug!("in run_flowgraph");
 
-    let prepared = match FlowgraphCompiler::compile(flowgraph, main_channel) {
+    let prepared = match prepare_flowgraph(flowgraph, main_channel).await {
         Ok(prepared) => prepared,
         Err(e) => {
-            send_startup_error(startup, e.clone());
-            return Err(e);
-        }
-    };
-    let prepared = match prepared.apply_connections().await {
-        Ok(prepared) => prepared,
-        Err(e) => {
-            send_startup_error(startup, e.clone());
+            let _ = startup.send(Err(e.clone()));
             return Err(e);
         }
     };
@@ -57,11 +50,4 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
 
     let terminated = running.wait(&main_rx).await?;
     Ok(terminated)
-}
-
-fn send_startup_error(
-    startup: oneshot::Sender<Result<Arc<RunningFlowgraphRegistry>, Error>>,
-    error: Error,
-) {
-    let _ = startup.send(Err(error));
 }
