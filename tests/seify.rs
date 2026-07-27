@@ -34,12 +34,12 @@ impl seify::DeviceInfo for RxStreamOnly {
     }
 }
 
-impl seify::DynDeviceBackend for RxStreamOnly {
+impl seify::dev::DynDeviceBackend for RxStreamOnly {
     fn channel_info(&self) -> Option<&dyn seify::ChannelInfo> {
         Some(self)
     }
 
-    fn rx_device(&self) -> Option<&dyn seify::ErasedRxDevice> {
+    fn rx_device(&self) -> Option<&dyn seify::dev::DynRxDevice> {
         Some(self)
     }
 }
@@ -148,6 +148,14 @@ fn builder_compat_filter() -> Result<()> {
     connect!(fg, src.outputs[0] > head > snk);
 
     Runtime::new().run(fg)?;
+
+    Ok(())
+}
+
+#[test]
+fn builder_from_dyn_device() -> Result<()> {
+    let dev = seify::DynDevice::from_args("driver=dummy")?;
+    let _src = Builder::from_dyn_device(dev).build_source()?;
 
     Ok(())
 }

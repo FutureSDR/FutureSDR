@@ -57,7 +57,7 @@ use crate::runtime::dev::prelude::*;
 #[type_name(SeifySource)]
 pub struct Source<D, OUT = DefaultCpuWriter<Complex32>>
 where
-    D: RxDevice + ChannelInfo + Clone,
+    D: RxDevice + ChannelInfo,
     OUT: CpuBufferWriter<Item = Complex32>,
 {
     #[output]
@@ -72,7 +72,7 @@ where
 
 impl<D, OUT> Source<D, OUT>
 where
-    D: RxDevice + ChannelInfo + Clone,
+    D: RxDevice + ChannelInfo,
     OUT: CpuBufferWriter<Item = Complex32>,
 {
     pub(super) fn new(
@@ -231,7 +231,7 @@ where
 #[doc(hidden)]
 impl<D, OUT> Kernel for Source<D, OUT>
 where
-    D: RxDevice + ChannelInfo + Clone,
+    D: RxDevice + ChannelInfo,
     OUT: CpuBufferWriter<Item = Complex32>,
 {
     async fn work(

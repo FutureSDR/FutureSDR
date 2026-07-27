@@ -3,9 +3,9 @@ use seify::ChannelInfo;
 use seify::Device;
 use seify::Direction;
 use seify::DynDevice;
-use seify::DynDeviceBackend;
 use seify::RxDevice;
 use seify::TxDevice;
+use seify::dev::DynDeviceBackend;
 
 use crate::blocks::seify::Config;
 use crate::blocks::seify::Sink;
@@ -48,19 +48,22 @@ pub struct Builder<D> {
 }
 
 impl Builder<DynDevice> {
-    /// Create Seify Device builder
+    /// Open a type-erased Seify device from runtime arguments.
     pub fn new<A: TryInto<Args>>(args: A) -> Result<Self, Error> {
         let args = args.try_into().or(Err(Error::SeifyArgsConversionError))?;
-        let ctrl = DynDevice::from_args(args)?;
-        let dev = Device::from_impl(ctrl.clone());
-        Ok(Self {
+        Ok(Self::from_dyn_device(DynDevice::from_args(args)?))
+    }
+
+    /// Create a builder from an already opened type-erased device.
+    pub fn from_dyn_device(ctrl: DynDevice) -> Self {
+        Self {
             channels: vec![0],
             config: Config::new(),
-            dev,
+            dev: Device::from_impl(ctrl.clone()),
             ctrl,
             start_time: None,
             min_input_buffer_size: None,
-        })
+        }
     }
 }
 
@@ -68,9 +71,9 @@ impl<D> Builder<D>
 where
     D: DynDeviceBackend + Clone + 'static,
 {
-    /// Create Seify Device builder
+    /// Create a builder that preserves the typed device and streamer.
     pub fn from_device(dev: Device<D>) -> Self {
-        let ctrl = DynDevice::from_impl(dev.as_inner().clone());
+        let ctrl = dev.to_dyn();
         Self {
             channels: vec![0],
             config: Config::new(),
@@ -88,7 +91,7 @@ impl<D> Builder<D> {
     where
         D2: DynDeviceBackend + Clone + 'static,
     {
-        let ctrl = DynDevice::from_impl(dev.as_inner().clone());
+        let ctrl = dev.to_dyn();
         Builder {
             channels: self.channels,
             config: self.config,
@@ -152,7 +155,7 @@ impl<D> Builder<D> {
     /// Build Typed Seify Source
     pub fn build_source(self) -> Result<Source<D>, Error>
     where
-        D: RxDevice + ChannelInfo + Clone,
+        D: RxDevice + ChannelInfo,
     {
         self.config
             .apply(&self.ctrl, &self.channels, Direction::Rx)?;
@@ -168,7 +171,7 @@ impl<D> Builder<D> {
         self,
     ) -> Result<Source<D, B>, Error>
     where
-        D: RxDevice + ChannelInfo + Clone,
+        D: RxDevice + ChannelInfo,
     {
         self.config
             .apply(&self.ctrl, &self.channels, Direction::Rx)?;
@@ -182,7 +185,7 @@ impl<D> Builder<D> {
     /// Builder Typed Seify Sink
     pub fn build_sink(self) -> Result<Sink<D>, Error>
     where
-        D: TxDevice + ChannelInfo + Clone,
+        D: TxDevice + ChannelInfo,
     {
         self.config
             .apply(&self.ctrl, &self.channels, Direction::Tx)?;
@@ -199,7 +202,7 @@ impl<D> Builder<D> {
         self,
     ) -> Result<Sink<D, B>, Error>
     where
-        D: TxDevice + ChannelInfo + Clone,
+        D: TxDevice + ChannelInfo,
     {
         self.config
             .apply(&self.ctrl, &self.channels, Direction::Tx)?;
