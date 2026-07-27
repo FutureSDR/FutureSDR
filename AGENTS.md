@@ -30,7 +30,7 @@ FutureSDR borrows ideas from the actor model, where a block is an actor that rea
 
 ## Build & Test Commands
 
-The root crate uses Rust 2024 edition, currently declares `rust-version = "1.89"`, and requires the nightly Rust channel. The repository includes `rust-toolchain.toml`, so cargo/rustup automatically select nightly inside the checkout. The `rust-version` value is only the minimum compiler version; it does not imply stable support.
+The root crate uses Rust 2024 edition, currently declares `rust-version = "1.95"`, and requires the nightly Rust channel. The repository includes `rust-toolchain.toml`, so cargo/rustup automatically select nightly inside the checkout. The `rust-version` value is only the minimum compiler version; it does not imply stable support.
 
 The root workspace contains `.`, `crates/futuredsp`, `crates/macros`, and `crates/types`. `crates/prophecy`, `crates/remote`, every directory under `examples/`, and every directory under `perf/` are independent Cargo workspaces.
 
@@ -116,9 +116,12 @@ connect!(fg,
 **Runtime** — drives a Flowgraph on a Scheduler. After construction, blocks receive `Initialize`, then loop in `work()` until done.
 
 **Scheduler** (`src/runtime/scheduler/`) — pluggable execution engines:
+
 - `SmolScheduler` — default, async executor (non-WASM)
 - `FlowScheduler` — feature-gated (`flow_scheduler`), specialized scheduler
-- `WasmScheduler` — for WASM targets
+- `WasmMainScheduler` — default on WASM; runs normal blocks on the browser main thread
+- `WasmScheduler` — explicit Web Worker-backed scheduler for WASM
+- `BasicLocalScheduler` — single-thread scheduler used inside local domains
 
 ### Buffer System (`src/runtime/buffer/`)
 
@@ -130,7 +133,14 @@ Buffers are the transport layer between blocks. Implementations:
 - `burn` — for Burn ML framework (feature: `burn`)
 - Zynq FPGA DMA buffers live in the independent `examples/zynq` crate
 
-Buffer traits: `SendBufferReader` / `SendBufferWriter` (send-capable generic), `BufferReader` / `BufferWriter` (local generic), `SendCpuBufferReader` / `SendCpuBufferWriter` and `CpuBufferReader` / `CpuBufferWriter` (CPU-specific with `slice()`/`consume()`/`produce()`), `SendInplaceReader` / `SendInplaceWriter` (in-place).
+Core buffer traits:
+
+- `BufferReader` / `BufferWriter` — generic typed stream endpoints
+- `CpuBufferReader` / `CpuBufferWriter` — CPU buffers with `slice()`/`consume()`/`produce()`
+- `InplaceReader` / `InplaceWriter` — ownership-transfer buffers for in-place processing
+- `ThreadSafeConnect` — optional sendable connection-token protocol for connecting endpoints across scheduling domains
+
+Buffer sendability follows the concrete endpoint and inbox types. `BlockInbox` is send-capable, while `LocalBlockInbox` stays inside one local domain; there is no parallel family of `Send*` buffer traits.
 
 ### Message Passing
 
