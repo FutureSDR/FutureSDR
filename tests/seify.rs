@@ -13,14 +13,6 @@ struct RxStreamOnly;
 struct RxStreamOnlyStreamer;
 
 impl seify::DeviceInfo for RxStreamOnly {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-        self
-    }
-
     fn driver(&self) -> seify::Driver {
         seify::Driver::Dummy
     }
@@ -46,6 +38,14 @@ impl seify::DeviceInfo for RxStreamOnly {
 }
 
 impl seify::dev::DynDeviceBackend for RxStreamOnly {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
     fn rx_device(&self) -> Option<&dyn seify::dev::DynRxDevice> {
         Some(self)
     }
