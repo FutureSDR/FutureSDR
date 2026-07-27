@@ -142,10 +142,9 @@ fn status_from_error(error: Error) -> StatusCode {
     }
 }
 
-pub struct ControlPort<S> {
+pub struct ControlPort {
     shutdown: Option<oneshot::Sender<()>>,
     task: Option<Task<()>>,
-    handle: RuntimeHandle<S>,
 }
 
 struct ConnectionTask {
@@ -168,24 +167,17 @@ impl ConnectionTask {
     }
 }
 
-impl<S: Scheduler + Sync> ControlPort<S> {
-    pub fn new(handle: RuntimeHandle<S>, scheduler: S, routes: Router) -> Self {
-        let mut cp = ControlPort {
-            handle,
-            shutdown: None,
-            task: None,
-        };
-        cp.start(scheduler, Some(routes));
-        cp
-    }
-
-    fn start(&mut self, scheduler: S, custom_routes: Option<Router>) {
+impl ControlPort {
+    pub fn new<S: Scheduler + Sync>(
+        handle: RuntimeHandle<S>,
+        scheduler: S,
+        custom_routes: Router,
+    ) -> Self {
         if !config::config().ctrlport_enable {
-            return;
-        }
-
-        if self.task.is_some() {
-            return;
+            return Self {
+                shutdown: None,
+                task: None,
+            };
         }
 
         let mut app = Router::new()
@@ -201,11 +193,9 @@ impl<S: Scheduler + Sync> ControlPort<S> {
                 post(handler_id_post_message),
             )
             .layer(CorsLayer::permissive())
-            .with_state(self.handle.clone());
+            .with_state(handle);
 
-        if let Some(c) = custom_routes {
-            app = app.merge(c);
-        }
+        app = app.merge(custom_routes);
 
         let frontend = if let Some(ref p) = config::config().frontend_path {
             Some(p.clone())
@@ -228,12 +218,14 @@ impl<S: Scheduler + Sync> ControlPort<S> {
             run_server(addr, app, server_scheduler, rx_shutdown).await;
         });
 
-        self.shutdown = Some(tx_shutdown);
-        self.task = Some(task);
+        Self {
+            shutdown: Some(tx_shutdown),
+            task: Some(task),
+        }
     }
 }
 
-impl<S> Drop for ControlPort<S> {
+impl Drop for ControlPort {
     fn drop(&mut self) {
         if let Some(tx) = self.shutdown.take() {
             let _ = tx.send(());

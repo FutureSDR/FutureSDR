@@ -49,12 +49,11 @@ pub type DefaultScheduler = WasmMainScheduler;
 /// [`Runtime::start_async`] when the caller needs a [`RunningFlowgraph`] handle
 /// for live message calls, descriptions, or shutdown.
 pub struct Runtime<S = DefaultScheduler> {
-    scheduler: S,
-    flowgraphs: Arc<Mutex<FlowgraphRegistry>>,
+    handle: RuntimeHandle<S>,
     #[cfg(all(not(target_arch = "wasm32"), feature = "ctrl_port"))]
     // Kept alive so Drop shuts down the control-port server task.
     #[allow(dead_code)]
-    control_port: ControlPort<S>,
+    control_port: ControlPort,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -113,7 +112,7 @@ impl<S: Scheduler> Runtime<S> {
         &self,
         future: impl Future<Output = T> + Send + 'static,
     ) -> Task<T> {
-        self.scheduler.spawn(future)
+        self.handle.scheduler.spawn(future)
     }
 
     /// Spawn an async task on the runtime scheduler and detach it immediately.
@@ -121,7 +120,7 @@ impl<S: Scheduler> Runtime<S> {
         &self,
         future: impl Future<Output = T> + Send + 'static,
     ) {
-        self.scheduler.spawn(future).detach();
+        self.handle.scheduler.spawn(future).detach();
     }
 
     /// Start a [`Flowgraph`] on the [`Runtime`] and await initialization.
@@ -130,7 +129,7 @@ impl<S: Scheduler> Runtime<S> {
     /// [`RunningFlowgraph`] can be used to send messages, stop the graph, or
     /// wait for completion.
     pub async fn start_async(&self, fg: Flowgraph) -> Result<RunningFlowgraph, Error> {
-        start_flowgraph(self.scheduler.clone(), self.flowgraphs.clone(), fg).await
+        self.handle.start(fg).await
     }
 
     /// Start a [`Flowgraph`] on the [`Runtime`] and await its termination.
@@ -144,7 +143,7 @@ impl<S: Scheduler> Runtime<S> {
 
     /// Get the [`Scheduler`] that is associated with the [`Runtime`].
     pub fn scheduler(&self) -> &S {
-        &self.scheduler
+        &self.handle.scheduler
     }
 
     /// Create a clonable [`RuntimeHandle`] for starting and querying flowgraphs.
@@ -153,10 +152,7 @@ impl<S: Scheduler> Runtime<S> {
     /// runtime. They are intended for web handlers, callbacks, and other async
     /// tasks that cannot borrow the runtime directly.
     pub fn handle(&self) -> RuntimeHandle<S> {
-        RuntimeHandle {
-            scheduler: self.scheduler.clone(),
-            flowgraphs: self.flowgraphs.clone(),
-        }
+        self.handle.clone()
     }
 }
 
@@ -192,16 +188,12 @@ impl<S: Scheduler + Sync> Runtime<S> {
     pub fn with_config(scheduler: S, routes: Router) -> Self {
         runtime::init();
 
-        let flowgraphs = Arc::new(Mutex::new(FlowgraphRegistry::default()));
-        let handle = RuntimeHandle {
-            scheduler: scheduler.clone(),
-            flowgraphs: flowgraphs.clone(),
-        };
+        let handle = RuntimeHandle::new(scheduler.clone());
+        let control_port = ControlPort::new(handle.clone(), scheduler, routes);
 
         Runtime {
-            scheduler: scheduler.clone(),
-            flowgraphs,
-            control_port: ControlPort::new(handle, scheduler, routes),
+            handle,
+            control_port,
         }
     }
 }
@@ -212,10 +204,8 @@ impl<S: Scheduler> Runtime<S> {
     pub fn with_scheduler(scheduler: S) -> Self {
         runtime::init();
 
-        let flowgraphs = Arc::new(Mutex::new(FlowgraphRegistry::default()));
         Runtime {
-            scheduler,
-            flowgraphs,
+            handle: RuntimeHandle::new(scheduler),
         }
     }
 }
@@ -226,10 +216,8 @@ impl<S: Scheduler> Runtime<S> {
     pub fn with_scheduler(scheduler: S) -> Self {
         runtime::init();
 
-        let flowgraphs = Arc::new(Mutex::new(FlowgraphRegistry::default()));
         Runtime {
-            scheduler,
-            flowgraphs,
+            handle: RuntimeHandle::new(scheduler),
         }
     }
 }
@@ -242,6 +230,15 @@ impl<S: Scheduler> Runtime<S> {
 pub struct RuntimeHandle<S = DefaultScheduler> {
     scheduler: S,
     flowgraphs: Arc<Mutex<FlowgraphRegistry>>,
+}
+
+impl<S> RuntimeHandle<S> {
+    fn new(scheduler: S) -> Self {
+        Self {
+            scheduler,
+            flowgraphs: Arc::new(Mutex::new(FlowgraphRegistry::default())),
+        }
+    }
 }
 
 impl<S: Clone> Clone for RuntimeHandle<S> {
