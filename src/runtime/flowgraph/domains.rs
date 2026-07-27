@@ -14,67 +14,41 @@ use super::types::BlockLocation;
 /// The implicit normal domain always occupies domain slot 0.
 pub(super) const NORMAL_DOMAIN_ID: usize = 0;
 
-/// One construction/final-inspection scheduling domain.
-enum FlowgraphDomain {
-    Normal(NormalDomain),
-    Local(LocalDomainRuntime),
-}
-
 /// Internal domain registry owned by a flowgraph during construction and final inspection.
-///
-/// The public API still has an implicit normal domain, but internally it is the
-/// first entry in the same domain table that stores user-created local domains.
 pub(super) struct FlowgraphDomains {
-    domains: Vec<FlowgraphDomain>,
+    normal: NormalDomain,
+    locals: Vec<LocalDomainRuntime>,
     main_thread_domain_id: Option<usize>,
 }
 
 impl FlowgraphDomains {
     pub(super) fn new() -> Self {
         Self {
-            domains: vec![FlowgraphDomain::Normal(NormalDomain::new())],
+            normal: NormalDomain::new(),
+            locals: Vec::new(),
             main_thread_domain_id: None,
         }
     }
 
     pub(super) fn domain_len(&self) -> usize {
-        self.domains.len()
+        self.locals.len() + 1
     }
 
     pub(super) fn local_domain_ids(&self) -> impl Iterator<Item = usize> + '_ {
-        self.domains
-            .iter()
-            .enumerate()
-            .filter_map(|(domain_id, domain)| {
-                matches!(domain, FlowgraphDomain::Local(_)).then_some(domain_id)
-            })
+        1..self.domain_len()
     }
 
     pub(super) fn normal(&self) -> &NormalDomain {
-        match self
-            .domains
-            .get(NORMAL_DOMAIN_ID)
-            .expect("flowgraph missing implicit normal domain")
-        {
-            FlowgraphDomain::Normal(domain) => domain,
-            FlowgraphDomain::Local(_) => unreachable!("domain 0 must be the normal domain"),
-        }
+        &self.normal
     }
 
     pub(super) fn normal_mut(&mut self) -> &mut NormalDomain {
-        match self
-            .domains
-            .get_mut(NORMAL_DOMAIN_ID)
-            .expect("flowgraph missing implicit normal domain")
-        {
-            FlowgraphDomain::Normal(domain) => domain,
-            FlowgraphDomain::Local(_) => unreachable!("domain 0 must be the normal domain"),
-        }
+        &mut self.normal
     }
 
     pub(super) fn push_local(&mut self, domain: LocalDomainRuntime) -> usize {
-        let domain_id = self.domains.len();
-        self.domains.push(FlowgraphDomain::Local(domain));
+        let domain_id = self.domain_len();
+        self.locals.push(domain);
         domain_id
     }
 
@@ -92,17 +66,15 @@ impl FlowgraphDomains {
     }
 
     pub(super) fn local(&self, domain_id: usize) -> Option<&LocalDomainRuntime> {
-        match self.domains.get(domain_id) {
-            Some(FlowgraphDomain::Local(domain)) => Some(domain),
-            _ => None,
-        }
+        domain_id
+            .checked_sub(1)
+            .and_then(|local_id| self.locals.get(local_id))
     }
 
     pub(super) fn local_mut(&mut self, domain_id: usize) -> Option<&mut LocalDomainRuntime> {
-        match self.domains.get_mut(domain_id) {
-            Some(FlowgraphDomain::Local(domain)) => Some(domain),
-            _ => None,
-        }
+        domain_id
+            .checked_sub(1)
+            .and_then(|local_id| self.locals.get_mut(local_id))
     }
 
     fn local_for_location(&self, location: BlockLocation) -> Result<&LocalDomainRuntime, Error> {
@@ -220,43 +192,24 @@ impl FlowgraphDomains {
         }
     }
 
-    pub(super) fn into_running(self) -> Result<(RunningFlowgraphDomains, NormalBlocks), Error> {
+    pub(super) fn into_running(self) -> (RunningFlowgraphDomains, NormalBlocks) {
         let Self {
-            domains: flowgraph_domains,
+            normal,
+            locals,
             main_thread_domain_id,
         } = self;
-        let mut normal_blocks = None;
-        let mut domains = Vec::with_capacity(flowgraph_domains.len());
+        let (normal, normal_blocks) = normal.into_running();
+        let mut domains = Vec::with_capacity(locals.len() + 1);
+        domains.push(RunningFlowgraphDomain::Normal(normal));
+        domains.extend(locals.into_iter().map(RunningFlowgraphDomain::Local));
 
-        for domain in flowgraph_domains {
-            match domain {
-                FlowgraphDomain::Normal(domain) => {
-                    if normal_blocks.is_some() {
-                        return Err(Error::RuntimeError(
-                            "flowgraph had more than one normal domain".to_string(),
-                        ));
-                    }
-                    let (running, blocks) = domain.into_running();
-                    domains.push(RunningFlowgraphDomain::Normal(running));
-                    normal_blocks = Some(blocks);
-                }
-                FlowgraphDomain::Local(domain) => {
-                    domains.push(RunningFlowgraphDomain::Local(domain));
-                }
-            }
-        }
-
-        let normal_blocks = normal_blocks.ok_or_else(|| {
-            Error::RuntimeError("flowgraph missing implicit normal domain".to_string())
-        })?;
-
-        Ok((
+        (
             RunningFlowgraphDomains {
                 domains,
                 main_thread_domain_id,
             },
             normal_blocks,
-        ))
+        )
     }
 }
 
@@ -305,7 +258,8 @@ impl RunningFlowgraphDomains {
         } = self;
         let mut stopped_by_domain =
             Self::stopped_by_domain(running_domains.len(), stopped_domains)?;
-        let mut domains = Vec::with_capacity(running_domains.len());
+        let mut normal = None;
+        let mut locals = Vec::with_capacity(running_domains.len().saturating_sub(1));
         for (domain_id, domain) in running_domains.into_iter().enumerate() {
             let stopped = stopped_by_domain[domain_id].take();
             match (domain, stopped) {
@@ -318,9 +272,9 @@ impl RunningFlowgraphDomains {
                             )));
                         }
                     };
-                    domains.push(FlowgraphDomain::Normal(domain.restore_blocks(
+                    normal = Some(domain.restore_blocks(
                         blocks.into_iter().map(StoppedBlock::into_block).collect(),
-                    )?));
+                    )?);
                 }
                 (RunningFlowgraphDomain::Normal(_), None) => {
                     return Err(Error::RuntimeError(format!(
@@ -329,7 +283,7 @@ impl RunningFlowgraphDomains {
                 }
                 (RunningFlowgraphDomain::Local(domain), Some(stopped)) => {
                     match stopped.into_state() {
-                        StoppedDomainState::Local => domains.push(FlowgraphDomain::Local(domain)),
+                        StoppedDomainState::Local => locals.push(domain),
                         StoppedDomainState::Normal(_) => {
                             return Err(Error::RuntimeError(format!(
                                 "local domain {domain_id} stopped as normal domain"
@@ -346,7 +300,10 @@ impl RunningFlowgraphDomains {
         }
 
         Ok(FlowgraphDomains {
-            domains,
+            normal: normal.ok_or_else(|| {
+                Error::RuntimeError("flowgraph missing implicit normal domain".to_string())
+            })?,
+            locals,
             main_thread_domain_id,
         })
     }

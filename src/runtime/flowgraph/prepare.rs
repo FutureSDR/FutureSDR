@@ -325,13 +325,7 @@ impl PreparedFlowgraph {
             stream_edges: _,
             message_edges: _,
         } = flowgraph;
-        let (running_domains, normal_blocks) = match graph_domains.into_running() {
-            Ok(running) => running,
-            Err(e) => {
-                let _ = initialized.send(Err(e.clone()));
-                return Err(e);
-            }
-        };
+        let (running_domains, normal_blocks) = graph_domains.into_running();
         let prepared_domains = domains.into_domains(normal_blocks);
         let mut running = RunningFlowgraph {
             id,
