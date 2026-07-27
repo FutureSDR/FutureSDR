@@ -171,7 +171,7 @@ impl FlowgraphHandle {
     pub async fn describe(&self) -> Result<FlowgraphDescription, Error> {
         match self {
             Self::Remote(u) => Ok(Request::get(u).send().await?.json().await?),
-            Self::Web(h) => Ok(h.describe().await?),
+            Self::Web(h) => Ok(h.describe()?),
         }
     }
     pub async fn post(

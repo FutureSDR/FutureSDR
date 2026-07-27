@@ -377,7 +377,7 @@ fn describe_keeps_terminated_blocks_and_edges_while_running() -> Result<()> {
     futuresdr::runtime::block_on(async {
         let deadline = Instant::now() + Duration::from_secs(1);
         loop {
-            let description = running.describe().await?;
+            let description = running.describe()?;
             let finished_status = description
                 .blocks
                 .iter()
@@ -396,7 +396,7 @@ fn describe_keeps_terminated_blocks_and_edges_while_running() -> Result<()> {
                 assert_eq!(description.message_edges[0].src_block, finished.id());
                 assert_eq!(description.message_edges[0].dst_block, waiting.id());
 
-                let block = running.describe_block(finished).await?;
+                let block = running.describe_block(finished)?;
                 assert_eq!(block.status, BlockStatus::Terminated);
                 return running.stop_and_wait().await.map(|_| ());
             }

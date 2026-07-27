@@ -79,12 +79,9 @@ async fn build_flowgraph(args: Args) -> Result<(Flowgraph, BlockId)> {
         .build_sink()?;
     let snk = fg.add_async(snk).await?;
 
-    fg.stream_dyn_async(mac, "output", modulator, "input")
-        .await?;
-    fg.stream_dyn_async(modulator, "output", iq_delay, "input")
-        .await?;
-    fg.stream_dyn_async(iq_delay, "output", snk, "inputs[0]")
-        .await?;
+    fg.stream_dyn(mac, "output", modulator, "input")?;
+    fg.stream_dyn(modulator, "output", iq_delay, "input")?;
+    fg.stream_dyn(iq_delay, "output", snk, "inputs[0]")?;
     let mac = mac.id();
 
     Ok((fg, mac))

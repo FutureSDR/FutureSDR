@@ -11,8 +11,6 @@ use crate::runtime::Result;
 use crate::runtime::block::BlockObject;
 use crate::runtime::block_inbox::BlockEndpoint;
 use crate::runtime::block_inbox::LocalBlockAddr;
-#[cfg(not(target_arch = "wasm32"))]
-use crate::runtime::block_on;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::dev::Kernel;
 use crate::runtime::kernel_interface::KernelInterface;
@@ -228,28 +226,7 @@ impl<'a, LS: LocalScheduler> LocalDomainContext<'a, LS> {
     }
 
     /// Connect local-only stream ports between blocks in this domain context.
-    #[cfg(not(target_arch = "wasm32"))]
     pub fn stream_local<KS, KD, B, FS, FD>(
-        &self,
-        src_block: &BlockRef<KS>,
-        src_port: FS,
-        dst_block: &BlockRef<KD>,
-        dst_port: FD,
-    ) -> Result<(), Error>
-    where
-        KS: 'static,
-        KD: 'static,
-        B: BufferWriter + 'static,
-        FS: FnOnce(&mut KS) -> &mut B,
-        FD: FnOnce(&mut KD) -> &mut B::Reader,
-    {
-        block_on(
-            self.stream_local_async::<KS, KD, B, FS, FD>(src_block, src_port, dst_block, dst_port),
-        )
-    }
-
-    /// Asynchronously connect local-only stream ports between blocks in this domain context.
-    pub async fn stream_local_async<KS, KD, B, FS, FD>(
         &self,
         src_block: &BlockRef<KS>,
         src_port: FS,
@@ -298,39 +275,8 @@ impl<'a, LS: LocalScheduler> LocalDomainContext<'a, LS> {
         Ok(())
     }
 
-    /// Same-domain stream alias for local-domain contexts.
-    pub async fn stream_async<KS, KD, B, FS, FD>(
-        &self,
-        src_block: &BlockRef<KS>,
-        src_port: FS,
-        dst_block: &BlockRef<KD>,
-        dst_port: FD,
-    ) -> Result<(), Error>
-    where
-        KS: 'static,
-        KD: 'static,
-        B: BufferWriter + 'static,
-        FS: FnOnce(&mut KS) -> &mut B,
-        FD: FnOnce(&mut KD) -> &mut B::Reader,
-    {
-        self.stream_local_async(src_block, src_port, dst_block, dst_port)
-            .await
-    }
-
     /// Connect message ports between local blocks in this domain context.
-    #[cfg(not(target_arch = "wasm32"))]
     pub fn message(
-        &self,
-        src_block_id: impl Into<BlockId>,
-        src_port_id: impl Into<PortId>,
-        dst_block_id: impl Into<BlockId>,
-        dst_port_id: impl Into<PortId>,
-    ) -> Result<(), Error> {
-        block_on(self.message_async(src_block_id, src_port_id, dst_block_id, dst_port_id))
-    }
-
-    /// Asynchronously connect message ports between local blocks in this domain context.
-    pub async fn message_async(
         &self,
         src_block_id: impl Into<BlockId>,
         src_port_id: impl Into<PortId>,

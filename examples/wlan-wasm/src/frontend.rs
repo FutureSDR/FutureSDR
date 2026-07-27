@@ -484,8 +484,7 @@ async fn build_rx_flowgraph(
             -(DC_OFFSET_WARMUP_SAMPLES as isize),
         ))
         .await?;
-    fg.stream_dyn_async(prev, output, dc_warmup, "input")
-        .await?;
+    fg.stream_dyn(prev, output, dc_warmup, "input")?;
 
     // WASM slab buffers support one reader per output. Explicitly duplicate
     // streams whenever one output feeds multiple downstream blocks.
@@ -502,12 +501,9 @@ async fn build_rx_flowgraph(
         .add_async(Combine::new(|a: &Complex32, b: &Complex32| a * b.conj()))
         .await?;
 
-    fg.stream_dyn_async(input_dup, "outputs[0]", delay, "input")
-        .await?;
-    fg.stream_dyn_async(input_dup, "outputs[1]", complex_to_mag_2, "input")
-        .await?;
-    fg.stream_dyn_async(input_dup, "outputs[2]", mult_conj, "in0")
-        .await?;
+    fg.stream_dyn(input_dup, "outputs[0]", delay, "input")?;
+    fg.stream_dyn(input_dup, "outputs[1]", complex_to_mag_2, "input")?;
+    fg.stream_dyn(input_dup, "outputs[2]", mult_conj, "in0")?;
 
     let float_avg = MovingAverage::<f32>::new(64);
     connect_async!(fg, complex_to_mag_2 > float_avg);

@@ -299,7 +299,7 @@ impl FlowgraphHandle {
     /// The description contains block metadata plus type-erased stream and
     /// message edges. It is the same shape served by the native control-port
     /// API.
-    pub async fn describe(&self) -> Result<FlowgraphDescription, Error> {
+    pub fn describe(&self) -> Result<FlowgraphDescription, Error> {
         if self.is_terminated() {
             return Err(Error::FlowgraphTerminated);
         }
@@ -308,10 +308,7 @@ impl FlowgraphHandle {
     }
 
     /// Describe one block in the running flowgraph.
-    pub async fn describe_block(
-        &self,
-        block_id: impl Into<BlockId>,
-    ) -> Result<BlockDescription, Error> {
+    pub fn describe_block(&self, block_id: impl Into<BlockId>) -> Result<BlockDescription, Error> {
         self.description(block_id.into())
     }
 
@@ -368,7 +365,7 @@ impl FlowgraphBlockHandle {
     }
 
     /// Describe this block.
-    pub async fn describe(&self) -> Result<BlockDescription, Error> {
-        self.flowgraph.describe_block(self.block_id).await
+    pub fn describe(&self) -> Result<BlockDescription, Error> {
+        self.flowgraph.describe_block(self.block_id)
     }
 }

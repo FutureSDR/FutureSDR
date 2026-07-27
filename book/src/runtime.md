@@ -85,7 +85,7 @@ Runtime::block_on(async move {
 
     let running = runtime_handle.start(fg).await?;
     let flowgraph_handle = running.handle();
-    let description = flowgraph_handle.describe().await?;
+    let description = flowgraph_handle.describe()?;
 
     Ok::<_, futuresdr::runtime::Error>(())
 })?;

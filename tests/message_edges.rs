@@ -131,7 +131,7 @@ fn message_edge_accepts_indexed_ports_and_describes_names() -> Result<()> {
     let running = rt.start(fg)?;
     assert_eq!(running.message_input_id(src, "trigger")?, trigger);
     assert_eq!(running.block(src).message_input_id("trigger")?, trigger);
-    let description = futuresdr::runtime::block_on(running.describe())?;
+    let description = running.describe()?;
     assert_eq!(
         description.message_edges,
         vec![Edge::new(

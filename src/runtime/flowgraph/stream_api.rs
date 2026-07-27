@@ -128,19 +128,7 @@ impl Flowgraph {
     ///     Ok(())
     /// }
     /// ```
-    #[cfg(not(target_arch = "wasm32"))]
     pub fn stream_dyn(
-        &mut self,
-        src_block_id: impl Into<BlockId>,
-        src_port_id: impl Into<PortName>,
-        dst_block_id: impl Into<BlockId>,
-        dst_port_id: impl Into<PortName>,
-    ) -> Result<(), Error> {
-        block_on(self.stream_dyn_async(src_block_id, src_port_id, dst_block_id, dst_port_id))
-    }
-
-    /// Async counterpart to [`Flowgraph::stream_dyn`].
-    pub async fn stream_dyn_async(
         &mut self,
         src_block_id: impl Into<BlockId>,
         src_port_id: impl Into<PortName>,

@@ -664,7 +664,7 @@ fn stream_dyn_accepts_names_and_describes_names() -> Result<()> {
     fg.stream_dyn(src, "output", snk, "input")?;
 
     let running = rt.start(fg)?;
-    let description = futuresdr::runtime::block_on(running.describe())?;
+    let description = running.describe()?;
     assert_eq!(
         description.stream_edges,
         vec![futuresdr::runtime::Edge::new(

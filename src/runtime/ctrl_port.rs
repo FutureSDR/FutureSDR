@@ -71,10 +71,7 @@ async fn flowgraph_description<S: Scheduler + Sync>(
         return Err(StatusCode::NOT_FOUND);
     };
 
-    fg.describe()
-        .await
-        .map(Json::from)
-        .map_err(status_from_error)
+    fg.describe().map(Json::from).map_err(status_from_error)
 }
 
 async fn block_description<S: Scheduler + Sync>(
@@ -86,7 +83,6 @@ async fn block_description<S: Scheduler + Sync>(
     };
 
     fg.describe_block(blk)
-        .await
         .map(Json::from)
         .map_err(status_from_error)
 }

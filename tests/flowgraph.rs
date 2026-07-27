@@ -473,7 +473,7 @@ fn flowgraph_instance_name() -> Result<()> {
     fg.block_mut(&snk)?.set_instance_name(name);
     let fg = rt.start(fg)?.handle();
 
-    let desc = futuresdr::runtime::block_on(async move { fg.describe().await })?;
+    let desc = fg.describe()?;
     assert_eq!(desc.blocks.first().unwrap().instance_name, name);
     Ok(())
 }

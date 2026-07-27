@@ -134,22 +134,30 @@ fn generate_connect(connect_input: ConnectInput, mode: ConnectMode) -> proc_macr
             blocks.push(dst.block.clone());
 
             let out = match connection_type {
-                ConnectionType::Stream | ConnectionType::LocalStream => {
+                ConnectionType::Stream => {
                     let src_port = port_method(src_port, quote!(output()));
                     let dst_port = port_method(&dst.input, quote!(input()));
                     let dst_block = &dst.block;
-                    let method = match connection_type {
-                        ConnectionType::Stream => quote! { stream_async },
-                        ConnectionType::LocalStream => quote! { stream_local_async },
-                        _ => unreachable!(),
-                    };
                     quote! {
-                        #fg.#method(
+                        #fg.stream_async(
                             &#src_block,
                             |b| b.#src_port,
                             &#dst_block,
                             |b| b.#dst_port,
                         ).await?;
+                    }
+                }
+                ConnectionType::LocalStream => {
+                    let src_port = port_method(src_port, quote!(output()));
+                    let dst_port = port_method(&dst.input, quote!(input()));
+                    let dst_block = &dst.block;
+                    quote! {
+                        #fg.stream_local(
+                            &#src_block,
+                            |b| b.#src_port,
+                            &#dst_block,
+                            |b| b.#dst_port,
+                        )?;
                     }
                 }
                 ConnectionType::Message => {
@@ -167,12 +175,12 @@ fn generate_connect(connect_input: ConnectInput, mode: ConnectMode) -> proc_macr
                     };
                     let dest_block = &dst.block;
                     quote! {
-                        #fg.message_async(
+                        #fg.message(
                             #src_block,
                             #src_port,
                             #dest_block,
                             #dst_port,
-                        ).await?;
+                        )?;
                     }
                 }
             };

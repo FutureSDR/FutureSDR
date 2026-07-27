@@ -101,16 +101,13 @@ impl RunningFlowgraph {
     }
 
     /// Describe the running flowgraph.
-    pub async fn describe(&self) -> Result<FlowgraphDescription, Error> {
-        self.handle.describe().await
+    pub fn describe(&self) -> Result<FlowgraphDescription, Error> {
+        self.handle.describe()
     }
 
     /// Describe a block in the running flowgraph.
-    pub async fn describe_block(
-        &self,
-        block_id: impl Into<BlockId>,
-    ) -> Result<BlockDescription, Error> {
-        self.handle.describe_block(block_id).await
+    pub fn describe_block(&self, block_id: impl Into<BlockId>) -> Result<BlockDescription, Error> {
+        self.handle.describe_block(block_id)
     }
 
     /// Stop the running flowgraph.

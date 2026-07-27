@@ -240,7 +240,7 @@ fn connect_circuit_description_lists_stream_edges() -> Result<()> {
     let running = rt.start(fg)?;
     let handle = running.handle();
     let description = futuresdr::runtime::block_on(async {
-        let description = handle.describe().await?;
+        let description = handle.describe()?;
         handle.stop_and_wait().await?;
         Ok::<_, Error>(description)
     })?;

@@ -4,8 +4,6 @@ use crate::runtime::Edge;
 use crate::runtime::Error;
 use crate::runtime::PortId;
 use crate::runtime::Result;
-#[cfg(not(target_arch = "wasm32"))]
-use crate::runtime::block_on;
 use crate::runtime::resolve_port_name;
 
 use super::BlockSlot;
@@ -18,19 +16,7 @@ impl Flowgraph {
     /// including cycles and self-connections. The destination message input
     /// and the source message output are validated immediately. The concrete
     /// output handler list is populated from this logical edge at startup.
-    #[cfg(not(target_arch = "wasm32"))]
     pub fn message(
-        &mut self,
-        src_block_id: impl Into<BlockId>,
-        src_port_id: impl Into<PortId>,
-        dst_block_id: impl Into<BlockId>,
-        dst_port_id: impl Into<PortId>,
-    ) -> Result<(), Error> {
-        block_on(self.message_async(src_block_id, src_port_id, dst_block_id, dst_port_id))
-    }
-
-    /// Async counterpart to [`Flowgraph::message`].
-    pub async fn message_async(
         &mut self,
         src_block_id: impl Into<BlockId>,
         src_port_id: impl Into<PortId>,
