@@ -127,6 +127,11 @@ pub mod mpsc {
     }
 
     impl<T> Receiver<T> {
+        /// Close the channel.
+        pub fn close(&self) -> Result<(), ReceiveError> {
+            self.0.close().map_err(|_| ReceiveError::Closed)
+        }
+
         /// Receive the next value from the channel.
         ///
         /// # Cancellation safety

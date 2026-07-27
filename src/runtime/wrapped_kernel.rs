@@ -486,7 +486,9 @@ where
     K: SendKernel + 'static,
 {
     async fn run(&mut self, main_inbox: Sender<FlowgraphMessage>) {
-        match KernelWrapper::run(self, main_inbox.clone()).await {
+        let result = KernelWrapper::run(self, main_inbox.clone()).await;
+        self.inbox.rx.close();
+        match result {
             Ok(_) => {
                 let _ = main_inbox
                     .send(FlowgraphMessage::BlockDone { block_id: self.id })

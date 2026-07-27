@@ -299,6 +299,11 @@ impl BlockInboxReader {
         Self { control, notifier }
     }
 
+    /// Close this inbox and reject further messages.
+    pub(crate) fn close(&self) {
+        let _ = self.control.close();
+    }
+
     /// Try to receive a queued block message without blocking.
     pub(crate) fn try_recv(&mut self) -> Option<BlockMessage> {
         self.control.try_recv().ok()
@@ -788,6 +793,30 @@ mod tests {
         assert!(rx.take_message_pending());
         assert!(!rx.take_message_pending());
         assert!(matches!(rx.try_recv(), Some(BlockMessage::Initialize)));
+    }
+
+    #[test]
+    fn normal_send_after_reader_close_fails() {
+        let (tx, rx) = BlockInbox::pair(1);
+        rx.close();
+
+        assert!(block_on(tx.send(BlockMessage::Initialize)).is_err());
+    }
+
+    #[test]
+    fn normal_queued_call_is_canceled_on_reader_close() {
+        let (tx, rx) = BlockInbox::pair(1);
+        let (reply_tx, reply_rx) = oneshot::channel();
+
+        block_on(tx.send(BlockMessage::Call {
+            port_id: PortIndex::new(0),
+            data: Pmt::Null,
+            tx: reply_tx,
+        }))
+        .unwrap();
+        rx.close();
+
+        assert!(block_on(reply_rx).is_err());
     }
 
     #[test]
