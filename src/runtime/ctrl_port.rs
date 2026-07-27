@@ -41,8 +41,6 @@ use crate::runtime::FlowgraphId;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
 use crate::runtime::RuntimeHandle;
-#[cfg(test)]
-use crate::runtime::block_on;
 use crate::runtime::channel::oneshot;
 use crate::runtime::config;
 use crate::runtime::scheduler::Scheduler;
@@ -570,6 +568,7 @@ mod tests {
     use crate::runtime::Result;
     use crate::runtime::Runtime;
     use crate::runtime::Timer;
+    use crate::runtime::block_on;
     use crate::runtime::dev::BlockMeta;
     use crate::runtime::dev::Kernel;
     use crate::runtime::dev::MessageOutputs;
