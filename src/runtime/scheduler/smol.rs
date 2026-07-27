@@ -1,11 +1,8 @@
 use async_executor::Executor;
 use async_executor::Task;
 use futures::future::Future;
-use once_cell::sync::Lazy;
-use slab::Slab;
 use std::fmt;
 use std::sync::Arc;
-use std::sync::Mutex;
 use std::thread;
 
 use crate::runtime::Error;
@@ -15,8 +12,6 @@ use crate::runtime::config;
 use crate::runtime::scheduler::NormalDomainSpec;
 use crate::runtime::scheduler::NormalRunningDomain;
 use crate::runtime::scheduler::Scheduler;
-
-static SMOL: Lazy<Mutex<Slab<Arc<Executor<'_>>>>> = Lazy::new(|| Mutex::new(Slab::new()));
 
 /// Native scheduler backed by the `smol` async executor.
 ///
@@ -29,14 +24,14 @@ pub struct SmolScheduler {
 }
 
 struct SmolSchedulerInner {
-    id: usize,
+    executor: Arc<Executor<'static>>,
     workers: Vec<(thread::JoinHandle<()>, oneshot::Sender<()>)>,
 }
 
 impl fmt::Debug for SmolSchedulerInner {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("SmolSchedulerInner")
-            .field("id", &self.id)
+            .field("workers", &self.workers.len())
             .finish()
     }
 }
@@ -61,7 +56,6 @@ impl SmolScheduler {
     /// order, cycling through the core list when `n_executors` is larger than
     /// the number of detected cores.
     pub fn new(n_executors: usize, pin_executors: bool) -> SmolScheduler {
-        let mut slab = SMOL.lock().unwrap();
         let executor = Arc::new(Executor::new());
         let mut workers = Vec::new();
 
@@ -98,10 +92,8 @@ impl SmolScheduler {
             workers.push((handle, sender));
         }
 
-        let id = slab.insert(executor);
-
         SmolScheduler {
-            inner: Arc::new(SmolSchedulerInner { id, workers }),
+            inner: Arc::new(SmolSchedulerInner { executor, workers }),
         }
     }
 }
@@ -123,11 +115,7 @@ impl Scheduler for SmolScheduler {
         &self,
         future: impl Future<Output = T> + Send + 'static,
     ) -> Task<T> {
-        SMOL.lock()
-            .unwrap()
-            .get(self.inner.id)
-            .unwrap()
-            .spawn(future)
+        self.inner.executor.spawn(future)
     }
 }
 
@@ -141,6 +129,17 @@ impl Default for SmolScheduler {
 #[cfg(test)]
 mod test {
     use super::*;
+    use futures::future;
+    use std::sync::atomic::AtomicBool;
+    use std::sync::atomic::Ordering;
+
+    struct DropProbe(Arc<AtomicBool>);
+
+    impl Drop for DropProbe {
+        fn drop(&mut self) {
+            self.0.store(true, Ordering::Release);
+        }
+    }
 
     #[test]
     fn smol() {
@@ -149,5 +148,25 @@ mod test {
         let t = s.spawn(async { 1 + 1 });
         let r = block_on(t);
         assert_eq!(r, 2);
+    }
+
+    #[test]
+    fn dropping_scheduler_drops_pending_tasks() {
+        let dropped = Arc::new(AtomicBool::new(false));
+        let (started_tx, started_rx) = std::sync::mpsc::channel();
+        let scheduler = SmolScheduler::new(1, false);
+        let probe = DropProbe(dropped.clone());
+        scheduler
+            .spawn(async move {
+                let _probe = probe;
+                started_tx.send(()).unwrap();
+                future::pending::<()>().await;
+            })
+            .detach();
+
+        started_rx.recv().unwrap();
+        drop(scheduler);
+
+        assert!(dropped.load(Ordering::Acquire));
     }
 }
