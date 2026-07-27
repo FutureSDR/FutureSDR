@@ -25,6 +25,7 @@ use futuresdr::runtime::dev::ItemTag;
 struct CurrentBuffer {
     buffer: DmaBuffer,
     byte_offset: usize,
+    byte_len: usize,
 }
 
 /// Zynq device-to-host writer that accepts full DMA buffers.
@@ -298,9 +299,18 @@ where
     fn slice_with_tags(&mut self) -> (&[Self::Item], &[ItemTag]) {
         if self.current.is_none() {
             if let Some(b) = self.inbound.lock().unwrap().pop_front() {
+                assert!(
+                    b.used_bytes <= b.buffer.size(),
+                    "Zynq D2H used byte count exceeds DMA buffer capacity"
+                );
+                assert!(
+                    b.used_bytes.is_multiple_of(D::SIZE.get()),
+                    "Zynq D2H used byte count is not a multiple of the sample size"
+                );
                 self.current = Some(CurrentBuffer {
                     buffer: b.buffer,
                     byte_offset: 0,
+                    byte_len: b.used_bytes,
                 });
             } else {
                 return (&[], &[]);
@@ -312,7 +322,7 @@ where
         let bytes = unsafe {
             std::slice::from_raw_parts(
                 (current.buffer.buffer() as *const u8).add(current.byte_offset),
-                current.buffer.size() - current.byte_offset,
+                current.byte_len - current.byte_offset,
             )
         };
         let samples = bytemuck::try_cast_slice(bytes)
@@ -327,12 +337,12 @@ where
         debug_assert!(self.current.is_some());
 
         let current = self.current.as_mut().unwrap();
-        let byte_capacity = current.buffer.size();
+        let byte_len = current.byte_len;
 
-        debug_assert!(amount * D::SIZE.get() + current.byte_offset <= byte_capacity);
+        debug_assert!(amount * D::SIZE.get() + current.byte_offset <= byte_len);
 
         current.byte_offset += amount * D::SIZE.get();
-        if current.byte_offset == byte_capacity {
+        if current.byte_offset == byte_len {
             let buffer = self.current.take().unwrap().buffer;
             self.outbound.lock().unwrap().push(BufferEmpty { buffer });
             self.state.connected().writer.inbox().notify();
@@ -340,7 +350,10 @@ where
         }
     }
 
-    fn max_contiguous_items(&self) -> Option<usize> {
-        None
+    fn max_contiguous_items(&self) -> usize {
+        self.current
+            .as_ref()
+            .map(|buffer| (buffer.byte_len - buffer.byte_offset) / D::SIZE.get())
+            .expect("Zynq D2H buffer capacity queried without a current page")
     }
 }

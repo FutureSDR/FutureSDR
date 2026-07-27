@@ -976,10 +976,11 @@ pub trait CpuBufferReader: BufferReader + Default {
     fn consume(&mut self, n: usize);
     /// Return the maximum number of items that can be presented contiguously.
     ///
-    /// For page-based buffers, this is the capacity of one page, not the
-    /// aggregate capacity of all pages on the edge. Returns `None` when the
-    /// capacity is not known before block execution starts.
-    fn max_contiguous_items(&self) -> Option<usize>;
+    /// For page-based buffers, this is the capacity of the current page, not
+    /// the aggregate capacity of all pages on the edge. Call this after
+    /// [`CpuBufferReader::slice`] or [`CpuBufferReader::slice_with_tags`] has
+    /// returned a non-empty slice.
+    fn max_contiguous_items(&self) -> usize;
 }
 
 /// CPU stream writer API.

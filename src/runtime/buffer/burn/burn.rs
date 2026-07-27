@@ -460,6 +460,9 @@ where
     }
 
     fn inject_buffers_with_items(&mut self, n_buffers: usize, n_items: usize) {
+        if n_buffers > 0 {
+            assert!(n_items > 0, "Burn buffers cannot be empty");
+        }
         self.buffer_size_in_items = n_items;
         self.permits.fetch_add(n_buffers, Ordering::Release);
         if n_buffers > 0 && self.core.is_bound() {
@@ -679,10 +682,11 @@ where
         }
 
         let (c, o) = self.current.as_mut().unwrap();
-        debug_assert!(n <= c.valid - *o);
+        let valid = c.valid * size_of::<E::Elem>() / SR::SIZE.get();
+        debug_assert!(n <= valid - *o);
         *o += n;
 
-        if *o == c.valid {
+        if *o == valid {
             let _ = self.current.take().unwrap();
 
             if !self.state.connected().inbound.lock().unwrap().is_empty() {
@@ -691,7 +695,10 @@ where
         }
     }
 
-    fn max_contiguous_items(&self) -> Option<usize> {
-        Some(self.state.connected().max_contiguous_items)
+    fn max_contiguous_items(&self) -> usize {
+        self.current
+            .as_ref()
+            .map(|(buffer, offset)| buffer.valid * size_of::<E::Elem>() / SR::SIZE.get() - offset)
+            .unwrap_or_else(|| self.state.connected().max_contiguous_items)
     }
 }

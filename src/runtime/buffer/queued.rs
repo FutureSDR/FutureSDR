@@ -798,8 +798,10 @@ where
         }
     }
 
-    fn max_contiguous_items(&self) -> Option<usize> {
-        self.core.min_buffer_size_in_items()
+    fn max_contiguous_items(&self) -> usize {
+        self.core
+            .min_buffer_size_in_items()
+            .expect("queued buffer capacity missing after validation")
     }
 }
 
@@ -903,7 +905,7 @@ mod tests {
         BufferWriter::connect(&mut writer, &mut reader);
 
         assert_eq!(CpuBufferWriter::slice(&mut writer).len(), 8);
-        assert_eq!(reader.max_contiguous_items(), Some(8));
+        assert_eq!(reader.max_contiguous_items(), 8);
     }
 
     #[test]

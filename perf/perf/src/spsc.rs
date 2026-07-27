@@ -520,11 +520,12 @@ where
         self.writer_notifier.notify();
     }
 
-    fn max_contiguous_items(&self) -> Option<usize> {
+    fn max_contiguous_items(&self) -> usize {
         self.inner
             .as_ref()
             .map(|inner| inner.capacity)
             .or(self.core.min_buffer_size_in_items())
+            .expect("SPSC buffer capacity missing after validation")
     }
 }
 

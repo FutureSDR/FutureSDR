@@ -305,8 +305,8 @@ where
         }
     }
 
-    fn max_contiguous_items(&self) -> Option<usize> {
-        Some(self.data.len())
+    fn max_contiguous_items(&self) -> usize {
+        self.data.len()
     }
 }
 

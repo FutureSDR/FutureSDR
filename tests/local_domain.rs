@@ -117,7 +117,7 @@ impl CpuBufferReader for NonSendReader {
         self.inner.consume(n);
     }
 
-    fn max_contiguous_items(&self) -> Option<usize> {
+    fn max_contiguous_items(&self) -> usize {
         self.inner.max_contiguous_items()
     }
 }

@@ -405,8 +405,10 @@ where
         self.state.connected_mut().reader.consume(amount);
     }
 
-    fn max_contiguous_items(&self) -> Option<usize> {
-        self.core.min_buffer_size_in_items()
+    fn max_contiguous_items(&self) -> usize {
+        self.core
+            .min_buffer_size_in_items()
+            .expect("local MPSC buffer capacity missing after validation")
     }
 }
 

@@ -692,6 +692,9 @@ impl<D: CpuSample> D2HWriter<D> {
         let Some(context) = self.context.as_ref() else {
             panic!("CubeCL D2H writer: set_context() must be called before injecting buffers");
         };
+        if n_buffers > 0 {
+            assert!(n_items > 0, "CubeCL D2H buffers cannot be empty");
+        }
         let n_bytes = n_items * D::SIZE.get();
         let mut inbound = self.inbound.lock().unwrap();
         for _ in 0..n_buffers {
@@ -964,8 +967,12 @@ impl<D: CpuSample + Pod> CpuBufferReader for D2HReader<D> {
         }
     }
 
-    fn max_contiguous_items(&self) -> Option<usize> {
-        self.max_contiguous_items
+    fn max_contiguous_items(&self) -> usize {
+        self.buffer
+            .as_ref()
+            .map(|buffer| (buffer.slice.len() - buffer.byte_offset) / D::SIZE.get())
+            .or(self.max_contiguous_items)
+            .expect("CubeCL D2H buffer capacity queried without a current page")
     }
 }
 

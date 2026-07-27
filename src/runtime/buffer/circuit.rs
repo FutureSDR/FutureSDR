@@ -424,6 +424,7 @@ where
 
     fn inject_buffers_with_items(&mut self, n_buffers: usize, n_items: usize) {
         if n_buffers > 0 {
+            assert!(n_items > 0, "circuit buffers cannot be empty");
             self.max_contiguous_items = Some(
                 self.max_contiguous_items
                     .map_or(n_items, |current| current.min(n_items)),
@@ -648,7 +649,11 @@ where
         }
     }
 
-    fn max_contiguous_items(&self) -> Option<usize> {
-        self.state.connected().max_contiguous_items
+    fn max_contiguous_items(&self) -> usize {
+        self.current
+            .as_ref()
+            .map(|(buffer, offset)| buffer.storage().valid - offset)
+            .or(self.state.connected().max_contiguous_items)
+            .expect("circuit buffer capacity queried without a current page")
     }
 }

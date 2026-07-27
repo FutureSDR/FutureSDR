@@ -63,7 +63,6 @@ where
     ctrl: DynDevice,
     streamer: Option<D::TxStreamer>,
     start_time: Option<i64>,
-    max_input_buffer_size_in_samples: Option<usize>,
 }
 
 impl<D, IN> Sink<D, IN>
@@ -96,7 +95,6 @@ where
             ctrl,
             start_time,
             streamer: None,
-            max_input_buffer_size_in_samples: None,
         }
     }
 
@@ -210,13 +208,27 @@ where
         mo: &mut MessageOutputs,
         _meta: &BlockMeta,
     ) -> Result<()> {
-        let tags = self.inputs[0].slice_with_tags().1.to_vec();
+        let (mut available, tags) = {
+            let (input, tags) = self.inputs[0].slice_with_tags();
+            (input.len(), tags.to_vec())
+        };
+        for input in &mut self.inputs[1..] {
+            available = available.min(input.slice().len());
+        }
+        let max_input_buffer_size_in_samples = if available > 0 {
+            self.inputs
+                .iter()
+                .map(|input| input.max_contiguous_items())
+                .min()
+                .unwrap_or(0)
+        } else {
+            0
+        };
         let bufs: Vec<&[Complex32]> = self.inputs.iter_mut().map(|b| b.slice()).collect();
-
-        let streamer = self.streamer.as_mut().unwrap();
         let nitems_per_input_stream: Vec<usize> = bufs.iter().map(|b| b.len()).collect();
-
         let n = nitems_per_input_stream.iter().copied().min().unwrap_or(0);
+        let streamer = self.streamer.as_mut().unwrap();
+
         let consumed = if n > 0 {
             let t = tags.iter().find_map(|x| match x {
                 ItemTag {
@@ -239,19 +251,11 @@ where
                     let ret = streamer.write(&bufs, None, true, 2_000_000)?;
                     debug_assert_eq!(ret, len);
                     ret
-                } else if self
-                    .max_input_buffer_size_in_samples
-                    .is_none_or(|max_items| len > max_items)
-                {
-                    if let Some(max_items) = self.max_input_buffer_size_in_samples {
-                        warn!(
-                            "input buffers of seify sink too small ({max_items} samples) to fit complete burst ({len} samples). sending in non-burst mode"
-                        );
-                    } else {
-                        warn!(
-                            "input buffer capacity of seify sink is unknown; cannot wait for complete burst ({len} samples). sending in non-burst mode"
-                        );
-                    }
+                } else if len > max_input_buffer_size_in_samples {
+                    warn!(
+                        "input buffers of seify sink too small ({} samples) to fit complete burst ({len} samples). sending in non-burst mode",
+                        max_input_buffer_size_in_samples
+                    );
                     let bufs: Vec<&[Complex32]> = bufs.iter().map(|b| &b[0..n]).collect();
                     let ret = streamer.write(&bufs, None, true, 2_000_000)?;
                     debug_assert_eq!(ret, n);
@@ -297,12 +301,6 @@ where
     }
 
     async fn init(&mut self, _mo: &mut MessageOutputs, _meta: &BlockMeta) -> Result<()> {
-        self.max_input_buffer_size_in_samples =
-            self.inputs.iter().try_fold(usize::MAX, |max_items, input| {
-                input
-                    .max_contiguous_items()
-                    .map(|items| max_items.min(items))
-            });
         self.streamer = Some(self.dev.tx_streamer(&self.channels)?);
         self.streamer
             .as_mut()

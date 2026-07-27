@@ -109,6 +109,9 @@ where
         let Some(instance) = self.instance.as_ref() else {
             panic!("D2H writer: set_instance() must be called before injecting buffers");
         };
+        if n_buffers > 0 {
+            assert!(n_items > 0, "D2H buffers cannot be empty");
+        }
         let n_bytes = (n_items * D::SIZE.get()) as u64;
         let mut inbound = self.inbound.lock().unwrap();
         for _ in 0..n_buffers {
@@ -420,8 +423,12 @@ where
         }
     }
 
-    fn max_contiguous_items(&self) -> Option<usize> {
-        self.state.connected().max_contiguous_items
+    fn max_contiguous_items(&self) -> usize {
+        self.buffer
+            .as_ref()
+            .map(|buffer| (buffer.slice.len() - buffer.byte_offset) / D::SIZE.get())
+            .or(self.state.connected().max_contiguous_items)
+            .expect("D2H buffer capacity queried without a current page")
     }
 }
 
