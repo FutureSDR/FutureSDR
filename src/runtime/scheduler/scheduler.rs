@@ -236,9 +236,9 @@ impl NormalRunningDomain {
     }
 
     /// Request the normal domain to stop.
-    pub(crate) async fn stop(&mut self) -> Result<(), Error> {
+    pub(crate) async fn stop(&mut self) {
         if self.stop_requested {
-            return Ok(());
+            return;
         }
         self.stop_requested = true;
 
@@ -250,16 +250,15 @@ impl NormalRunningDomain {
                 );
             }
         }
-        Ok(())
     }
 
     /// Await all normal-domain block tasks and return their blocks.
-    pub(crate) async fn join(self) -> Result<NormalBlocks, Error> {
+    pub(crate) async fn join(self) -> NormalBlocks {
         let mut blocks = Vec::with_capacity(self.tasks.len());
         for task in self.tasks {
             blocks.push(task.await.into_block());
         }
-        Ok(blocks)
+        blocks
     }
 }
 
@@ -410,10 +409,10 @@ mod tests {
         let stop = BlockStop { block_id, endpoint };
         let mut domain = NormalRunningDomain::new(vec![(task, stop)]);
 
-        crate::runtime::block_on(domain.stop()).unwrap();
+        crate::runtime::block_on(domain.stop());
         assert!(matches!(reader.try_recv(), Some(BlockMessage::Terminate)));
 
-        crate::runtime::block_on(domain.stop()).unwrap();
+        crate::runtime::block_on(domain.stop());
         assert!(reader.try_recv().is_none());
     }
 }

@@ -24,7 +24,6 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
 ) -> Result<TerminatedFlowgraph, Error> {
     debug!("in run_flowgraph");
 
-    let scheduler_guard = scheduler.clone();
     let prepared = match FlowgraphCompiler::compile(flowgraph, main_channel) {
         Ok(prepared) => prepared,
         Err(e) => {
@@ -41,7 +40,7 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
     };
 
     let running = match prepared
-        .start_initialized(scheduler, &main_rx, initialized, registry)
+        .start_initialized(&scheduler, &main_rx, initialized, registry)
         .await
     {
         Ok(running) => running,
@@ -58,7 +57,6 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
     }
 
     let terminated = running.wait(&main_rx).await?;
-    drop(scheduler_guard);
     Ok(terminated)
 }
 

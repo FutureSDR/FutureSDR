@@ -1,3 +1,4 @@
+use std::future::Future;
 use std::sync::Arc;
 
 use crate::runtime::BlockDescription;
@@ -190,13 +191,13 @@ impl PreparedFlowgraph {
         Ok(self)
     }
 
-    pub(super) async fn start_initialized<S: Scheduler>(
+    pub(super) fn start_initialized<'a, S: Scheduler>(
         self,
-        scheduler: S,
-        main_rx: &Receiver<FlowgraphMessage>,
+        scheduler: &S,
+        main_rx: &'a Receiver<FlowgraphMessage>,
         initialized: oneshot::Sender<Result<(), Error>>,
         registry_tx: oneshot::Sender<Arc<RunningFlowgraphRegistry>>,
-    ) -> Result<RunningFlowgraph, Error> {
+    ) -> impl Future<Output = Result<RunningFlowgraph, Error>> + 'a {
         let Self {
             flowgraph,
             registry,
@@ -215,58 +216,62 @@ impl PreparedFlowgraph {
         } = flowgraph;
         let (running_domains, normal_blocks) = graph_domains.into_running();
         let normal_spec = NormalDomainSpec::new(normal_blocks, normal_topology, main_channel);
-        let normal_domain = match scheduler.start_normal_domain(normal_spec) {
-            Ok(domain) => domain,
-            Err(e) => {
-                let _ = initialized.send(Err(e.clone()));
-                return Err(e);
+        let normal_domain = scheduler.start_normal_domain(normal_spec);
+
+        async move {
+            let normal_domain = match normal_domain {
+                Ok(domain) => domain,
+                Err(e) => {
+                    let _ = initialized.send(Err(e.clone()));
+                    return Err(e);
+                }
+            };
+            let mut running = RunningFlowgraph {
+                id,
+                blocks,
+                graph_domains: running_domains,
+                registry,
+                normal_domain,
+                local_domains: Vec::with_capacity(local_domains.len()),
+                active_blocks: 0,
+            };
+            for spec in local_domains {
+                match spec.start() {
+                    Ok(domain) => running.local_domains.push(domain),
+                    Err(e) => {
+                        running.cleanup().await;
+                        let _ = initialized.send(Err(e.clone()));
+                        return Err(e);
+                    }
+                }
             }
-        };
-        let mut running = RunningFlowgraph {
-            id,
-            blocks,
-            graph_domains: running_domains,
-            registry,
-            normal_domain,
-            local_domains: Vec::with_capacity(local_domains.len()),
-            active_blocks: 0,
-        };
-        for spec in local_domains {
-            match spec.start() {
-                Ok(domain) => running.local_domains.push(domain),
+
+            running.active_blocks = match running.initialize_blocks(main_rx).await {
+                Ok(active_blocks) => active_blocks,
                 Err(e) => {
                     running.cleanup().await;
                     let _ = initialized.send(Err(e.clone()));
                     return Err(e);
                 }
-            }
-        }
+            };
 
-        running.active_blocks = match running.initialize_blocks(main_rx).await {
-            Ok(active_blocks) => active_blocks,
-            Err(e) => {
+            if registry_tx.send(running.registry.clone()).is_err() {
                 running.cleanup().await;
+                let e = Error::RuntimeError(
+                    "main thread dropped running flowgraph registry receiver".to_string(),
+                );
                 let _ = initialized.send(Err(e.clone()));
                 return Err(e);
             }
-        };
+            if initialized.send(Ok(())).is_err() {
+                running.cleanup().await;
+                return Err(Error::RuntimeError(
+                    "main thread panic during flowgraph init".to_string(),
+                ));
+            }
 
-        if registry_tx.send(running.registry.clone()).is_err() {
-            running.cleanup().await;
-            let e = Error::RuntimeError(
-                "main thread dropped running flowgraph registry receiver".to_string(),
-            );
-            let _ = initialized.send(Err(e.clone()));
-            return Err(e);
+            Ok(running)
         }
-        if initialized.send(Ok(())).is_err() {
-            running.cleanup().await;
-            return Err(Error::RuntimeError(
-                "main thread panic during flowgraph init".to_string(),
-            ));
-        }
-
-        Ok(running)
     }
 }
 
@@ -342,9 +347,7 @@ impl RunningFlowgraph {
     }
 
     async fn stop_domains(&mut self) {
-        if let Err(e) = self.normal_domain.stop().await {
-            debug!("runtime tried to stop normal domain that was already terminated: {e}");
-        }
+        self.normal_domain.stop().await;
         for domain in &mut self.local_domains {
             if let Err(e) = domain.stop().await {
                 debug!("runtime tried to stop local domain that was already terminated: {e}");
@@ -357,7 +360,7 @@ impl RunningFlowgraph {
         local_domains: Vec<LocalRunningDomain>,
     ) -> Result<NormalBlocks, Error> {
         let normal_blocks = normal_domain.join().await;
-        let mut join_error = normal_blocks.as_ref().err().cloned();
+        let mut join_error = None;
         for domain in local_domains {
             if let Err(e) = domain.join().await
                 && join_error.is_none()
@@ -368,7 +371,7 @@ impl RunningFlowgraph {
         if let Some(e) = join_error {
             Err(e)
         } else {
-            normal_blocks
+            Ok(normal_blocks)
         }
     }
 
