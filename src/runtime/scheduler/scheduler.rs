@@ -253,11 +253,11 @@ impl NormalRunningDomain {
         Ok(())
     }
 
-    /// Await all normal-domain block tasks and return their stopped blocks.
-    pub(crate) async fn join(self) -> Result<Vec<StoppedBlock>, Error> {
+    /// Await all normal-domain block tasks and return their blocks.
+    pub(crate) async fn join(self) -> Result<NormalBlocks, Error> {
         let mut blocks = Vec::with_capacity(self.tasks.len());
         for task in self.tasks {
-            blocks.push(task.await);
+            blocks.push(task.await.into_block());
         }
         Ok(blocks)
     }
@@ -289,95 +289,6 @@ impl LocalRunningDomain {
             .await
             .map_err(|_| Error::RuntimeError("local domain task canceled".to_string()))??;
         Ok(())
-    }
-}
-
-/// Running scheduling domain.
-pub(crate) struct RunningDomain {
-    domain_id: usize,
-    state: RunningDomainState,
-}
-
-enum RunningDomainState {
-    Normal(NormalRunningDomain),
-    Local(LocalRunningDomain),
-}
-
-impl RunningDomain {
-    /// Construct a running normal domain handle.
-    pub(crate) fn normal(domain_id: usize, domain: NormalRunningDomain) -> Self {
-        Self {
-            domain_id,
-            state: RunningDomainState::Normal(domain),
-        }
-    }
-
-    /// Construct a running local domain handle.
-    pub(crate) fn local(domain_id: usize, domain: LocalRunningDomain) -> Self {
-        Self {
-            domain_id,
-            state: RunningDomainState::Local(domain),
-        }
-    }
-
-    /// Stop this running domain.
-    pub(crate) async fn stop(&mut self) -> Result<(), Error> {
-        match &mut self.state {
-            RunningDomainState::Normal(domain) => domain.stop().await,
-            RunningDomainState::Local(domain) => domain.stop().await,
-        }
-    }
-
-    /// Join this domain and return its stopped state.
-    pub(crate) async fn join(self) -> Result<StoppedDomain, Error> {
-        let domain_id = self.domain_id;
-        match self.state {
-            RunningDomainState::Normal(domain) => domain
-                .join()
-                .await
-                .map(|blocks| StoppedDomain::normal(domain_id, blocks)),
-            RunningDomainState::Local(domain) => {
-                domain.join().await?;
-                Ok(StoppedDomain::local(domain_id))
-            }
-        }
-    }
-}
-
-/// Stopped scheduling-domain state.
-pub(crate) struct StoppedDomain {
-    domain_id: usize,
-    state: StoppedDomainState,
-}
-
-pub(crate) enum StoppedDomainState {
-    /// Blocks returned by the normal domain.
-    Normal(Vec<StoppedBlock>),
-    /// A local domain whose block state has already been restored internally.
-    Local,
-}
-
-impl StoppedDomain {
-    pub(crate) fn normal(domain_id: usize, blocks: Vec<StoppedBlock>) -> Self {
-        Self {
-            domain_id,
-            state: StoppedDomainState::Normal(blocks),
-        }
-    }
-
-    pub(crate) fn local(domain_id: usize) -> Self {
-        Self {
-            domain_id,
-            state: StoppedDomainState::Local,
-        }
-    }
-
-    pub(crate) fn domain_id(&self) -> usize {
-        self.domain_id
-    }
-
-    pub(crate) fn into_state(self) -> StoppedDomainState {
-        self.state
     }
 }
 

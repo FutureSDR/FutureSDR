@@ -18,16 +18,15 @@ use crate::runtime::flowgraph_handle::RunningFlowgraphRegistry;
 use crate::runtime::local_domain::LocalDomainInbox;
 use crate::runtime::scheduler::DomainTopology;
 use crate::runtime::scheduler::LocalDomainSpec;
+use crate::runtime::scheduler::LocalRunningDomain;
 use crate::runtime::scheduler::NormalBlocks;
 use crate::runtime::scheduler::NormalDomainSpec;
-use crate::runtime::scheduler::RunningDomain;
+use crate::runtime::scheduler::NormalRunningDomain;
 use crate::runtime::scheduler::Scheduler;
-use crate::runtime::scheduler::StoppedDomain;
 
 use super::BlockSlot;
 use super::Flowgraph;
 use super::connector::FlowgraphConnector;
-use super::domains::NORMAL_DOMAIN_ID;
 use super::domains::RunningFlowgraphDomains;
 use super::terminated::TerminatedFlowgraph;
 use super::types::BlockLocation;
@@ -36,7 +35,6 @@ struct LocalDomainPlan {
     domain_id: usize,
     inbox: LocalDomainInbox,
     slots: Vec<(BlockId, usize)>,
-    block_ids: Vec<BlockId>,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -102,147 +100,36 @@ struct GraphPlan {
     local_domains: Vec<LocalDomainPlan>,
 }
 
-pub(super) struct PreparedConnections {
-    stream_edges: Vec<ResolvedEdge>,
-    message_edges: Vec<ResolvedEdge>,
-}
-
-impl PreparedConnections {
-    fn new(stream_edges: Vec<ResolvedEdge>, message_edges: Vec<ResolvedEdge>) -> Self {
-        Self {
-            stream_edges,
-            message_edges,
-        }
-    }
-
-    pub(super) fn stream_edges(&self) -> &[ResolvedEdge] {
-        &self.stream_edges
-    }
-
-    pub(super) fn message_edges(&self) -> &[ResolvedEdge] {
-        &self.message_edges
-    }
-}
-
-pub(super) struct PreparedDomains {
-    domains: Vec<PreparedDomainPlan>,
-    main_channel: Sender<FlowgraphMessage>,
-}
-
-struct PreparedDomainPlan {
-    domain_id: usize,
-    kind: PreparedDomainPlanKind,
-}
-
-enum PreparedDomainPlanKind {
-    Normal { topology: DomainTopology },
-    Local(LocalDomainSpec),
-}
-
-pub(super) struct PreparedDomain {
-    domain_id: usize,
-    kind: PreparedDomainKind,
-}
-
-enum PreparedDomainKind {
-    Normal(NormalDomainSpec),
-    Local(LocalDomainSpec),
-}
-
-impl PreparedDomainPlan {
-    fn normal(domain_id: usize, topology: DomainTopology) -> Self {
-        Self {
-            domain_id,
-            kind: PreparedDomainPlanKind::Normal { topology },
-        }
-    }
-
-    fn local(domain_id: usize, spec: LocalDomainSpec) -> Self {
-        Self {
-            domain_id,
-            kind: PreparedDomainPlanKind::Local(spec),
-        }
-    }
-}
-
-impl PreparedDomain {
-    pub(super) fn start<S: Scheduler>(self, scheduler: &S) -> Result<RunningDomain, Error> {
-        let domain_id = self.domain_id;
-        match self.kind {
-            PreparedDomainKind::Normal(spec) => scheduler
-                .start_normal_domain(spec)
-                .map(|domain| RunningDomain::normal(domain_id, domain)),
-            PreparedDomainKind::Local(spec) => spec
-                .start()
-                .map(|domain| RunningDomain::local(domain_id, domain)),
-        }
-    }
-}
-
-impl PreparedDomains {
-    fn new(domains: Vec<PreparedDomainPlan>, main_channel: Sender<FlowgraphMessage>) -> Self {
-        Self {
-            domains,
-            main_channel,
-        }
-    }
-
-    pub(super) fn into_domains(self, normal_blocks: NormalBlocks) -> Vec<PreparedDomain> {
-        let Self {
-            domains,
-            main_channel,
-        } = self;
-        let mut normal_blocks = Some(normal_blocks);
-        domains
-            .into_iter()
-            .map(|domain| {
-                let domain_id = domain.domain_id;
-                let kind = match domain.kind {
-                    PreparedDomainPlanKind::Normal { topology } => {
-                        PreparedDomainKind::Normal(NormalDomainSpec::new(
-                            normal_blocks
-                                .take()
-                                .expect("normal domain prepared more than once"),
-                            topology,
-                            main_channel.clone(),
-                        ))
-                    }
-                    PreparedDomainPlanKind::Local(spec) => PreparedDomainKind::Local(spec),
-                };
-                PreparedDomain { domain_id, kind }
-            })
-            .collect()
-    }
-
-    fn domain_topology(
-        block_ids: &[BlockId],
-        stream_edges: &[Edge],
-        message_edges: &[Edge],
-    ) -> DomainTopology {
-        let relevant = |edge: &Edge| {
-            block_ids.contains(&edge.src_block) || block_ids.contains(&edge.dst_block)
-        };
-        DomainTopology::new(
-            block_ids.to_vec(),
-            stream_edges
-                .iter()
-                .filter(|edge| relevant(edge))
-                .cloned()
-                .collect(),
-            message_edges
-                .iter()
-                .filter(|edge| relevant(edge))
-                .cloned()
-                .collect(),
-        )
-    }
+fn domain_topology(
+    block_ids: &[BlockId],
+    stream_edges: &[Edge],
+    message_edges: &[Edge],
+) -> DomainTopology {
+    let relevant =
+        |edge: &Edge| block_ids.contains(&edge.src_block) || block_ids.contains(&edge.dst_block);
+    DomainTopology::new(
+        block_ids.to_vec(),
+        stream_edges
+            .iter()
+            .filter(|edge| relevant(edge))
+            .cloned()
+            .collect(),
+        message_edges
+            .iter()
+            .filter(|edge| relevant(edge))
+            .cloned()
+            .collect(),
+    )
 }
 
 pub(super) struct PreparedFlowgraph {
     flowgraph: Flowgraph,
     registry: Arc<RunningFlowgraphRegistry>,
-    connections: PreparedConnections,
-    domains: PreparedDomains,
+    stream_edges: Vec<ResolvedEdge>,
+    message_edges: Vec<ResolvedEdge>,
+    normal_topology: DomainTopology,
+    local_domains: Vec<LocalDomainSpec>,
+    main_channel: Sender<FlowgraphMessage>,
 }
 
 impl PreparedFlowgraph {
@@ -261,47 +148,45 @@ impl PreparedFlowgraph {
             local_domains,
         } = plan;
 
-        let normal_topology = PreparedDomains::domain_topology(
+        let normal_topology = domain_topology(
             &normal_block_ids,
             &stream_edges_public,
             &message_edges_public,
         );
-        let mut domains = vec![PreparedDomainPlan::normal(
-            NORMAL_DOMAIN_ID,
-            normal_topology,
-        )];
-        domains.extend(local_domains.into_iter().map(|domain| {
-            let domain_id = domain.domain_id;
-            let spec = LocalDomainSpec::new(
-                domain_id,
-                domain.inbox,
-                domain.slots,
-                PreparedDomains::domain_topology(
-                    &domain.block_ids,
-                    &stream_edges_public,
-                    &message_edges_public,
-                ),
-                main_channel.clone(),
-            );
-            PreparedDomainPlan::local(domain_id, spec)
-        }));
+        let local_domains = local_domains
+            .into_iter()
+            .map(|domain| {
+                let domain_id = domain.domain_id;
+                let block_ids = domain
+                    .slots
+                    .iter()
+                    .map(|(block_id, _)| *block_id)
+                    .collect::<Vec<_>>();
+                LocalDomainSpec::new(
+                    domain_id,
+                    domain.inbox,
+                    domain.slots,
+                    domain_topology(&block_ids, &stream_edges_public, &message_edges_public),
+                    main_channel.clone(),
+                )
+            })
+            .collect();
 
         Self {
             flowgraph,
             registry,
-            connections: PreparedConnections::new(stream_edges, message_edges),
-            domains: PreparedDomains::new(domains, main_channel),
+            stream_edges,
+            message_edges,
+            normal_topology,
+            local_domains,
+            main_channel,
         }
     }
 
     pub(super) async fn apply_connections(mut self) -> Result<Self, Error> {
         let mut connector = FlowgraphConnector::new(&mut self.flowgraph);
-        connector
-            .apply_stream_edges(self.connections.stream_edges())
-            .await?;
-        connector
-            .apply_message_edges(self.connections.message_edges())
-            .await?;
+        connector.apply_stream_edges(&self.stream_edges).await?;
+        connector.apply_message_edges(&self.message_edges).await?;
         Ok(self)
     }
 
@@ -315,8 +200,11 @@ impl PreparedFlowgraph {
         let Self {
             flowgraph,
             registry,
-            connections: _,
-            domains,
+            stream_edges: _,
+            message_edges: _,
+            normal_topology,
+            local_domains,
+            main_channel,
         } = self;
         let Flowgraph {
             id,
@@ -326,18 +214,26 @@ impl PreparedFlowgraph {
             message_edges: _,
         } = flowgraph;
         let (running_domains, normal_blocks) = graph_domains.into_running();
-        let prepared_domains = domains.into_domains(normal_blocks);
+        let normal_spec = NormalDomainSpec::new(normal_blocks, normal_topology, main_channel);
+        let normal_domain = match scheduler.start_normal_domain(normal_spec) {
+            Ok(domain) => domain,
+            Err(e) => {
+                let _ = initialized.send(Err(e.clone()));
+                return Err(e);
+            }
+        };
         let mut running = RunningFlowgraph {
             id,
             blocks,
             graph_domains: running_domains,
             registry,
-            domains: Vec::with_capacity(prepared_domains.len()),
+            normal_domain,
+            local_domains: Vec::with_capacity(local_domains.len()),
             active_blocks: 0,
         };
-        for prepared in prepared_domains {
-            match prepared.start(&scheduler) {
-                Ok(domain) => running.domains.push(domain),
+        for spec in local_domains {
+            match spec.start() {
+                Ok(domain) => running.local_domains.push(domain),
                 Err(e) => {
                     running.cleanup().await;
                     let _ = initialized.send(Err(e.clone()));
@@ -379,7 +275,8 @@ pub(super) struct RunningFlowgraph {
     blocks: Vec<BlockSlot>,
     graph_domains: RunningFlowgraphDomains,
     registry: Arc<RunningFlowgraphRegistry>,
-    domains: Vec<RunningDomain>,
+    normal_domain: NormalRunningDomain,
+    local_domains: Vec<LocalRunningDomain>,
     active_blocks: u32,
 }
 
@@ -453,40 +350,41 @@ impl RunningFlowgraph {
     }
 
     async fn stop_domains(&mut self) {
-        for domain in &mut self.domains {
+        if let Err(e) = self.normal_domain.stop().await {
+            debug!("runtime tried to stop normal domain that was already terminated: {e}");
+        }
+        for domain in &mut self.local_domains {
             if let Err(e) = domain.stop().await {
-                debug!("runtime tried to stop domain that was already terminated: {e}");
+                debug!("runtime tried to stop local domain that was already terminated: {e}");
             }
         }
     }
 
-    async fn join_domains(domains: Vec<RunningDomain>) -> Result<Vec<StoppedDomain>, Error> {
-        let mut stopped_domains = Vec::new();
-        let mut join_result = Ok(());
-        for domain in domains {
-            match domain.join().await {
-                Ok(stopped) => stopped_domains.push(stopped),
-                Err(e) => {
-                    if join_result.is_ok() {
-                        join_result = Err(e);
-                    }
-                }
+    async fn join_domains(
+        normal_domain: NormalRunningDomain,
+        local_domains: Vec<LocalRunningDomain>,
+    ) -> Result<NormalBlocks, Error> {
+        let normal_blocks = normal_domain.join().await;
+        let mut join_error = normal_blocks.as_ref().err().cloned();
+        for domain in local_domains {
+            if let Err(e) = domain.join().await
+                && join_error.is_none()
+            {
+                join_error = Some(e);
             }
         }
-        join_result?;
-        Ok(stopped_domains)
+        if let Some(e) = join_error {
+            Err(e)
+        } else {
+            normal_blocks
+        }
     }
 
     pub(super) async fn cleanup(mut self) {
         self.terminate_endpoints().await;
         self.stop_domains().await;
-        match Self::join_domains(self.domains).await {
-            Ok(stopped) => {
-                if let Err(e) = self.graph_domains.restore_stopped_domains_partial(stopped) {
-                    warn!("error while restoring stopped domains during cleanup: {e}");
-                }
-            }
-            Err(e) => warn!("error while cleaning up started domains: {e}"),
+        if let Err(e) = Self::join_domains(self.normal_domain, self.local_domains).await {
+            warn!("error while cleaning up started domains: {e}");
         }
     }
 
@@ -505,11 +403,12 @@ impl RunningFlowgraph {
             blocks,
             graph_domains,
             registry: _,
-            domains,
+            normal_domain,
+            local_domains,
             active_blocks: _,
         } = self;
-        let stopped_domains = Self::join_domains(domains).await?;
-        let domains = graph_domains.restore_stopped_domains(stopped_domains)?;
+        let normal_blocks = Self::join_domains(normal_domain, local_domains).await?;
+        let domains = graph_domains.restore_stopped_domains(normal_blocks)?;
         let flowgraph = Flowgraph {
             id,
             blocks,
@@ -661,10 +560,6 @@ impl FlowgraphCompiler {
                 if slots.is_empty() {
                     return None;
                 }
-                let block_ids = slots
-                    .iter()
-                    .map(|(block_id, _)| *block_id)
-                    .collect::<Vec<_>>();
                 Some(LocalDomainPlan {
                     domain_id,
                     inbox: flowgraph
@@ -673,7 +568,6 @@ impl FlowgraphCompiler {
                         .expect("planned local domain disappeared")
                         .inbox(),
                     slots,
-                    block_ids,
                 })
             })
             .collect()
@@ -819,7 +713,6 @@ mod tests {
 
         let (main_channel, _main_rx) = channel::<FlowgraphMessage>(8);
         let prepared = FlowgraphCompiler::compile(fg, main_channel)?;
-        let domains = &prepared.domains;
 
         assert!(prepared.flowgraph.stream_edges.is_empty());
         assert!(prepared.flowgraph.message_edges.is_empty());
@@ -840,7 +733,7 @@ mod tests {
                 .all(|description| description.status == BlockStatus::Running)
         );
         assert_eq!(
-            prepared.connections.stream_edges(),
+            prepared.stream_edges,
             &[ResolvedEdge::new(
                 src.id(),
                 PortIndex::new(0),
@@ -848,7 +741,7 @@ mod tests {
                 PortIndex::new(0)
             )]
         );
-        assert!(prepared.connections.message_edges().is_empty());
+        assert!(prepared.message_edges.is_empty());
         assert_eq!(
             description.stream_edges,
             vec![Edge::new(
@@ -858,14 +751,10 @@ mod tests {
                 PortId::from("input")
             )]
         );
-        assert_eq!(domains.domains.len(), 1);
-        assert_eq!(domains.domains[0].domain_id, NORMAL_DOMAIN_ID);
-        let PreparedDomainPlanKind::Normal { topology } = &domains.domains[0].kind else {
-            panic!("expected normal prepared-domain plan");
-        };
-        assert_eq!(topology.blocks(), &[src.id(), snk.id()]);
+        assert!(prepared.local_domains.is_empty());
+        assert_eq!(prepared.normal_topology.blocks(), &[src.id(), snk.id()]);
         assert_eq!(
-            topology.stream_edges(),
+            prepared.normal_topology.stream_edges(),
             &[Edge::new(
                 src.id(),
                 PortId::from("output"),
