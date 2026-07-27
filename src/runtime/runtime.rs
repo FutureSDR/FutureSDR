@@ -223,14 +223,14 @@ impl<S: Scheduler> Runtime<S> {
 /// control plane.
 pub struct RuntimeHandle<S = DefaultScheduler> {
     scheduler: S,
-    flowgraphs: Arc<Mutex<FlowgraphRegistry>>,
+    flowgraphs: Arc<Mutex<BTreeMap<FlowgraphId, FlowgraphHandle>>>,
 }
 
 impl<S> RuntimeHandle<S> {
     fn new(scheduler: S) -> Self {
         Self {
             scheduler,
-            flowgraphs: Arc::new(Mutex::new(FlowgraphRegistry::default())),
+            flowgraphs: Arc::new(Mutex::new(BTreeMap::new())),
         }
     }
 }
@@ -273,41 +273,18 @@ impl<S: Scheduler> RuntimeHandle<S> {
     /// Flowgraphs are removed from the registry when their runtime task exits.
     /// A graph may still terminate between listing ids and looking up a handle.
     pub async fn get_flowgraph(&self, id: FlowgraphId) -> Option<FlowgraphHandle> {
-        self.flowgraphs.lock().await.get(id)
+        self.flowgraphs.lock().await.get(&id).cloned()
     }
 
     /// Get the stable ids of flowgraphs currently registered with this runtime handle.
     pub async fn get_flowgraphs(&self) -> Vec<FlowgraphId> {
-        self.flowgraphs.lock().await.running_ids()
-    }
-}
-
-#[derive(Debug, Default)]
-struct FlowgraphRegistry {
-    flowgraphs: BTreeMap<FlowgraphId, FlowgraphHandle>,
-}
-
-impl FlowgraphRegistry {
-    fn insert(&mut self, handle: FlowgraphHandle) {
-        self.flowgraphs.insert(handle.id(), handle);
-    }
-
-    fn remove(&mut self, id: FlowgraphId) {
-        self.flowgraphs.remove(&id);
-    }
-
-    fn get(&self, id: FlowgraphId) -> Option<FlowgraphHandle> {
-        self.flowgraphs.get(&id).cloned()
-    }
-
-    fn running_ids(&self) -> Vec<FlowgraphId> {
-        self.flowgraphs.keys().copied().collect()
+        self.flowgraphs.lock().await.keys().copied().collect()
     }
 }
 
 async fn start_flowgraph<S: Scheduler>(
     scheduler: S,
-    flowgraphs: Arc<Mutex<FlowgraphRegistry>>,
+    flowgraphs: Arc<Mutex<BTreeMap<FlowgraphId, FlowgraphHandle>>>,
     fg: Flowgraph,
 ) -> Result<RunningFlowgraph, Error> {
     let id = fg.id();
@@ -331,7 +308,7 @@ async fn start_flowgraph<S: Scheduler>(
             commit_rx,
         )
         .await;
-        cleanup_flowgraphs.lock().await.remove(id);
+        cleanup_flowgraphs.lock().await.remove(&id);
         let _ = completion_tx.send(result);
     };
 
@@ -346,7 +323,7 @@ async fn start_flowgraph<S: Scheduler>(
         .map_err(|_| Error::RuntimeError("run_flowgraph panicked".to_string()))??;
 
     let handle = FlowgraphHandle::new(id, fg_inbox, registry);
-    flowgraphs.lock().await.insert(handle.clone());
+    flowgraphs.lock().await.insert(id, handle.clone());
     let _ = commit_tx.send(());
     Ok(RunningFlowgraph::new(
         handle,
@@ -484,7 +461,7 @@ mod tests {
     #[test]
     fn dropped_startup_future_cleans_up_initializing_flowgraph() {
         let scheduler = DefaultScheduler::default();
-        let flowgraphs = Arc::new(Mutex::new(FlowgraphRegistry::default()));
+        let flowgraphs = Arc::new(Mutex::new(BTreeMap::new()));
         let counters = StartupCounters::default();
         let (fg, init_entered_rx, release_init_tx) = startup_block_flowgraph(counters.clone());
 
@@ -506,7 +483,7 @@ mod tests {
             wait_for_deinit(&counters).await;
 
             let registry = flowgraphs.lock().await;
-            assert!(registry.flowgraphs.is_empty());
+            assert!(registry.is_empty());
         });
 
         assert_eq!(counters.init(), 1);
@@ -556,7 +533,7 @@ mod tests {
         let scheduler = DefaultScheduler::default();
         let handle = RuntimeHandle {
             scheduler,
-            flowgraphs: Arc::new(Mutex::new(FlowgraphRegistry::default())),
+            flowgraphs: Arc::new(Mutex::new(BTreeMap::new())),
         };
 
         runtime::block_on(async {
@@ -575,7 +552,7 @@ mod tests {
     #[test]
     fn completed_flowgraph_removes_registry_entry_without_query() {
         let scheduler = DefaultScheduler::default();
-        let flowgraphs = Arc::new(Mutex::new(FlowgraphRegistry::default()));
+        let flowgraphs = Arc::new(Mutex::new(BTreeMap::new()));
         let handle = RuntimeHandle {
             scheduler,
             flowgraphs: flowgraphs.clone(),
@@ -585,11 +562,11 @@ mod tests {
             let running = handle.start(message_source_flowgraph(None)).await.unwrap();
             let id = running.id();
 
-            assert!(flowgraphs.lock().await.flowgraphs.contains_key(&id));
+            assert!(flowgraphs.lock().await.contains_key(&id));
 
             running.stop_and_wait().await.unwrap();
 
-            assert!(!flowgraphs.lock().await.flowgraphs.contains_key(&id));
+            assert!(!flowgraphs.lock().await.contains_key(&id));
         });
     }
 
@@ -598,7 +575,7 @@ mod tests {
         let scheduler = DefaultScheduler::default();
         let handle = RuntimeHandle {
             scheduler,
-            flowgraphs: Arc::new(Mutex::new(FlowgraphRegistry::default())),
+            flowgraphs: Arc::new(Mutex::new(BTreeMap::new())),
         };
 
         runtime::block_on(async {
