@@ -29,6 +29,8 @@ pub(crate) trait BlockObject: Any {
     fn type_name(&self) -> &str;
     /// Get the current runtime instance name of the block.
     fn instance_name(&self) -> Option<&str>;
+    /// Whether this block requested blocking execution.
+    fn is_blocking(&self) -> bool;
 
     /// Get a named, type-erased stream input by dense index.
     fn stream_input_at(&mut self, index: PortIndex)

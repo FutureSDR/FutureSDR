@@ -347,6 +347,10 @@ mod tests {
             None
         }
 
+        fn is_blocking(&self) -> bool {
+            false
+        }
+
         fn stream_input_at(
             &mut self,
             _index: PortIndex,

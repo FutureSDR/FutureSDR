@@ -478,6 +478,9 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox + 'static> BlockObject
     fn instance_name(&self) -> Option<&str> {
         self.meta.instance_name()
     }
+    fn is_blocking(&self) -> bool {
+        K::is_blocking()
+    }
 }
 
 #[async_trait::async_trait]

@@ -456,6 +456,10 @@ mod tests {
         fn instance_name(&self) -> Option<&str> {
             None
         }
+
+        fn is_blocking(&self) -> bool {
+            false
+        }
     }
 
     #[async_trait::async_trait]

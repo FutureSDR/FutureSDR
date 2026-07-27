@@ -62,7 +62,6 @@ pub(super) struct BlockSlot {
     stream_outputs: Vec<String>,
     message_inputs: &'static [&'static str],
     message_outputs: &'static [&'static str],
-    blocking: bool,
 }
 
 impl BlockSlot {
@@ -73,7 +72,6 @@ impl BlockSlot {
         stream_outputs: Vec<String>,
         message_inputs: &'static [&'static str],
         message_outputs: &'static [&'static str],
-        blocking: bool,
     ) -> Self {
         Self {
             placement: BlockPlacement::Normal { normal_id },
@@ -82,11 +80,9 @@ impl BlockSlot {
             stream_outputs,
             message_inputs,
             message_outputs,
-            blocking,
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn local(
         domain_id: usize,
         local_id: usize,
@@ -95,7 +91,6 @@ impl BlockSlot {
         stream_outputs: Vec<String>,
         message_inputs: &'static [&'static str],
         message_outputs: &'static [&'static str],
-        blocking: bool,
     ) -> Self {
         Self {
             placement: BlockPlacement::Local {
@@ -107,7 +102,6 @@ impl BlockSlot {
             stream_outputs,
             message_inputs,
             message_outputs,
-            blocking,
         }
     }
 
@@ -430,7 +424,6 @@ impl Flowgraph {
             stream_outputs,
             <K as KernelInterface>::message_inputs(),
             <K as KernelInterface>::message_outputs(),
-            K::is_blocking(),
         ));
         self.block_ref(block_id)
     }
@@ -482,7 +475,6 @@ impl Flowgraph {
             build_info.stream_outputs,
             K::message_inputs(),
             K::message_outputs(),
-            K::is_blocking(),
         ));
         Ok(self.block_ref(block_id))
     }

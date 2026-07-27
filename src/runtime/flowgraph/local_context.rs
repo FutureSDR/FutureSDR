@@ -202,7 +202,6 @@ impl<'a, LS: LocalScheduler> LocalDomainContext<'a, LS> {
                 stream_outputs,
                 K::message_inputs(),
                 K::message_outputs(),
-                K::is_blocking(),
             ),
         });
         BlockRef {

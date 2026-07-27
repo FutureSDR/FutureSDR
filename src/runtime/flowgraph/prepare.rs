@@ -513,14 +513,14 @@ async fn running_registry(
     for (id, entry) in block_slots.into_iter().enumerate() {
         let block_id = BlockId(id);
         let location = entry.location(block_id);
-        let (type_name, instance_name) = domains
+        let (type_name, instance_name, blocking) = domains
             .with_block_mut(location, |block| {
                 let type_name = block.type_name().to_string();
                 let instance_name = block
                     .instance_name()
                     .map(str::to_string)
                     .unwrap_or_else(|| type_name.clone());
-                Ok((type_name, instance_name))
+                Ok((type_name, instance_name, block.is_blocking()))
             })
             .await?;
         let BlockSlot {
@@ -530,7 +530,6 @@ async fn running_registry(
             stream_outputs,
             message_inputs,
             message_outputs,
-            blocking,
         } = entry;
         placements.push(placement);
         blocks.push(RunningBlockEntry::new(
