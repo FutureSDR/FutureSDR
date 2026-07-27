@@ -819,7 +819,7 @@ impl Flowgraph {
     /// local-domain blocks, whose state lives in the local domain.
     pub fn block<K: 'static>(&self, block: &BlockRef<K>) -> Result<TypedBlockGuard<'_, K>, Error> {
         self.validate_block_ref(block)?;
-        block_access::typed_guard(&self.blocks, &self.domains, self.location(block.id)?)
+        block_access::typed_guard(&self.domains, self.location(block.id)?)
     }
 
     /// Get typed mutable access to a block in this flowgraph.
@@ -836,7 +836,7 @@ impl Flowgraph {
     ) -> Result<TypedBlockGuardMut<'_, K>, Error> {
         self.validate_block_ref(block)?;
         let location = self.location(block.id)?;
-        block_access::typed_guard_mut(&self.blocks, &mut self.domains, location)
+        block_access::typed_guard_mut(&mut self.domains, location)
     }
 }
 

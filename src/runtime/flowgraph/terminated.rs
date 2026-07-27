@@ -5,8 +5,6 @@ use crate::runtime::Result;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::runtime::block_on;
 
-use super::BlockSlot;
-use super::Flowgraph;
 use super::block_access;
 use super::domains::FlowgraphDomains;
 use super::types::BlockLocation;
@@ -23,22 +21,19 @@ use super::types::TypedBlockGuardMut;
 /// not retain one-shot stream or message connection metadata.
 pub struct TerminatedFlowgraph {
     id: FlowgraphId,
-    blocks: Vec<BlockSlot>,
+    placements: Vec<BlockPlacement>,
     domains: FlowgraphDomains,
 }
 
 impl TerminatedFlowgraph {
-    pub(crate) fn new(flowgraph: Flowgraph) -> Self {
-        let Flowgraph {
-            id,
-            blocks,
-            domains,
-            stream_edges: _,
-            message_edges: _,
-        } = flowgraph;
+    pub(super) fn new(
+        id: FlowgraphId,
+        placements: Vec<BlockPlacement>,
+        domains: FlowgraphDomains,
+    ) -> Self {
         Self {
             id,
-            blocks,
+            placements,
             domains,
         }
     }
@@ -47,16 +42,16 @@ impl TerminatedFlowgraph {
         if block.flowgraph_id != self.id {
             return Err(Error::InvalidBlock(block.id));
         }
-        if self.blocks.get(block.id.0).is_none() {
+        if self.placements.get(block.id.0).is_none() {
             return Err(Error::InvalidBlock(block.id));
         }
         Ok(())
     }
 
     fn placement(&self, block_id: BlockId) -> Result<BlockPlacement, Error> {
-        self.blocks
+        self.placements
             .get(block_id.0)
-            .map(BlockSlot::placement)
+            .copied()
             .ok_or(Error::InvalidBlock(block_id))
     }
 
@@ -69,7 +64,7 @@ impl TerminatedFlowgraph {
     /// Local-domain blocks should be inspected with [`Self::with`].
     pub fn block<K: 'static>(&self, block: &BlockRef<K>) -> Result<TypedBlockGuard<'_, K>, Error> {
         self.validate_block_ref(block)?;
-        block_access::typed_guard(&self.blocks, &self.domains, self.location(block.id)?)
+        block_access::typed_guard(&self.domains, self.location(block.id)?)
     }
 
     /// Get typed mutable access to a normal block's final state.
@@ -81,7 +76,7 @@ impl TerminatedFlowgraph {
     ) -> Result<TypedBlockGuardMut<'_, K>, Error> {
         self.validate_block_ref(block)?;
         let location = self.location(block.id)?;
-        block_access::typed_guard_mut(&self.blocks, &mut self.domains, location)
+        block_access::typed_guard_mut(&mut self.domains, location)
     }
 
     /// Access a block's final state through a closure.

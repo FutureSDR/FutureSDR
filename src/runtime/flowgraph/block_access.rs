@@ -7,27 +7,22 @@ use crate::runtime::block::BlockObject;
 use crate::runtime::wrapped_kernel::LocalWrappedKernel;
 use crate::runtime::wrapped_kernel::WrappedKernel;
 
-use super::BlockSlot;
 use super::domains::FlowgraphDomains;
 use super::types::BlockLocation;
 use super::types::TypedBlockGuard;
 use super::types::TypedBlockGuardMut;
 
-pub(super) fn raw_block<'a>(
-    blocks: &'a [BlockSlot],
-    domains: &'a FlowgraphDomains,
+pub(super) fn raw_block(
+    domains: &FlowgraphDomains,
     location: BlockLocation,
-) -> Result<&'a dyn BlockObject, Error> {
-    ensure_normal_slot(blocks, location.block_id)?;
+) -> Result<&dyn BlockObject, Error> {
     domains.direct_block(location)
 }
 
-pub(super) fn raw_block_mut<'a>(
-    blocks: &'a [BlockSlot],
-    domains: &'a mut FlowgraphDomains,
+pub(super) fn raw_block_mut(
+    domains: &mut FlowgraphDomains,
     location: BlockLocation,
-) -> Result<&'a mut dyn BlockObject, Error> {
-    ensure_normal_slot(blocks, location.block_id)?;
+) -> Result<&mut dyn BlockObject, Error> {
     domains.direct_block_mut(location)
 }
 
@@ -89,30 +84,27 @@ pub(super) fn typed_kernel_mut_from_object<K: 'static>(
     Err(unexpected_type::<K>(block_id))
 }
 
-pub(super) fn typed_wrapped_block<'a, K: 'static>(
-    blocks: &'a [BlockSlot],
-    domains: &'a FlowgraphDomains,
+pub(super) fn typed_wrapped_block<K: 'static>(
+    domains: &FlowgraphDomains,
     location: BlockLocation,
-) -> Result<&'a WrappedKernel<K>, Error> {
-    let block = raw_block(blocks, domains, location)?;
+) -> Result<&WrappedKernel<K>, Error> {
+    let block = raw_block(domains, location)?;
     typed_wrapped_block_from_object(block, location.block_id)
 }
 
-pub(super) fn typed_wrapped_block_mut<'a, K: 'static>(
-    blocks: &'a [BlockSlot],
-    domains: &'a mut FlowgraphDomains,
+pub(super) fn typed_wrapped_block_mut<K: 'static>(
+    domains: &mut FlowgraphDomains,
     location: BlockLocation,
-) -> Result<&'a mut WrappedKernel<K>, Error> {
-    let block = raw_block_mut(blocks, domains, location)?;
+) -> Result<&mut WrappedKernel<K>, Error> {
+    let block = raw_block_mut(domains, location)?;
     typed_wrapped_block_mut_from_object(block, location.block_id)
 }
 
 pub(super) fn typed_guard<'a, K: 'static>(
-    blocks: &'a [BlockSlot],
     domains: &'a FlowgraphDomains,
     location: BlockLocation,
 ) -> Result<TypedBlockGuard<'a, K>, Error> {
-    let wrapped = typed_wrapped_block(blocks, domains, location)?;
+    let wrapped = typed_wrapped_block(domains, location)?;
     Ok(TypedBlockGuard {
         id: wrapped.id,
         meta: &wrapped.meta,
@@ -121,26 +113,15 @@ pub(super) fn typed_guard<'a, K: 'static>(
 }
 
 pub(super) fn typed_guard_mut<'a, K: 'static>(
-    blocks: &'a [BlockSlot],
     domains: &'a mut FlowgraphDomains,
     location: BlockLocation,
 ) -> Result<TypedBlockGuardMut<'a, K>, Error> {
-    let wrapped = typed_wrapped_block_mut(blocks, domains, location)?;
+    let wrapped = typed_wrapped_block_mut(domains, location)?;
     Ok(TypedBlockGuardMut {
         id: wrapped.id,
         meta: &mut wrapped.meta,
         kernel: &mut wrapped.kernel,
     })
-}
-
-fn ensure_normal_slot(blocks: &[BlockSlot], block_id: BlockId) -> Result<(), Error> {
-    match blocks.get(block_id.0) {
-        Some(slot) if slot.is_normal() => Ok(()),
-        Some(_) => Err(Error::ValidationError(
-            "direct block access requires a normal-domain block".to_string(),
-        )),
-        None => Err(Error::InvalidBlock(block_id)),
-    }
 }
 
 fn unexpected_type<K>(block_id: BlockId) -> Error {

@@ -25,12 +25,12 @@ use crate::runtime::scheduler::NormalDomainSpec;
 use crate::runtime::scheduler::NormalRunningDomain;
 use crate::runtime::scheduler::Scheduler;
 
-use super::BlockSlot;
 use super::Flowgraph;
 use super::connector::FlowgraphConnector;
 use super::domains::RunningFlowgraphDomains;
 use super::terminated::TerminatedFlowgraph;
 use super::types::BlockLocation;
+use super::types::BlockPlacement;
 
 struct LocalDomainPlan {
     domain_id: usize,
@@ -213,6 +213,7 @@ impl PreparedFlowgraph {
             stream_edges: _,
             message_edges: _,
         } = flowgraph;
+        let placements = blocks.into_iter().map(|block| block.placement()).collect();
         let (running_domains, normal_blocks) = graph_domains.into_running();
         let normal_spec = NormalDomainSpec::new(normal_blocks, normal_topology, main_channel);
         let normal_domain = scheduler.start_normal_domain(normal_spec);
@@ -227,7 +228,7 @@ impl PreparedFlowgraph {
             };
             let mut running = RunningFlowgraph {
                 id,
-                blocks,
+                placements,
                 graph_domains: running_domains,
                 registry,
                 normal_domain,
@@ -268,7 +269,7 @@ impl PreparedFlowgraph {
 
 pub(super) struct RunningFlowgraph {
     id: FlowgraphId,
-    blocks: Vec<BlockSlot>,
+    placements: Vec<BlockPlacement>,
     graph_domains: RunningFlowgraphDomains,
     registry: Arc<RunningFlowgraphRegistry>,
     normal_domain: NormalRunningDomain,
@@ -385,7 +386,7 @@ impl RunningFlowgraph {
 
         let Self {
             id,
-            blocks,
+            placements,
             graph_domains,
             registry: _,
             normal_domain,
@@ -394,15 +395,8 @@ impl RunningFlowgraph {
         } = self;
         let normal_blocks = Self::join_domains(normal_domain, local_domains).await?;
         let domains = graph_domains.restore_stopped_domains(normal_blocks)?;
-        let flowgraph = Flowgraph {
-            id,
-            blocks,
-            domains,
-            stream_edges: Vec::new(),
-            message_edges: Vec::new(),
-        };
 
-        Ok(TerminatedFlowgraph::new(flowgraph))
+        Ok(TerminatedFlowgraph::new(id, placements, domains))
     }
 
     async fn drive_runtime_loop(
