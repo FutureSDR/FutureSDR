@@ -41,6 +41,7 @@ use crate::runtime::FlowgraphId;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
 use crate::runtime::RuntimeHandle;
+#[cfg(test)]
 use crate::runtime::block_on;
 use crate::runtime::channel::oneshot;
 use crate::runtime::config;
@@ -232,7 +233,7 @@ impl Drop for ControlPort {
         }
 
         if let Some(task) = self.task.take() {
-            block_on(task);
+            task.detach();
         }
     }
 }
