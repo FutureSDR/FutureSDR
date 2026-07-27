@@ -330,39 +330,28 @@ impl NormalDomain {
     }
 
     fn into_running(self) -> (RunningNormalDomain, NormalBlocks) {
-        let mut running_slots = Vec::with_capacity(self.slots.len());
+        let mut block_ids = Vec::with_capacity(self.slots.len());
         let mut blocks = Vec::with_capacity(self.slots.len());
         for block in self.slots {
-            running_slots.push(RunningNormalBlockSlot {
-                block_id: block.id(),
-            });
+            block_ids.push(block.id());
             blocks.push(block);
         }
-        (
-            RunningNormalDomain {
-                slots: running_slots,
-            },
-            blocks,
-        )
+        (RunningNormalDomain { block_ids }, blocks)
     }
 }
 
 struct RunningNormalDomain {
-    slots: Vec<RunningNormalBlockSlot>,
-}
-
-struct RunningNormalBlockSlot {
-    block_id: BlockId,
+    block_ids: Vec<BlockId>,
 }
 
 impl RunningNormalDomain {
     fn restore_blocks(self, mut blocks: NormalBlocks) -> Result<NormalDomain, Error> {
-        let mut slots = Vec::with_capacity(self.slots.len());
-        for slot in self.slots {
+        let mut slots = Vec::with_capacity(self.block_ids.len());
+        for block_id in self.block_ids {
             let pos = blocks
                 .iter()
-                .position(|block| block.id() == slot.block_id)
-                .ok_or(Error::InvalidBlock(slot.block_id))?;
+                .position(|block| block.id() == block_id)
+                .ok_or(Error::InvalidBlock(block_id))?;
             let block = blocks.swap_remove(pos);
             slots.push(block);
         }
