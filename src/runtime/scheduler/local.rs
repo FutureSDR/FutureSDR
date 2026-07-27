@@ -56,15 +56,19 @@ pub trait LocalScheduler: Default + 'static {
 
     /// Run one local scheduling domain until all its block tasks stop.
     ///
-    /// Implementations may call [`BasicLocalScheduler::run_basic`] to reuse the
-    /// standard FutureSDR local-domain run loop, or implement their own policy
-    /// using the public [`LocalDomainRunSpec`] primitives.
+    /// The default implementation uses FutureSDR's standard local-domain run
+    /// loop. Implementations may override it with their own policy using the
+    /// public [`LocalDomainRunSpec`] primitives.
     async fn run_local_domain<'a, Shutdown>(
         &'a self,
         spec: LocalDomainRunSpec<'a, Shutdown>,
     ) -> Result<(), Error>
     where
-        Shutdown: Future + Unpin + 'a;
+        Self: Sized,
+        Shutdown: Future + Unpin + 'a,
+    {
+        run_local_domain_basic(self, spec).await
+    }
 }
 
 /// Run specification handed to a [`LocalScheduler`].
@@ -353,16 +357,6 @@ impl LocalScheduler for BasicLocalScheduler {
     async fn run<'a, T: 'a>(&'a self, future: impl Future<Output = T> + 'a) -> T {
         self.executor.run(future).await
     }
-
-    async fn run_local_domain<'a, Shutdown>(
-        &'a self,
-        spec: LocalDomainRunSpec<'a, Shutdown>,
-    ) -> Result<(), Error>
-    where
-        Shutdown: Future + Unpin + 'a,
-    {
-        BasicLocalScheduler::run_basic(self, spec).await
-    }
 }
 
 /// Basic local scheduler backed by a local task queue.
@@ -444,36 +438,6 @@ impl LocalScheduler for BasicLocalScheduler {
 
     async fn run<'a, T: 'a>(&'a self, future: impl Future<Output = T> + 'a) -> T {
         self.run_until(future).await
-    }
-
-    async fn run_local_domain<'a, Shutdown>(
-        &'a self,
-        spec: LocalDomainRunSpec<'a, Shutdown>,
-    ) -> Result<(), Error>
-    where
-        Shutdown: Future + Unpin + 'a,
-    {
-        BasicLocalScheduler::run_basic(self, spec).await
-    }
-}
-
-impl BasicLocalScheduler {
-    /// Run a local domain with FutureSDR's basic local-domain run loop.
-    ///
-    /// This helper uses only the public [`LocalDomainRunSpec`] primitives and
-    /// the supplied scheduler's [`LocalScheduler::spawn`],
-    /// [`LocalScheduler::detach`], and [`LocalScheduler::run`] methods. Custom
-    /// local schedulers that want the standard policy can call this from their
-    /// [`LocalScheduler::run_local_domain`] implementation.
-    pub async fn run_basic<'a, LS, Shutdown>(
-        scheduler: &'a LS,
-        spec: LocalDomainRunSpec<'a, Shutdown>,
-    ) -> Result<(), Error>
-    where
-        LS: LocalScheduler,
-        Shutdown: Future + Unpin + 'a,
-    {
-        run_local_domain_basic(scheduler, spec).await
     }
 }
 
