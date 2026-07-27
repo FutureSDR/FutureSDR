@@ -341,14 +341,6 @@ impl RunningFlowgraph {
         Ok(active_blocks)
     }
 
-    async fn terminate_endpoints(&mut self) {
-        for inbox in self.registry.endpoints() {
-            if inbox.send(BlockMessage::Terminate).await.is_err() {
-                debug!("runtime tried to terminate block that was already terminated");
-            }
-        }
-    }
-
     async fn stop_domains(&mut self) {
         if let Err(e) = self.normal_domain.stop().await {
             debug!("runtime tried to stop normal domain that was already terminated: {e}");
@@ -381,7 +373,6 @@ impl RunningFlowgraph {
     }
 
     pub(super) async fn cleanup(mut self) {
-        self.terminate_endpoints().await;
         self.stop_domains().await;
         if let Err(e) = Self::join_domains(self.normal_domain, self.local_domains).await {
             warn!("error while cleaning up started domains: {e}");
@@ -445,14 +436,12 @@ impl RunningFlowgraph {
                     }
                     active_blocks -= 1;
                     if !terminated {
-                        self.terminate_endpoints().await;
                         self.stop_domains().await;
                         terminated = true;
                     }
                 }
                 FlowgraphMessage::Terminate => {
                     if !terminated {
-                        self.terminate_endpoints().await;
                         self.stop_domains().await;
                         terminated = true;
                     }
