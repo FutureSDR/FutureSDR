@@ -636,7 +636,7 @@ mod tests {
         crate::runtime::block_on(fg.with_block_mut(location, move |block| {
             let block = (block as &mut dyn std::any::Any)
                 .downcast_mut::<LocalWrappedKernel<NullSource<f32>>>()
-                .ok_or_else(|| Error::InvalidBlock(location.block_id))?;
+                .ok_or(Error::InvalidBlock(location.block_id))?;
             block.meta.set_instance_name("local-source");
             Ok(())
         }))?;
