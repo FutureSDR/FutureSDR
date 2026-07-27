@@ -62,7 +62,6 @@ struct LocalDomainContextInner<'a> {
     domain_id: usize,
     domain_inbox: LocalDomainInbox,
     next_block_id: usize,
-    next_local_id: usize,
     entries: Vec<LocalDomainContextEntry>,
     stream_edges: Vec<StreamEdge>,
     message_edges: Vec<Edge>,
@@ -84,7 +83,6 @@ impl<'a, LS: LocalScheduler> LocalDomainContext<'a, LS> {
         domain_id: usize,
         domain_inbox: LocalDomainInbox,
         next_block_id: usize,
-        next_local_id: usize,
         state: &'a mut LocalDomainState,
         scheduler: &'a LS,
     ) -> Self {
@@ -94,7 +92,6 @@ impl<'a, LS: LocalScheduler> LocalDomainContext<'a, LS> {
                 domain_id,
                 domain_inbox,
                 next_block_id,
-                next_local_id,
                 entries: Vec::new(),
                 stream_edges: Vec::new(),
                 message_edges: Vec::new(),
@@ -179,27 +176,35 @@ impl<'a, LS: LocalScheduler> LocalDomainContext<'a, LS> {
         let mut inner = self.inner.borrow_mut();
         let block_id = BlockId(inner.next_block_id);
         inner.next_block_id += 1;
-        let local_id = inner.next_local_id;
-        inner.next_local_id += 1;
         let domain_id = inner.domain_id;
-
-        let external = BlockEndpoint::domain_proxy(
-            inner.domain_inbox.clone(),
-            LocalBlockAddr::new(block_id, local_id),
-        );
-        let mut block = LocalWrappedKernel::new_local_with_external(block, block_id, external);
-        block
-            .meta
-            .set_instance_name(format!("{}-{}", K::type_name(), block_id.0));
-        let inbox = block.inbox();
-        let stream_inputs = stream_input_names(&mut block.kernel);
-        let stream_outputs = stream_output_names(&mut block.kernel);
-        let type_name = K::type_name();
-        let instance_name = block.meta.instance_name().unwrap_or(type_name).to_string();
-        inner
-            .state
-            .insert_block(local_id, Box::new(block))
-            .expect("failed to insert local-domain block");
+        let domain_inbox = inner.domain_inbox.clone();
+        let (local_id, (inbox, stream_inputs, stream_outputs, type_name, instance_name)) =
+            inner.state.add_block(|local_id| {
+                let external = BlockEndpoint::domain_proxy(
+                    domain_inbox,
+                    LocalBlockAddr::new(block_id, local_id),
+                );
+                let mut block =
+                    LocalWrappedKernel::new_local_with_external(block, block_id, external);
+                block
+                    .meta
+                    .set_instance_name(format!("{}-{}", K::type_name(), block_id.0));
+                let inbox = block.inbox();
+                let stream_inputs = stream_input_names(&mut block.kernel);
+                let stream_outputs = stream_output_names(&mut block.kernel);
+                let type_name = K::type_name();
+                let instance_name = block.meta.instance_name().unwrap_or(type_name).to_string();
+                (
+                    Box::new(block),
+                    (
+                        inbox,
+                        stream_inputs,
+                        stream_outputs,
+                        type_name,
+                        instance_name,
+                    ),
+                )
+            });
         inner.entries.push(LocalDomainContextEntry {
             block_id,
             block_slot: BlockSlot::local(

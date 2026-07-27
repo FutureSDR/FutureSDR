@@ -21,9 +21,10 @@ use crate::runtime::channel::oneshot;
 use crate::runtime::scheduler::DomainTopology;
 use crate::runtime::scheduler::LocalScheduler;
 
-pub(crate) type LocalBlockBuilder = Box<dyn FnOnce() -> Box<dyn LocalBlock> + Send + 'static>;
+pub(crate) type LocalBlockBuilder = Box<dyn FnOnce(usize) -> Box<dyn LocalBlock> + Send + 'static>;
 
 pub(crate) struct LocalBlockBuildInfo {
+    pub(crate) local_id: usize,
     pub(crate) endpoint: BlockEndpoint,
     pub(crate) stream_inputs: Vec<String>,
     pub(crate) stream_outputs: Vec<String>,
@@ -109,35 +110,11 @@ pub(crate) trait LocalDomainControllerAccess {
 
 pub(crate) struct LocalDomainRuntimeBase<C> {
     controller: C,
-    blocks: usize,
 }
 
 impl<C> LocalDomainRuntimeBase<C> {
     pub(crate) fn from_controller(controller: C) -> Self {
-        Self {
-            controller,
-            blocks: 0,
-        }
-    }
-
-    pub(crate) fn reserve_block(&mut self) -> usize {
-        let local_id = self.blocks;
-        self.blocks += 1;
-        local_id
-    }
-
-    pub(crate) fn unreserve_last_block(&mut self, local_id: usize) {
-        if self.blocks == local_id + 1 {
-            self.blocks -= 1;
-        }
-    }
-
-    pub(crate) fn block_count(&self) -> usize {
-        self.blocks
-    }
-
-    pub(crate) fn reserve_blocks(&mut self, n: usize) {
-        self.blocks += n;
+        Self { controller }
     }
 }
 
@@ -148,10 +125,9 @@ impl<C: LocalDomainControllerAccess> LocalDomainRuntimeBase<C> {
 
     pub(crate) async fn build(
         &self,
-        local_id: usize,
         builder: LocalBlockBuilder,
     ) -> Result<LocalBlockBuildInfo, Error> {
-        build_local_block(self.controller.tx(), local_id, builder).await
+        build_local_block(self.controller.tx(), builder).await
     }
 
     pub(crate) async fn exec<R>(
@@ -447,21 +423,23 @@ impl LocalDomainState {
         Self { slots: Vec::new() }
     }
 
-    pub(crate) fn insert_block(
+    pub(crate) fn add_block<R>(
         &mut self,
-        local_id: usize,
-        block: Box<dyn LocalBlock>,
-    ) -> Result<(), Error> {
-        if self.slots.len() <= local_id {
-            self.slots.resize_with(local_id + 1, || None);
+        build: impl FnOnce(usize) -> (Box<dyn LocalBlock>, R),
+    ) -> (usize, R) {
+        let local_id = self
+            .slots
+            .iter()
+            .position(Option::is_none)
+            .unwrap_or(self.slots.len());
+        let (block, result) = build(local_id);
+        let slot = Some(LocalBlockSlot::new(block));
+        if local_id == self.slots.len() {
+            self.slots.push(slot);
+        } else {
+            self.slots[local_id] = slot;
         }
-        if self.slots[local_id].is_some() {
-            return Err(Error::RuntimeError(format!(
-                "local block slot {local_id} was inserted more than once"
-            )));
-        }
-        self.slots[local_id] = Some(LocalBlockSlot::new(block));
-        Ok(())
+        (local_id, result)
     }
 
     pub(crate) fn remove_block(&mut self, local_id: usize, block_id: BlockId) -> Result<(), Error> {
@@ -692,17 +670,12 @@ pub(crate) fn finish_local_run_result(
 
 pub(crate) async fn build_local_block(
     tx: &Sender<LocalDomainMessage>,
-    local_id: usize,
     builder: LocalBlockBuilder,
 ) -> Result<LocalBlockBuildInfo, Error> {
     let (reply, rx) = oneshot::channel();
-    tx.send(LocalDomainMessage::Build {
-        local_id,
-        builder,
-        reply,
-    })
-    .await
-    .map_err(|_| Error::RuntimeError("local domain terminated".to_string()))?;
+    tx.send(LocalDomainMessage::Build { builder, reply })
+        .await
+        .map_err(|_| Error::RuntimeError("local domain terminated".to_string()))?;
     rx.await
         .map_err(|_| Error::RuntimeError("local domain terminated".to_string()))?
 }
@@ -770,26 +743,21 @@ pub(crate) async fn handle_idle_domain_message<LS: LocalScheduler>(
     scheduler: &LS,
 ) -> IdleDomainAction {
     match message {
-        LocalDomainMessage::Build {
-            local_id,
-            builder,
-            reply,
-        } => {
-            let mut block = builder();
-            let endpoint = block.inbox();
-            let stream_inputs = collect_stream_input_names(block.as_mut());
-            let stream_outputs = collect_stream_output_names(block.as_mut());
-            let result = state
-                .insert_block(local_id, block)
-                .map(|()| LocalBlockBuildInfo {
-                    endpoint,
-                    stream_inputs,
-                    stream_outputs,
+        LocalDomainMessage::Build { builder, reply } => {
+            let (local_id, (endpoint, stream_inputs, stream_outputs)) =
+                state.add_block(|local_id| {
+                    let mut block = builder(local_id);
+                    let endpoint = block.inbox();
+                    let stream_inputs = collect_stream_input_names(block.as_mut());
+                    let stream_outputs = collect_stream_output_names(block.as_mut());
+                    (block, (endpoint, stream_inputs, stream_outputs))
                 });
-            if let Err(e) = &result {
-                error!("failed to insert local block: {e}");
-            }
-            let _ = reply.send(result);
+            let _ = reply.send(Ok(LocalBlockBuildInfo {
+                local_id,
+                endpoint,
+                stream_inputs,
+                stream_outputs,
+            }));
             IdleDomainAction::Continue
         }
         LocalDomainMessage::Exec(f) => {
@@ -866,7 +834,6 @@ where
 
 pub(crate) enum LocalDomainMessage {
     Build {
-        local_id: usize,
         builder: LocalBlockBuilder,
         reply: oneshot::Sender<Result<LocalBlockBuildInfo, Error>>,
     },
@@ -985,40 +952,41 @@ mod tests {
     #[test]
     fn local_slots_move_from_idle_to_running_and_back() {
         let mut state = LocalDomainState::new();
-        state.insert_block(2, test_block(7)).unwrap();
+        let (local_id, ()) = state.add_block(|_| (test_block(7), ()));
 
-        assert_eq!(state.local_id_for_block(BlockId(7)), Some(2));
-        assert!(state.inbox(2).is_some());
-        assert!(state.block(2, BlockId(7)).is_ok());
+        assert_eq!(local_id, 0);
+        assert_eq!(state.local_id_for_block(BlockId(7)), Some(local_id));
+        assert!(state.inbox(local_id).is_some());
+        assert!(state.block(local_id, BlockId(7)).is_ok());
 
-        let mut running = state.start_run(&[(BlockId(7), 2)]).unwrap();
+        let mut running = state.start_run(&[(BlockId(7), local_id)]).unwrap();
         assert_eq!(state.local_id_for_block(BlockId(7)), None);
         assert!(matches!(
-            state.block(2, BlockId(7)),
+            state.block(local_id, BlockId(7)),
             Err(Error::InvalidBlock(BlockId(7)))
         ));
 
-        assert!(running.inbox(2).is_some());
+        assert!(running.inbox(local_id).is_some());
 
-        let block = running.take_block(2, BlockId(7)).unwrap();
+        let block = running.take_block(local_id, BlockId(7)).unwrap();
         assert!(matches!(
-            running.take_block(2, BlockId(7)),
+            running.take_block(local_id, BlockId(7)),
             Err(Error::RuntimeError(_))
         ));
-        running.restore_block(2, BlockId(7), block).unwrap();
+        running.restore_block(local_id, BlockId(7), block).unwrap();
 
         state.finish_run(running).unwrap();
-        assert_eq!(state.local_id_for_block(BlockId(7)), Some(2));
-        assert!(state.block(2, BlockId(7)).is_ok());
+        assert_eq!(state.local_id_for_block(BlockId(7)), Some(local_id));
+        assert!(state.block(local_id, BlockId(7)).is_ok());
     }
 
     #[test]
     fn finish_run_reports_missing_restored_local_block() {
         let mut state = LocalDomainState::new();
-        state.insert_block(0, test_block(3)).unwrap();
+        let (local_id, ()) = state.add_block(|_| (test_block(3), ()));
 
-        let mut running = state.start_run(&[(BlockId(3), 0)]).unwrap();
-        let _block = running.take_block(0, BlockId(3)).unwrap();
+        let mut running = state.start_run(&[(BlockId(3), local_id)]).unwrap();
+        let _block = running.take_block(local_id, BlockId(3)).unwrap();
 
         assert!(matches!(
             state.finish_run(running),
@@ -1030,13 +998,28 @@ mod tests {
     #[test]
     fn remove_wrong_local_block_does_not_clear_slot() {
         let mut state = LocalDomainState::new();
-        state.insert_block(0, test_block(3)).unwrap();
+        let (local_id, ()) = state.add_block(|_| (test_block(3), ()));
 
         assert!(matches!(
-            state.remove_block(0, BlockId(4)),
+            state.remove_block(local_id, BlockId(4)),
             Err(Error::InvalidBlock(BlockId(4)))
         ));
-        assert_eq!(state.local_id_for_block(BlockId(3)), Some(0));
-        assert!(state.block(0, BlockId(3)).is_ok());
+        assert_eq!(state.local_id_for_block(BlockId(3)), Some(local_id));
+        assert!(state.block(local_id, BlockId(3)).is_ok());
+    }
+
+    #[test]
+    fn adding_a_block_reuses_a_vacant_local_slot() {
+        let mut state = LocalDomainState::new();
+        let (first, ()) = state.add_block(|_| (test_block(3), ()));
+        let (second, ()) = state.add_block(|_| (test_block(4), ()));
+        state.remove_block(first, BlockId(3)).unwrap();
+
+        let (replacement, ()) = state.add_block(|_| (test_block(5), ()));
+
+        assert_eq!(first, 0);
+        assert_eq!(second, 1);
+        assert_eq!(replacement, first);
+        assert_eq!(state.local_id_for_block(BlockId(5)), Some(first));
     }
 }

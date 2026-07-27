@@ -255,12 +255,11 @@ mod tests {
         let (started_tx, started_rx) = oneshot::channel();
         block_on(build_local_block(
             &controller.tx,
-            0,
-            Box::new(|| {
+            Box::new(|local_id| {
                 let (inbox, _inbox_rx) = BlockInbox::pair(4);
                 let (local_inbox, local_inbox_rx) = LocalBlockInboxReader::pair();
                 Box::new(WaitForTerminate {
-                    id: BlockId(0),
+                    id: BlockId(local_id),
                     inbox: inbox.into(),
                     local_inbox,
                     local_inbox_rx,

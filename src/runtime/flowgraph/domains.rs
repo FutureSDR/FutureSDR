@@ -68,12 +68,6 @@ impl FlowgraphDomains {
             .and_then(|local_id| self.locals.get(local_id))
     }
 
-    pub(super) fn local_mut(&mut self, domain_id: usize) -> Option<&mut LocalDomainRuntime> {
-        domain_id
-            .checked_sub(1)
-            .and_then(|local_id| self.locals.get_mut(local_id))
-    }
-
     fn local_for_location(&self, location: BlockLocation) -> Result<&LocalDomainRuntime, Error> {
         self.local(location.domain_id)
             .ok_or(Error::InvalidBlock(location.block_id))

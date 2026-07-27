@@ -322,15 +322,7 @@ impl Flowgraph {
         })
     }
 
-    fn commit_local_context_entries(
-        &mut self,
-        domain_id: usize,
-        entries: Vec<LocalDomainContextEntry>,
-    ) {
-        self.domains
-            .local_mut(domain_id)
-            .expect("validated local domain disappeared")
-            .reserve_blocks(entries.len());
+    fn commit_local_context_entries(&mut self, entries: Vec<LocalDomainContextEntry>) {
         self.blocks
             .extend(entries.into_iter().map(|entry| entry.block_slot));
     }
@@ -381,7 +373,6 @@ impl Flowgraph {
             .ok_or_else(|| Error::ValidationError("invalid local domain".to_string()))?;
 
         let next_block_id = self.blocks.len();
-        let next_local_id = local_domain.block_count();
         let flowgraph_id = self.id;
         let domain_inbox = local_domain.inbox();
         let (ret, (entries, stream_edges, message_edges)) = local_domain
@@ -394,7 +385,6 @@ impl Flowgraph {
                                 domain_id,
                                 domain_inbox,
                                 next_block_id,
-                                next_local_id,
                                 state,
                                 scheduler,
                             );
@@ -414,7 +404,7 @@ impl Flowgraph {
             })
             .await?;
 
-        self.commit_local_context_entries(domain_id, entries);
+        self.commit_local_context_entries(entries);
         self.stream_edges.extend(stream_edges);
         self.message_edges.extend(message_edges);
 
@@ -528,48 +518,33 @@ impl Flowgraph {
     where
         K: Kernel + KernelInterface + 'static,
     {
-        let local_id = self
-            .domains
-            .local_mut(domain_id)
-            .ok_or_else(|| Error::ValidationError("invalid local domain".to_string()))?
-            .reserve_block();
         let block_id = BlockId(self.blocks.len());
         let domain_inbox = self
             .domains
             .local(domain_id)
             .ok_or_else(|| Error::ValidationError("invalid local domain".to_string()))?
             .inbox();
-        let external =
-            BlockEndpoint::domain_proxy(domain_inbox, LocalBlockAddr::new(block_id, local_id));
-        let build_info = match self
+        let build_info = self
             .domains
             .local(domain_id)
             .ok_or_else(|| Error::ValidationError("invalid local domain".to_string()))?
-            .build(
-                local_id,
-                Box::new(move || {
-                    let mut block =
-                        LocalWrappedKernel::new_local_with_external(block(), block_id, external);
-                    block
-                        .meta
-                        .set_instance_name(format!("{}-{}", K::type_name(), block_id.0));
-                    Box::new(block)
-                }),
-            )
-            .await
-        {
-            Ok(info) => info,
-            Err(e) => {
-                if let Some(domain) = self.domains.local_mut(domain_id) {
-                    domain.unreserve_last_block(local_id);
-                }
-                return Err(e);
-            }
-        };
+            .build(Box::new(move |local_id| {
+                let external = BlockEndpoint::domain_proxy(
+                    domain_inbox,
+                    LocalBlockAddr::new(block_id, local_id),
+                );
+                let mut block =
+                    LocalWrappedKernel::new_local_with_external(block(), block_id, external);
+                block
+                    .meta
+                    .set_instance_name(format!("{}-{}", K::type_name(), block_id.0));
+                Box::new(block)
+            }))
+            .await?;
         let instance_name = format!("{}-{}", K::type_name(), block_id.0);
         self.blocks.push(BlockSlot::local(
             domain_id,
-            local_id,
+            build_info.local_id,
             build_info.endpoint,
             build_info.stream_inputs,
             build_info.stream_outputs,
