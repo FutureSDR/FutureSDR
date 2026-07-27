@@ -1,7 +1,6 @@
 use futures::Future;
 use futures::StreamExt;
 use futures::stream::FuturesUnordered;
-use std::pin::Pin;
 
 #[cfg(not(target_arch = "wasm32"))]
 use async_executor::LocalExecutor;
@@ -235,10 +234,8 @@ impl<'a, Shutdown> LocalDomainRunSpec<'a, Shutdown> {
     }
 
     /// Build a detached helper future that forwards cross-domain ingress to local inboxes.
-    pub fn external_inbox_forwarder(&mut self) -> Pin<Box<dyn Future<Output = ()> + 'static>> {
-        Box::pin(forward_external_inboxes(std::mem::take(
-            &mut self.external_inboxes,
-        )))
+    pub fn external_inbox_forwarder(&mut self) -> impl Future<Output = ()> + 'static {
+        forward_external_inboxes(std::mem::take(&mut self.external_inboxes))
     }
 
     /// Install the local-domain fast-path context for tasks polled on this thread.
@@ -387,7 +384,7 @@ impl BasicLocalScheduler {
     }
 
     async fn run_until<'a, T: 'a>(&'a self, future: impl Future<Output = T> + 'a) -> T {
-        let mut future = Box::pin(future);
+        futures::pin_mut!(future);
         loop {
             if let Some(output) = future.as_mut().now_or_never() {
                 return output;
