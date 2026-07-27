@@ -129,11 +129,7 @@ impl<C> LocalDomainRuntimeBase<C> {
 
     pub(crate) async fn exec<R>(
         &self,
-        f: impl for<'a> FnOnce(
-            &'a mut LocalDomainState,
-        ) -> Pin<Box<dyn Future<Output = Result<R, Error>> + 'a>>
-        + Send
-        + 'static,
+        f: impl FnOnce(&mut LocalDomainState) -> Result<R, Error> + Send + 'static,
     ) -> Result<R, Error>
     where
         R: Send + 'static,
@@ -694,11 +690,7 @@ fn collect_stream_output_names(block: &mut dyn BlockObject) -> Vec<String> {
 
 pub(crate) async fn exec_local_domain<R>(
     tx: &Sender<LocalDomainMessage>,
-    f: impl for<'a> FnOnce(
-        &'a mut LocalDomainState,
-    ) -> Pin<Box<dyn Future<Output = Result<R, Error>> + 'a>>
-    + Send
-    + 'static,
+    f: impl FnOnce(&mut LocalDomainState) -> Result<R, Error> + Send + 'static,
 ) -> Result<R, Error>
 where
     R: Send + 'static,
@@ -706,8 +698,9 @@ where
     let (reply, rx) = oneshot::channel();
     tx.send(LocalDomainMessage::Exec(Box::new(
         move |state, _scheduler| {
+            let result = f(state);
             Box::pin(async move {
-                let _ = reply.send(f(state).await);
+                let _ = reply.send(result);
             })
         },
     )))

@@ -111,11 +111,8 @@ impl FlowgraphDomains {
             let domain = self.local_for_location(location)?;
             domain
                 .exec(move |state| {
-                    let result = (|| {
-                        let block = state.block(location.domain_slot, location.block_id)?;
-                        f(block)
-                    })();
-                    Box::pin(futures::future::ready(result))
+                    let block = state.block(location.domain_slot, location.block_id)?;
+                    f(block)
                 })
                 .await
         }
@@ -135,11 +132,8 @@ impl FlowgraphDomains {
             let domain = self.local_for_location(location)?;
             domain
                 .exec(move |state| {
-                    let result = (|| {
-                        let block = state.block_mut(location.domain_slot, location.block_id)?;
-                        f(block)
-                    })();
-                    Box::pin(futures::future::ready(result))
+                    let block = state.block_mut(location.domain_slot, location.block_id)?;
+                    f(block)
                 })
                 .await
         }
@@ -170,14 +164,11 @@ impl FlowgraphDomains {
             let domain = self.local_for_location(src)?;
             domain
                 .exec(move |state| {
-                    let result = (|| {
-                        let (src_block, dst_block) = state.two_blocks_mut(
-                            (src.domain_slot, src.block_id),
-                            (dst.domain_slot, dst.block_id),
-                        )?;
-                        f(src_block, dst_block)
-                    })();
-                    Box::pin(futures::future::ready(result))
+                    let (src_block, dst_block) = state.two_blocks_mut(
+                        (src.domain_slot, src.block_id),
+                        (dst.domain_slot, dst.block_id),
+                    )?;
+                    f(src_block, dst_block)
                 })
                 .await
         }
