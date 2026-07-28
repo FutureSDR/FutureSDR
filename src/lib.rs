@@ -54,6 +54,7 @@ pub extern crate tracing;
 // re-exports
 #[cfg(not(target_arch = "wasm32"))]
 pub use async_net;
+pub use bytemuck;
 pub use futuredsp;
 pub use futures;
 #[cfg(all(feature = "audio", not(target_arch = "wasm32")))]
