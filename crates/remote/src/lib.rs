@@ -7,8 +7,8 @@
 //! ```no_run
 //! use futuresdr_remote::Error;
 //! use futuresdr_remote::Handler;
+//! use futuresdr_remote::Pmt;
 //! use futuresdr_remote::Remote;
-//! use futuresdr_types::Pmt;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Error> {
@@ -24,6 +24,7 @@
 //! }
 //! ```
 mod remote;
+pub use futuresdr_types::Pmt;
 pub use remote::Block;
 pub use remote::Connection;
 pub use remote::ConnectionType;
