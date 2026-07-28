@@ -42,9 +42,9 @@ impl<InputType, OutputType, TA> DecimatingFirFilter<InputType, OutputType, TA> {
 }
 
 /// Internal helper function to abstract away everything but the core computation.
-/// Note that this function gets heavily inlined, so there is no (runtime) performance
-/// overhead.
-#[inline(always)]
+/// Keep the core out of line so callers share one optimized implementation
+/// instead of duplicating the hot loop at arbitrary code alignments.
+#[inline(never)]
 fn fir_kernel_core<
     InputType,
     OutputType,

@@ -1118,12 +1118,10 @@ pub fn argmax_f64<T: AsRef<[f64]>>(input_slice: T) -> usize {
         .unwrap_or(0_usize)
 }
 
-#[inline(always)]
 pub fn volk_32fc_conjugate_32fc(v: &[Complex32]) -> Vec<Complex32> {
     v.iter().map(|v| v.conj()).collect()
 }
 
-#[inline(always)]
 pub fn volk_32fc_x2_multiply_32fc<T: Copy + Mul<T, Output = T>>(
     input_slice_1: &[T],
     input_slice_2: &[T],
@@ -1135,7 +1133,6 @@ pub fn volk_32fc_x2_multiply_32fc<T: Copy + Mul<T, Output = T>>(
         .collect()
 }
 
-#[inline(always)]
 pub fn volk_32fc_magnitude_squared_32f(input_slice: &[Complex32]) -> Vec<f32> {
     input_slice
         .iter()

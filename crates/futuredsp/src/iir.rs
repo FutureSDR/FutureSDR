@@ -75,7 +75,6 @@ impl<TapsType: Taps<TapType = f64>> StatefulFilter<f64, f64, f64>
     }
 }
 
-#[inline(always)]
 fn taps_accessor_work<TT, T>(
     memory: &mut Vec<T>,
     a_taps: &TT,
