@@ -228,7 +228,8 @@ impl Flowgraph {
     /// The domain is created on the first call and subsequent calls return the
     /// same domain. Unlike [`Flowgraph::local_domain`], it does not create a Web
     /// Worker. It is intended for non-`Send` browser APIs such as WebUSB,
-    /// WebGPU, and Web Audio.
+    /// WebGPU, and Web Audio. Only one concurrently running flowgraph may use a
+    /// main-thread domain.
     #[cfg(target_arch = "wasm32")]
     pub fn main_thread_domain(&mut self) -> Result<LocalDomain, Error> {
         let domain_id = match self.domains.main_thread_domain_id() {
