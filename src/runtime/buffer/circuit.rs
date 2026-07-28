@@ -14,6 +14,7 @@ use crate::runtime::buffer::BufferInbox;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferRequirements;
 use crate::runtime::buffer::BufferWriter;
+use crate::runtime::buffer::CacheAlignedBuffer;
 use crate::runtime::buffer::CircuitReturn;
 use crate::runtime::buffer::ConnectionState;
 use crate::runtime::buffer::CpuBufferReader;
@@ -110,7 +111,7 @@ where
     T: CpuSample,
 {
     valid: usize,
-    buffer: Box<[T]>,
+    buffer: CacheAlignedBuffer<T>,
     tags: Vec<ItemTag>,
 }
 
@@ -121,7 +122,7 @@ where
     fn with_items(items: usize) -> Self {
         Self {
             valid: 0,
-            buffer: vec![T::default(); items].into_boxed_slice(),
+            buffer: CacheAlignedBuffer::new(items),
             tags: Vec::new(),
         }
     }

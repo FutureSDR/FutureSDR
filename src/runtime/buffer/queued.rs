@@ -87,6 +87,7 @@ use crate::runtime::buffer::BufferInbox;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferRequirements;
 use crate::runtime::buffer::BufferWriter;
+use crate::runtime::buffer::CacheAlignedBuffer;
 use crate::runtime::buffer::ConnectionState;
 use crate::runtime::buffer::CpuBufferReader;
 use crate::runtime::buffer::CpuBufferWriter;
@@ -102,19 +103,19 @@ const DEFAULT_BUFFER_COUNT: usize = 2;
 
 #[derive(Debug)]
 struct BufferEmpty<D: CpuSample> {
-    buffer: Box<[D]>,
+    buffer: CacheAlignedBuffer<D>,
 }
 
 #[derive(Debug)]
 struct BufferFull<D: CpuSample> {
-    buffer: Box<[D]>,
+    buffer: CacheAlignedBuffer<D>,
     items: usize,
     tags: Vec<ItemTag>,
 }
 
 #[derive(Debug)]
 struct CurrentBuffer<D: CpuSample> {
-    buffer: Box<[D]>,
+    buffer: CacheAlignedBuffer<D>,
     end_offset: usize,
     offset: usize,
     tags: Vec<ItemTag>,
@@ -344,7 +345,7 @@ where
         state.with_mut(|state| {
             for _ in 0..min_buffers {
                 state.writer_input.push_back(BufferEmpty {
-                    buffer: vec![D::default(); allocation_items].into_boxed_slice(),
+                    buffer: CacheAlignedBuffer::new(allocation_items),
                 });
             }
         });
@@ -449,7 +450,7 @@ where
         state.with_mut(|state| {
             for _ in 0..min_buffers {
                 state.writer_input.push_back(BufferEmpty {
-                    buffer: vec![D::default(); allocation_items].into_boxed_slice(),
+                    buffer: CacheAlignedBuffer::new(allocation_items),
                 });
             }
         });

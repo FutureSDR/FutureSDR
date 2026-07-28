@@ -22,6 +22,10 @@
 #[cfg(feature = "burn")]
 pub mod burn;
 
+mod aligned;
+#[doc(hidden)]
+pub use aligned::CacheAlignedBuffer;
+
 /// In-place circuit buffer.
 pub mod circuit;
 

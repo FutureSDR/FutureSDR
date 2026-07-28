@@ -9,6 +9,7 @@ use futuresdr::runtime::buffer::BufferInbox;
 use futuresdr::runtime::buffer::BufferReader;
 use futuresdr::runtime::buffer::BufferRequirements;
 use futuresdr::runtime::buffer::BufferWriter;
+use futuresdr::runtime::buffer::CacheAlignedBuffer;
 use futuresdr::runtime::buffer::CpuSample;
 use futuresdr::runtime::buffer::InplaceBuffer;
 use futuresdr::runtime::buffer::InplaceReader;
@@ -34,7 +35,7 @@ where
     T: CpuSample,
 {
     valid: usize,
-    buffer: Box<[T]>,
+    buffer: CacheAlignedBuffer<T>,
     tags: Vec<ItemTag>,
 }
 
@@ -45,7 +46,7 @@ where
     fn with_items(items: usize) -> Self {
         Self {
             valid: 0,
-            buffer: vec![T::default(); items].into_boxed_slice(),
+            buffer: CacheAlignedBuffer::new(items),
             tags: Vec::new(),
         }
     }
