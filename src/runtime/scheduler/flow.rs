@@ -230,7 +230,9 @@ fn spawn_block_on_executor(
     block: RunnableBlock,
     queue_index: usize,
 ) -> Task<StoppedBlock> {
-    executor.spawn_executor(block.run(), queue_index)
+    let future: Pin<Box<dyn Future<Output = StoppedBlock> + Send + 'static>> =
+        Box::pin(block.run());
+    executor.spawn_executor(future, queue_index)
 }
 
 /// An async executor.
