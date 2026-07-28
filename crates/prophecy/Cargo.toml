@@ -20,10 +20,14 @@ categories = [
 [dependencies]
 any_spawner = { version = "0.3", features = ["wasm-bindgen"] }
 console_error_panic_hook = "0.1"
-futures = "0.3"
+futures = { version = "0.3", default-features = false, features = ["async-await", "std"] }
 futuresdr.workspace = true
 futuresdr-types.workspace = true
-gloo-net = "0.7"
+gloo-net = { version = "0.7", default-features = false, features = [
+    "http",
+    "json",
+    "websocket",
+] }
 gloo-timers = { version = "0.4", features = ["futures"] }
 indexmap = "2.14"
 js-sys = "0.3"

@@ -246,7 +246,6 @@ fn port_method(port: &Option<Port>, default: proc_macro2::TokenStream) -> proc_m
 }
 
 // full macro input
-#[derive(Debug)]
 struct ConnectInput {
     flowgraph: Ident,
     _comma: Token![,],
@@ -263,7 +262,6 @@ impl Parse for ConnectInput {
 }
 
 // connection line in the macro input
-#[derive(Debug)]
 struct ConnectionString {
     source: Source,
     connections: Vec<(ConnectionType, Endpoint)>,
@@ -291,7 +289,6 @@ impl Parse for ConnectionString {
     }
 }
 
-#[derive(Debug)]
 enum ConnectionType {
     Stream,
     LocalStream,
@@ -316,7 +313,6 @@ impl Parse for ConnectionType {
     }
 }
 
-#[derive(Debug)]
 struct Source {
     block: Ident,
     output: Option<Port>,
@@ -341,7 +337,6 @@ impl Parse for Source {
 }
 
 // connection endpoint is a block with input and output ports
-#[derive(Debug)]
 struct Endpoint {
     block: Ident,
     input: Option<Port>,
@@ -387,7 +382,6 @@ impl Parse for Endpoint {
 }
 
 // input or output port
-#[derive(Debug)]
 struct Port {
     name: Ident,
     index: Option<Index>,
@@ -1068,12 +1062,5 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
 
         #kernel
     };
-    // println!("{}", pretty_print(&expanded));
     proc_macro::TokenStream::from(expanded)
-}
-
-#[allow(dead_code)]
-fn pretty_print(ts: &proc_macro2::TokenStream) -> String {
-    let syntax_tree = syn::parse2(ts.clone()).unwrap();
-    prettyplease::unparse(&syntax_tree)
 }

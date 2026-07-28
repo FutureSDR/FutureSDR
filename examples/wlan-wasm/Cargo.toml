@@ -20,19 +20,15 @@ any_spawner = { version = "0.3", features = ["wasm-bindgen"] }
 console_error_panic_hook = "0.1"
 gloo-timers = { version = "0.4", features = ["futures"] }
 ieee80211 = { version = "0.5.9", default-features = false }
-js-sys = "0.3"
 leptos = { version = "0.8", features = ["csr", "nightly"] }
-tracing = { version = "0.1", features = ["release_max_level_warn"] }
+tracing = { version = "0.1", default-features = false, features = [
+    "release_max_level_warn",
+    "std",
+] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]
 version = "0.3"
 features = [
     "HtmlInputElement",
     "HtmlSelectElement",
-    "Navigator",
-    "Usb",
-    "UsbDevice",
-    "UsbDeviceFilter",
-    "UsbDeviceRequestOptions",
-    "Window",
 ]

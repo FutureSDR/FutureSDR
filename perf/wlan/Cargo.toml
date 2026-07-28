@@ -8,7 +8,7 @@ edition = "2024"
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 futuresdr = { path = "../..", default-features = false }
-tracing = { version = "0.1", features = ["release_max_level_off"] }
+tracing = { version = "0.1", default-features = false, features = ["release_max_level_off"] }
 wlan = { path = "../../examples/wlan/" }
 
 [[bin]]

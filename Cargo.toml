@@ -105,13 +105,15 @@ required-features = ["seify_dummy"]
 [dependencies]
 anyhow = "1.0"
 async-lock = "3.4"
+async-task = "4.7"
 async-trait = "0.1"
 bytemuck = "1.25"
 burn = { version = "0.21", default-features = false, optional = true }
-config = "0.15"
+concurrent-queue = "2.5"
+config = { version = "0.15", default-features = false, features = ["toml"] }
 dirs = "6.0"
 dyn-clone = "1.0"
-futures = "0.3"
+futures = { version = "0.3", default-features = false, features = ["async-await", "std"] }
 futuredsp.workspace = true
 futuresdr-macros.workspace = true
 futuresdr-types.workspace = true
@@ -122,15 +124,12 @@ once_cell = "1.21"
 rustfft = "6.4"
 seify = { version = "0.21", default-features = false, optional = true }
 slab = "0.4"
-serde = { version = "1.0", features = ["derive"] }
 thiserror = "2.0"
-tracing = { version = "0.1", features = ["log"] }
+tracing = { version = "0.1", default-features = false, features = ["log", "std"] }
 web-time = { version = "1.1" }
 wgpu = { version = "29.0", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-async-task = "4.7"
-concurrent-queue = { version = "2.5" }
 console_error_panic_hook = "0.1"
 cpal = { version = "0.18", optional = true, features = ['wasm-bindgen'] }
 getrandom = { version = "0.4", features = ["wasm_js"] }
@@ -147,18 +146,11 @@ async-executor = "1.14"
 async-fs = "2.2"
 async-io = "2.6"
 async-net = "2.0"
-async-task = "4.7"
 async-tungstenite = "0.35"
 axum = { version = "0.8", default-features = false, features = [
-    "form",
     "json",
-    "matched-path",
-    "original-uri",
-    "query",
-    "tower-log",
     "tracing",
 ], optional = true }
-concurrent-queue = { version = "2.5" }
 core_affinity = "0.8"
 cpal = { version = "0.18", optional = true }
 hound = { version = "3.5", optional = true }
@@ -178,13 +170,8 @@ tracing-android = "0.2"
 [target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]
 version = "0.3"
 features = [
-    'Document',
-    'Element',
-    'HtmlElement',
     'Navigator',
-    'Node',
     'Usb',
-    'UsbConfiguration',
     'UsbControlTransferParameters',
     'UsbDevice',
     'UsbDeviceFilter',
@@ -205,7 +192,9 @@ features = [
 [dev-dependencies]
 criterion = { version = "0.8", features = ["html_reports"] }
 float-cmp = "0.10"
+futures = { version = "0.3", default-features = false, features = ["executor"] }
 rand = "0.10"
+serde = { version = "1.0", features = ["derive"] }
 trybuild = "1.0"
 
 [profile.release]

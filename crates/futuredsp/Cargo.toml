@@ -17,7 +17,7 @@ default = []
 [dependencies]
 num-complex = "0.4"
 num-traits = "0.2"
-tracing = "0.1"
+tracing = { version = "0.1", default-features = false, features = ["std"] }
 
 [dev-dependencies]
 criterion = { version = "0.8", features = ["html_reports"] }

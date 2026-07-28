@@ -8,7 +8,6 @@ edition = "2024"
 [dependencies]
 anyhow = "1.0"
 burn = { version = "0.21", features = [
-  "cuda",
   "vulkan",
   "webgpu",
   "autotune",
@@ -26,5 +25,5 @@ futuresdr = { path = "../..", default-features = false, features = ["burn", "sei
 futuresdr-burn = { path = "../../examples/burn" }
 ndarray = "0.17"
 rustfft = "6.4"
-tracing = { version = "0.1", features = ["release_max_level_off"] }
+tracing = { version = "0.1", default-features = false, features = ["release_max_level_off"] }
 wgpu = "29.0"

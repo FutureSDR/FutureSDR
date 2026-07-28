@@ -12,8 +12,14 @@ soapy = ["futuresdr/soapy"]
 
 [dependencies]
 anyhow ="1.0"
-eframe = { version = "0.35", features = ["glow"] }
+eframe = { version = "0.35", default-features = false, features = [
+    "accesskit",
+    "default_fonts",
+    "glow",
+    "wayland",
+    "x11",
+] }
 futuresdr = { path = "../..", features = ["seify"] }
 futuresdr-remote = { path = "../../crates/remote/" }
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1", features = ["rt-multi-thread"] }
 tungstenite = { version = "0.30", features = ["rustls-tls-webpki-roots"] }

@@ -29,7 +29,9 @@ clap = { version = "4", features = ["derive"] }
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 any_spawner = { version = "0.3", features = ["wasm-bindgen"], optional = true }
 console_error_panic_hook = { version = "0.1", optional = true }
-gloo-net = { version = "0.7", features = ["websocket"], optional = true }
+gloo-net = { version = "0.7", default-features = false, features = [
+    "websocket",
+], optional = true }
 leptos = { version = "0.8", features = ["csr", "nightly"], optional = true }
 prophecy = { path = "../../crates/prophecy", optional = true }
 

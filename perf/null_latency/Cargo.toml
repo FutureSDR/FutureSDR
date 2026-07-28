@@ -10,7 +10,7 @@ anyhow = "1.0"
 clap = { version = "4", features = ["derive"] }
 futuresdr = { path = "../..", default-features = false, features = ["flow_scheduler"] }
 perf = { path = "../perf" }
-tracing = { version = "0.1", features = ["release_max_level_off"] }
+tracing = { version = "0.1", default-features = false, features = ["release_max_level_off"] }
 
 [[bin]]
 name = "null_latency"

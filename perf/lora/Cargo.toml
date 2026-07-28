@@ -12,7 +12,7 @@ core_affinity = "0.8"
 futuresdr = { path = "../..", default-features = false }
 lora = { path = "../../examples/lora" }
 perf = { path = "../perf", default-features = false }
-tracing = { version = "0.1", features = ["release_max_level_off"] }
+tracing = { version = "0.1", default-features = false, features = ["release_max_level_off"] }
 
 [[bin]]
 name = "rx"
