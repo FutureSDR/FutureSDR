@@ -170,7 +170,7 @@ hyper = { version = "1", default-features = false, features = ["http1", "server"
 tower-http = { version = "0.7", default-features = false, features = ["cors"], optional = true }
 tower-service = { version = "0.3", default-features = false, optional = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
-vmcircbuffer = { version = "0.0.16", features = ["generic"] }
+vmcircbuffer = { version = "0.0.15", features = ["generic"] }
 zmq = { version = "0.10", optional = true }
 
 [target.'cfg(target_os = "android")'.dependencies]
