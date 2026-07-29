@@ -48,6 +48,9 @@ jobs:
       - name: Run cargo fmt (perf/fir_latency)
         run: cargo fmt --all --manifest-path=perf/fir_latency/Cargo.toml -- --check
 
+      - name: Run cargo fmt (perf/inplace)
+        run: cargo fmt --all --manifest-path=perf/inplace/Cargo.toml -- --check
+
       - name: Run cargo fmt (perf/msg)
         run: cargo fmt --all --manifest-path=perf/msg/Cargo.toml -- --check
 
@@ -62,6 +65,9 @@ jobs:
 
       - name: Run cargo fmt (perf/perf)
         run: cargo fmt --all --manifest-path=perf/perf/Cargo.toml -- --check
+
+      - name: Run cargo fmt (perf/wlan)
+        run: cargo fmt --all --manifest-path=perf/wlan/Cargo.toml -- --check
 
       - name: Run cargo fmt (examples/adsb)
         run: cargo fmt --all --manifest-path=examples/adsb/Cargo.toml -- --check
@@ -123,17 +129,26 @@ jobs:
       - name: Run cargo fmt (examples/wasm)
         run: cargo fmt --all --manifest-path=examples/wasm/Cargo.toml -- --check
 
+      - name: Run cargo fmt (examples/web-spectrum)
+        run: cargo fmt --all --manifest-path=examples/web-spectrum/Cargo.toml -- --check
+
       - name: Run cargo fmt (examples/wgpu)
         run: cargo fmt --all --manifest-path=examples/wgpu/Cargo.toml -- --check
 
       - name: Run cargo fmt (examples/wlan)
         run: cargo fmt --all --manifest-path=examples/wlan/Cargo.toml -- --check
 
+      - name: Run cargo fmt (examples/wlan-wasm)
+        run: cargo fmt --all --manifest-path=examples/wlan-wasm/Cargo.toml -- --check
+
       - name: Run cargo fmt (examples/zeromq)
         run: cargo fmt --all --manifest-path=examples/zeromq/Cargo.toml -- --check
 
       - name: Run cargo fmt (examples/zigbee)
         run: cargo fmt --all --manifest-path=examples/zigbee/Cargo.toml -- --check
+
+      - name: Run cargo fmt (examples/zigbee-wasm)
+        run: cargo fmt --all --manifest-path=examples/zigbee-wasm/Cargo.toml -- --check
 
       - name: Run cargo fmt (examples/zynq)
         run: cargo fmt --all --manifest-path=examples/zynq/Cargo.toml -- --check
@@ -220,6 +235,9 @@ jobs:
       - name: Run cargo clippy (perf/fir_latency)
         run: cargo clippy --all-targets --manifest-path=perf/fir_latency/Cargo.toml -- -D warnings
 
+      - name: Run cargo clippy (perf/inplace)
+        run: cargo clippy --all-targets --manifest-path=perf/inplace/Cargo.toml -- -D warnings
+
       - name: Run cargo clippy (perf/msg)
         run: cargo clippy --all-targets --manifest-path=perf/msg/Cargo.toml -- -D warnings
 
@@ -234,6 +252,9 @@ jobs:
 
       - name: Run cargo clippy (perf/perf)
         run: cargo clippy --all-targets --all-features --manifest-path=perf/perf/Cargo.toml -- -D warnings
+
+      - name: Run cargo clippy (perf/wlan)
+        run: cargo clippy --all-targets --manifest-path=perf/wlan/Cargo.toml -- -D warnings
 
   clippy_examples:
     name: Clippy Examples
@@ -375,11 +396,20 @@ jobs:
       - name: Run cargo clippy for wasm32-unknown-unknown (examples/wasm)
         run: cargo clippy --lib --manifest-path=examples/wasm/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
 
+      - name: Run cargo clippy for wasm32-unknown-unknown (examples/web-spectrum)
+        run: cargo clippy --all-targets --manifest-path=examples/web-spectrum/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
+
       - name: Run cargo clippy for wasm32-unknown-unknown (examples/wgpu)
         run: cargo clippy --lib --manifest-path=examples/wgpu/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
 
+      - name: Run cargo clippy for wasm32-unknown-unknown (examples/wlan-wasm)
+        run: cargo clippy --all-targets --manifest-path=examples/wlan-wasm/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
+
       - name: Run cargo clippy for wasm32-unknown-unknown (examples/zigbee)
         run: cargo clippy --lib --manifest-path=examples/zigbee/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
+
+      - name: Run cargo clippy for wasm32-unknown-unknown (examples/zigbee-wasm)
+        run: cargo clippy --all-targets --manifest-path=examples/zigbee-wasm/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
 
   test-linux:
     name: Unit Tests Linux
@@ -398,7 +428,9 @@ jobs:
       - run: cargo test --all-targets --manifest-path=crates/futuredsp/Cargo.toml
       - run: cargo test --all-targets --all-features --manifest-path=crates/types/Cargo.toml
       - run: cargo test --all-targets --manifest-path=crates/remote/Cargo.toml
+      - run: cargo test --all-targets --manifest-path=perf/inplace/Cargo.toml
       - run: cargo test --all-targets --manifest-path=perf/lora/Cargo.toml
+      - run: cargo test --all-targets --manifest-path=perf/wlan/Cargo.toml
       - run: cargo test --all-targets --manifest-path=examples/wlan/Cargo.toml
 
   test-macos:

@@ -25,11 +25,13 @@ cd ${SCRIPTPATH}/perf/buffer_size && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/perf/burn && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/perf/fir && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/perf/fir_latency && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/perf/inplace && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/perf/msg && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/perf/lora && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/perf/null && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/perf/null_latency && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/perf/perf && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/perf/wlan && ${CARGO_FMT} --check
 
 # examples
 cd ${SCRIPTPATH}/examples/adsb && ${CARGO_FMT} --check
@@ -52,10 +54,13 @@ cd ${SCRIPTPATH}/examples/rattlegram && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/examples/spectrum && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/examples/ssb && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/examples/wasm && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/examples/web-spectrum && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/examples/wgpu && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/examples/wlan && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/examples/wlan-wasm && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/examples/zeromq && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/examples/zigbee && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/examples/zigbee-wasm && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/examples/zynq && ${CARGO_FMT} --check
 
 ###########################################################
@@ -73,10 +78,12 @@ cd ${SCRIPTPATH}/perf/buffer_type && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/perf/buffer_size && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/perf/burn && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/perf/fir && cargo clippy --all-targets -- -D warnings
+cd ${SCRIPTPATH}/perf/inplace && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/perf/msg && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/perf/lora && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/perf/null && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/perf/perf && cargo clippy --all-targets --all-features -- -D warnings
+cd ${SCRIPTPATH}/perf/wlan && cargo clippy --all-targets -- -D warnings
 if [[ "$OSTYPE" == linux* ]]; then
   cd ${SCRIPTPATH}/perf/fir_latency && cargo clippy --all-targets -- -D warnings
   cd ${SCRIPTPATH}/perf/null_latency && cargo clippy --all-targets -- -D warnings
@@ -120,8 +127,11 @@ cd ${SCRIPTPATH}/examples/cw && cargo clippy --lib --target=wasm32-unknown-unkno
 cd ${SCRIPTPATH}/examples/rattlegram && cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
 cd ${SCRIPTPATH}/examples/spectrum && cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
 cd ${SCRIPTPATH}/examples/wasm && cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
+cd ${SCRIPTPATH}/examples/web-spectrum && cargo clippy --all-targets --target=wasm32-unknown-unknown -- -D warnings
 cd ${SCRIPTPATH}/examples/wgpu && cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
+cd ${SCRIPTPATH}/examples/wlan-wasm && cargo clippy --all-targets --target=wasm32-unknown-unknown -- -D warnings
 cd ${SCRIPTPATH}/examples/zigbee && cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
+cd ${SCRIPTPATH}/examples/zigbee-wasm && cargo clippy --all-targets --target=wasm32-unknown-unknown -- -D warnings
 
 ###########################################################
 # Test
@@ -138,10 +148,12 @@ cd ${SCRIPTPATH}/perf/buffer_type && cargo test --all-targets
 cd ${SCRIPTPATH}/perf/buffer_size && cargo test --all-targets
 cd ${SCRIPTPATH}/perf/burn && cargo test --all-targets
 cd ${SCRIPTPATH}/perf/fir && cargo test --all-targets
+cd ${SCRIPTPATH}/perf/inplace && cargo test --all-targets
 cd ${SCRIPTPATH}/perf/msg && cargo test --all-targets
 cd ${SCRIPTPATH}/perf/lora && cargo test --all-targets
 cd ${SCRIPTPATH}/perf/null && cargo test --all-targets
 cd ${SCRIPTPATH}/perf/perf && cargo test --all-targets --all-features
+cd ${SCRIPTPATH}/perf/wlan && cargo test --all-targets
 if [[ "$OSTYPE" == linux* ]]; then
   cd ${SCRIPTPATH}/perf/fir_latency && cargo test --all-targets
   cd ${SCRIPTPATH}/perf/null_latency && cargo test --all-targets
