@@ -114,7 +114,9 @@ Use `#[message_inputs(set_gain = "gain")]` when the public port name should diff
 
 All methods receive `MessageOutputs` and read-only `BlockMeta`. `work()` also receives `WorkIo`, which is the block's way to communicate scheduling decisions back to the runtime.
 
-Use `io.block_on()` when the block should sleep until the future returned by `Kernel::block_on()` completes. The block may still be called earlier if stream data or a message arrives.
+Override `Kernel::block_on()` when a block owns a future that should wake it.
+The runtime polls that future after `work()` yields without requesting an
+immediate call. Stream data or a message can still wake the block first.
 
 ## Local Blocks
 
