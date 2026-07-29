@@ -13,7 +13,7 @@ use super::types::BlockRef;
 use super::types::TypedBlockGuard;
 use super::types::TypedBlockGuardMut;
 
-/// Final state of a [`Flowgraph`] after runtime execution has stopped.
+/// Final state of a [`Flowgraph`](crate::runtime::Flowgraph) after runtime execution has stopped.
 ///
 /// A `TerminatedFlowgraph` is returned by [`Runtime::run`](crate::runtime::Runtime::run)
 /// and by waiting on a [`RunningFlowgraph`](crate::runtime::RunningFlowgraph).
