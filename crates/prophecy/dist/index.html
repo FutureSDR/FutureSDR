@@ -5,12 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FutureSDR :: Prophecy GUI</title>
 
-    <link rel="icon" href="/favicon-baad1291935ce574.ico" integrity="sha384-dFl6ag/qXmQ5UAh+4iLD+ODkQW60lrE2V6Ue2SOAPXWQWTpzhlbvj5pxMA3aNUJS"/>
-    <link rel="stylesheet" href="/style-2395c28b0745a7f1.css" integrity="sha384-fRmz6PaT1hCG604Txw7SU2vIaQI9pOBE1hWFwJBvwwIK3a7PX5FBLer5LNWyaan0"/>
+    <link rel="icon" href="/favicon.ico" integrity="sha384-dFl6ag/qXmQ5UAh+4iLD+ODkQW60lrE2V6Ue2SOAPXWQWTpzhlbvj5pxMA3aNUJS"/>
+    <link rel="stylesheet" href="/style.css" integrity="sha384-fRmz6PaT1hCG604Txw7SU2vIaQI9pOBE1hWFwJBvwwIK3a7PX5FBLer5LNWyaan0"/>
     
 <script type="module">
-import init, * as bindings from '/prophecy-d7949cb8070dbf69.js';
-const wasm = await init({ module_or_path: '/prophecy-d7949cb8070dbf69_bg.wasm' });
+import init, * as bindings from '/prophecy.js';
+const wasm = await init({ module_or_path: '/prophecy_bg.wasm' });
 
 
 window.wasmBindings = bindings;
@@ -20,7 +20,7 @@ dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
 
 </script>
     <base href="/" />
-  <link rel="modulepreload" href="/prophecy-d7949cb8070dbf69.js" crossorigin="anonymous" integrity="sha384-itw/CnZf/tzbAuf4tTRQn60Ch4D6QEHvKz7xIBX8NOdOIRs+FqmleKEfu9/+gjR+"><link rel="preload" href="/prophecy-d7949cb8070dbf69_bg.wasm" crossorigin="anonymous" integrity="sha384-PzShDMdTvALH8Luh9viu2XeMV5h3d/ZAU0Dh5/Z1Fzlailw/u3+oU10b4vx0MRAE" as="fetch" type="application/wasm"></head>
+  <link rel="modulepreload" href="/prophecy.js" crossorigin="anonymous" integrity="sha384-itw/CnZf/tzbAuf4tTRQn60Ch4D6QEHvKz7xIBX8NOdOIRs+FqmleKEfu9/+gjR+"><link rel="preload" href="/prophecy_bg.wasm" crossorigin="anonymous" integrity="sha384-PzShDMdTvALH8Luh9viu2XeMV5h3d/ZAU0Dh5/Z1Fzlailw/u3+oU10b4vx0MRAE" as="fetch" type="application/wasm"></head>
   <body class="bg-slate-900">
   </body>
 </html>
