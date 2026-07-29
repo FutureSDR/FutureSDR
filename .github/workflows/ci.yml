@@ -153,6 +153,20 @@ jobs:
       - name: Run cargo fmt (examples/zynq)
         run: cargo fmt --all --manifest-path=examples/zynq/Cargo.toml -- --check
 
+  book:
+    name: Book
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@nightly
+
+      - name: Install mdBook
+        run: cargo install --locked mdbook --version 0.5.4
+
+      - name: Build book
+        run: mdbook build book
+
 
   clippy_main:
     name: Clippy Main
