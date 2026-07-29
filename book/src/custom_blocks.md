@@ -43,7 +43,8 @@ impl Kernel for Scale {
     ) -> Result<()> {
         let input = self.input.slice();
         let output = self.output.slice();
-        let n = input.len().min(output.len());
+        let input_len = input.len();
+        let n = input_len.min(output.len());
 
         for i in 0..n {
             output[i] = input[i] * self.gain;
@@ -52,7 +53,7 @@ impl Kernel for Scale {
         self.input.consume(n);
         self.output.produce(n);
 
-        if self.input.finished() {
+        if self.input.finished() && n == input_len {
             io.finished = true;
         }
 
@@ -64,6 +65,9 @@ impl Kernel for Scale {
 `slice()` returns the currently available readable or writable window. After processing, call `consume(n)` and `produce(n)` with the number of items actually handled.
 
 Set `io.call_again = true` when the block knows it can make more progress immediately. Set `io.finished = true` when the block is done and downstream ports should be notified.
+An input can report `finished()` while its final items are still readable, so a
+transform block must not finish until it has consumed the complete current input
+window.
 
 ## Message Ports
 
