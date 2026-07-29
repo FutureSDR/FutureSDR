@@ -1,15 +1,15 @@
 use futuresdr::runtime::BlockId;
 use futuresdr::runtime::Error;
 use futuresdr::runtime::PortIndex;
-use futuresdr::runtime::buffer::BlockInbox;
 use futuresdr::runtime::buffer::BufferReader;
-use futuresdr::runtime::buffer::BufferRequirements;
 use futuresdr::runtime::buffer::BufferWriter;
 use futuresdr::runtime::buffer::CpuBufferReader;
 use futuresdr::runtime::buffer::CpuBufferWriter;
 use futuresdr::runtime::buffer::CpuSample;
-use futuresdr::runtime::buffer::PortCore;
 use futuresdr::runtime::buffer::Tags;
+use futuresdr::runtime::buffer::dev::BlockInbox;
+use futuresdr::runtime::buffer::dev::BufferRequirements;
+use futuresdr::runtime::buffer::dev::PortCore;
 use futuresdr::runtime::dev::ItemTag;
 
 struct CustomReader<T: CpuSample> {

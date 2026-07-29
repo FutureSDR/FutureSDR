@@ -1009,7 +1009,7 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                 index: ::futuresdr::runtime::PortIndex,
             ) -> Option<(
                 ::futuresdr::runtime::PortName,
-                &mut dyn ::futuresdr::runtime::buffer::DynBufferReader,
+                &mut dyn ::futuresdr::runtime::buffer::dev::DynBufferReader,
             )> {
                 use ::futuresdr::runtime::PortName;
                 let mut __fsdr_port_index = 0usize;
@@ -1022,7 +1022,7 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                 index: ::futuresdr::runtime::PortIndex,
             ) -> Option<(
                 ::futuresdr::runtime::PortName,
-                &mut dyn ::futuresdr::runtime::buffer::DynBufferWriter,
+                &mut dyn ::futuresdr::runtime::buffer::dev::DynBufferWriter,
             )> {
                 use ::futuresdr::runtime::PortName;
                 let mut __fsdr_port_index = 0usize;

@@ -3,19 +3,19 @@ use std::fmt;
 use futuresdr::runtime::BlockId;
 use futuresdr::runtime::Error;
 use futuresdr::runtime::PortIndex;
-use futuresdr::runtime::buffer::BufferInbox;
-use futuresdr::runtime::buffer::BufferNotifier;
 use futuresdr::runtime::buffer::BufferReader;
-use futuresdr::runtime::buffer::BufferRequirements;
 use futuresdr::runtime::buffer::BufferWriter;
-use futuresdr::runtime::buffer::ConnectionState;
 use futuresdr::runtime::buffer::CpuBufferReader;
 use futuresdr::runtime::buffer::CpuBufferWriter;
 use futuresdr::runtime::buffer::CpuSample;
-use futuresdr::runtime::buffer::LocalBlockInbox;
-use futuresdr::runtime::buffer::PortCore;
-use futuresdr::runtime::buffer::PortEndpoint;
 use futuresdr::runtime::buffer::Tags;
+use futuresdr::runtime::buffer::dev::BufferInbox;
+use futuresdr::runtime::buffer::dev::BufferNotifier;
+use futuresdr::runtime::buffer::dev::BufferRequirements;
+use futuresdr::runtime::buffer::dev::ConnectionState;
+use futuresdr::runtime::buffer::dev::LocalBlockInbox;
+use futuresdr::runtime::buffer::dev::PortCore;
+use futuresdr::runtime::buffer::dev::PortEndpoint;
 use futuresdr::runtime::dev::ItemTag;
 use futuresdr::runtime::dev::LocalBlockNotifier;
 use futuresdr::tracing::warn;
@@ -69,11 +69,8 @@ struct ConnectedWriter<T>
 where
     T: CpuSample,
 {
-    writer: generic::Writer<
-        T,
-        LocalNotifier<<LocalBlockInbox as futuresdr::runtime::buffer::BufferInbox>::Notifier>,
-        NoMetadata,
-    >,
+    writer:
+        generic::Writer<T, LocalNotifier<<LocalBlockInbox as BufferInbox>::Notifier>, NoMetadata>,
     readers: Vec<PortEndpoint<LocalBlockInbox>>,
 }
 
@@ -275,11 +272,8 @@ struct ConnectedReader<T>
 where
     T: CpuSample,
 {
-    reader: generic::Reader<
-        T,
-        LocalNotifier<<LocalBlockInbox as futuresdr::runtime::buffer::BufferInbox>::Notifier>,
-        NoMetadata,
-    >,
+    reader:
+        generic::Reader<T, LocalNotifier<<LocalBlockInbox as BufferInbox>::Notifier>, NoMetadata>,
     writer: Option<PortEndpoint<LocalBlockInbox>>,
 }
 

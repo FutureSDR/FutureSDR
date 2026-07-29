@@ -21,8 +21,8 @@ pub use super::buffer::InplaceReader;
 pub use super::buffer::InplaceWriter;
 pub use super::buffer::LocalCpuReader;
 pub use super::buffer::LocalCpuWriter;
-pub use super::buffer::PortInboxes;
 pub use super::buffer::ThreadSafeConnect;
+pub use super::buffer::dev::PortInboxes;
 pub use super::flowgraph::TypedBlockGuard;
 pub use super::flowgraph::TypedBlockGuardMut;
 pub use super::kernel::Kernel;
@@ -40,12 +40,12 @@ pub use super::work_io::WorkIo;
 /// block implementations.
 pub mod prelude {
     pub use crate::prelude::*;
-    pub use crate::runtime::buffer::PortInboxes;
     #[cfg(feature = "burn")]
     pub use crate::runtime::buffer::burn as burn_buffer;
     pub use crate::runtime::buffer::circuit;
     #[cfg(not(target_arch = "wasm32"))]
     pub use crate::runtime::buffer::circular;
+    pub use crate::runtime::buffer::dev::PortInboxes;
     pub use crate::runtime::buffer::slab;
     pub use crate::runtime::channel::mpsc;
     pub use crate::runtime::channel::oneshot;

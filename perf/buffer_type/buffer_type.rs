@@ -3,7 +3,7 @@ use clap::Parser;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
-use futuresdr::runtime::buffer::LocalBlockInbox;
+use futuresdr::runtime::buffer::dev::LocalBlockInbox;
 use futuresdr::runtime::dev::BufferWriter;
 use futuresdr::runtime::dev::CpuBufferReader;
 use futuresdr::runtime::dev::CpuBufferWriter;

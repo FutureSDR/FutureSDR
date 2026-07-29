@@ -17,7 +17,6 @@ mod add_to_flowgraph;
 mod block;
 mod block_inbox;
 mod block_meta;
-/// Advanced buffer APIs for implementing custom runtime integrations.
 pub mod buffer;
 /// Async channels used by runtime and block implementation APIs.
 pub mod channel;
