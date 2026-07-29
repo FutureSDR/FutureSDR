@@ -12,7 +12,7 @@ Use `trunk serve --release` to build and host the WebAssembly flowgraph. See the
 
 ## Web UI
 
-FutureSDR's reusable web UI components are implemented in the [`prophecy`](https://github.com/FutureSDR/FutureSDR/tree/main/crates/prophecy) crate that is part of the FutureSDR repository. The default Prophecy GUI is served by the control port when a native FutureSDR application is built with the default `ctrl_port` feature and running, usually at `http://127.0.0.1:1337/`.
+FutureSDR's reusable web UI components are implemented in the [`prophecy`](https://github.com/FutureSDR/FutureSDR/tree/main/crates/prophecy) crate that is part of the FutureSDR repository. The control port serves the default Prophecy GUI, usually at `http://127.0.0.1:1337/`, when the application is built with the `ctrl_port` feature and the compiled frontend directory is available. This works automatically from the repository checkout. External applications can select their compiled frontend with the `frontend_path` configuration option.
 
 Prophecy is built with [Leptos](https://leptos.dev/), a Rust web framework for reactive user interfaces. It is intended both as a small default UI and as a component library for application-specific control panels.
 
@@ -29,4 +29,3 @@ The crate provides:
 - `ArrayView`: helper trait for exposing Rust numeric slices as JavaScript typed-array views for WebGL uploads.
 
 For a custom web GUI that uses Prophecy components in an application-specific layout, see the [WLAN example](https://github.com/FutureSDR/FutureSDR/tree/main/examples/wlan).
-

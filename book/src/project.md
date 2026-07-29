@@ -47,7 +47,7 @@ the pieces your application needs explicitly.
 - `aaronia_http`: drivers for Aaronia HTTP servers, usable through Seify
 - `audio`: read/write audio files and interface speakers/mic
 - `burn`: buffers using [Burn](https://burn.dev) tensors
-- `ctrl_port`: enable the native HTTP control port and Prophecy web UI server
+- `ctrl_port`: enable the native HTTP control port and static frontend server
 - `flow_scheduler`: enable the [Flow Scheduler](scheduler.md#flow)
 - `hackrf`: enable Rust HackRF driver for Seify (unstable, not recommended)
 - `hydrasdr`: enable HydraSDR driver for Seify

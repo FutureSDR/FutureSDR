@@ -1,9 +1,12 @@
 # Prophecy GUI for FutureSDR
 
-This crate implements the GUI served by the FutureSDR control port on active flowgraphs.
-It gets bundled automatically with the `futuresdr` distribution.
+This crate implements a GUI for active FutureSDR flowgraphs. The repository
+keeps a pre-built bundle in `dist/`, which the FutureSDR control port discovers
+when an application runs from the repository checkout.
 
-By default, _Prophecy_ is available at `http://localhost:1337/` when running a `futuresdr` application.
+The published `futuresdr` crate does not embed these assets. Applications built
+outside the repository can build Prophecy themselves and set
+`frontend_path` in the FutureSDR configuration to the resulting directory.
 
 For examples of advanced configurations, see the following:
 
@@ -22,7 +25,7 @@ _Prophecy_ is implemented using [Leptos](https://leptos.dev), with building/bund
 
     cargo install trunk
 
-Other installation options described [here](https://trunkrs.dev/#getting-started).
+Other installation options are described [here](https://trunkrs.dev/#getting-started).
 
 You will need the WebAssembly target installed:
 
@@ -35,6 +38,5 @@ _Prophecy_ is built with:
     trunk build --release
 
 The output is rendered to `dist/`.
-
 
 

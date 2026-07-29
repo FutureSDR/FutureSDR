@@ -33,9 +33,12 @@ The FutureSDR repository contains a `rust-toolchain.toml`, so `cargo` automatica
 
 ## Web GUI and Web SDR Applications
 
-FutureSDR ships with pre-compiled web UIs, so you can use them without extra
-tooling. If you want to extend or adapt the web UIs, install the
-`wasm32-unknown-unknown` target:
+The FutureSDR repository contains pre-compiled web UIs, so applications run
+from a repository checkout can use them without extra tooling. The published
+`futuresdr` crate does not embed these assets; an external application can build
+its frontend separately and configure `frontend_path`.
+
+To extend or rebuild the web UIs, install the `wasm32-unknown-unknown` target:
 
 ```bash
 rustup target add wasm32-unknown-unknown --toolchain nightly
