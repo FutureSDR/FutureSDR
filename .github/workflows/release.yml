@@ -105,6 +105,11 @@ jobs:
             manifest="$1"
             crate="$2"
 
+            if cargo info "$crate@$version" >/dev/null 2>&1; then
+              echo "$crate $version is already published"
+              return 0
+            fi
+
             cargo publish --manifest-path "$manifest"
             wait_for_crate "$crate"
           }
