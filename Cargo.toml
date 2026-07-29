@@ -205,4 +205,5 @@ opt-level = 3
 panic = "abort"
 
 [package.metadata.docs.rs]
+features = ["flow_scheduler"]
 rustdoc-args = ["--cfg", "docsrs"]
