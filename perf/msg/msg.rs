@@ -151,7 +151,7 @@ fn main() -> Result<()> {
             }
             "smol1" => {
                 let (fg, snks, _) = generate(pipes, stages, burst_size)?;
-                let runtime = Runtime::with_scheduler(SmolScheduler::new(1, false));
+                let runtime = Runtime::with_scheduler(SmolScheduler::with_config(1, false));
                 let now = time::Instant::now();
                 let fg = runtime.run(fg)?;
                 (fg, snks, now.elapsed())

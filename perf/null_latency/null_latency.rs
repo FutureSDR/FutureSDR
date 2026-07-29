@@ -68,7 +68,7 @@ fn main() -> Result<()> {
     }
 
     let (fg, elapsed) = if scheduler == "smol1" {
-        let runtime = Runtime::with_scheduler(SmolScheduler::new(1, false));
+        let runtime = Runtime::with_scheduler(SmolScheduler::with_config(1, false));
         let now = time::Instant::now();
         let fg = runtime.run(fg)?;
         (fg, now.elapsed())

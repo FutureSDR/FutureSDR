@@ -621,7 +621,7 @@ mod tests {
         app: Router,
     ) -> (SmolScheduler, SocketAddr, oneshot::Sender<()>, Task<()>) {
         let addr = free_addr();
-        let scheduler = SmolScheduler::new(1, false);
+        let scheduler = SmolScheduler::with_config(1, false);
         let (tx_shutdown, rx_shutdown) = oneshot::channel();
         let task = scheduler.spawn(run_server(addr, app, scheduler.clone(), rx_shutdown));
 

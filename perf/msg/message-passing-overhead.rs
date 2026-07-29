@@ -60,7 +60,7 @@ impl Args {
         println!(
             "Usage: {program} [--messages N] [--stages N]\n\n\
              Builds msg src -> msg copy x stages -> msg sink and runs it twice:\n\
-               1. normal blocks on SmolScheduler::new(1, false)\n\
+               1. normal blocks on SmolScheduler::with_config(1, false)\n\
                2. all blocks inside one local domain\n\n\
              Defaults: --messages 100000 --stages 4"
         );
@@ -173,7 +173,7 @@ fn build_flowgraph(
 
 fn run_once(placement: Placement, args: Args) -> Result<RunStats> {
     let (fg, sink) = build_flowgraph(placement, args.messages, args.stages)?;
-    let rt = Runtime::with_scheduler(SmolScheduler::new(1, false));
+    let rt = Runtime::with_scheduler(SmolScheduler::with_config(1, false));
 
     let t0 = Instant::now();
     let fg = rt.run(fg)?;

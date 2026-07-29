@@ -50,12 +50,18 @@ impl Drop for SmolSchedulerInner {
 }
 
 impl SmolScheduler {
+    /// Create a scheduler using one unpinned worker per detected CPU core.
+    pub fn new() -> Self {
+        let n_executors = core_affinity::get_core_ids().map(|c| c.len()).unwrap_or(1);
+        Self::with_config(n_executors, false)
+    }
+
     /// Create a scheduler with a fixed number of worker threads.
     ///
     /// If `pin_executors` is true, workers are pinned to detected CPU cores in
     /// order, cycling through the core list when `n_executors` is larger than
     /// the number of detected cores.
-    pub fn new(n_executors: usize, pin_executors: bool) -> SmolScheduler {
+    pub fn with_config(n_executors: usize, pin_executors: bool) -> Self {
         let executor = Arc::new(Executor::new());
         let mut workers = Vec::new();
 
@@ -121,8 +127,7 @@ impl Scheduler for SmolScheduler {
 
 impl Default for SmolScheduler {
     fn default() -> Self {
-        let n_executors = core_affinity::get_core_ids().map(|c| c.len()).unwrap_or(1);
-        Self::new(n_executors, false)
+        Self::new()
     }
 }
 
@@ -143,7 +148,7 @@ mod test {
 
     #[test]
     fn smol() {
-        let _ = SmolScheduler::default();
+        let _ = SmolScheduler::new();
         let s = SmolScheduler::default();
         let t = s.spawn(async { 1 + 1 });
         let r = block_on(t);
@@ -154,7 +159,7 @@ mod test {
     fn dropping_scheduler_drops_pending_tasks() {
         let dropped = Arc::new(AtomicBool::new(false));
         let (started_tx, started_rx) = std::sync::mpsc::channel();
-        let scheduler = SmolScheduler::new(1, false);
+        let scheduler = SmolScheduler::with_config(1, false);
         let probe = DropProbe(dropped.clone());
         scheduler
             .spawn(async move {

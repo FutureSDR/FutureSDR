@@ -257,7 +257,7 @@ fn main() -> Result<()> {
     } else if use_slab {
         let (fg, snks, cpu_mapping) = generate::<SlabBuffer>(pipes, stages, samples, chunk)?;
         let (fg, elapsed) = if scheduler == "smol1" {
-            let runtime = Runtime::with_scheduler(SmolScheduler::new(1, false));
+            let runtime = Runtime::with_scheduler(SmolScheduler::with_config(1, false));
             let now = time::Instant::now();
             let fg = runtime.run(fg)?;
             (fg, now.elapsed())
@@ -306,7 +306,7 @@ fn main() -> Result<()> {
     } else {
         let (fg, snks, cpu_mapping) = generate::<CircBuffer>(pipes, stages, samples, chunk)?;
         let (fg, elapsed) = if scheduler == "smol1" {
-            let runtime = Runtime::with_scheduler(SmolScheduler::new(1, false));
+            let runtime = Runtime::with_scheduler(SmolScheduler::with_config(1, false));
             let now = time::Instant::now();
             let fg = runtime.run(fg)?;
             (fg, now.elapsed())
