@@ -16,7 +16,9 @@ Most custom buffers also implement one of the higher-level buffer families:
 
 ## Port State
 
-Use `PortCore` and `ConnectionState` for the common lifecycle:
+`PortCore`, `PortEndpoint`, and `ConnectionState` are optional helpers for
+common port and connection lifecycle bookkeeping. A custom buffer may use them
+or store the same state directly:
 
 ```rust
 use futuresdr::runtime::buffer::dev::{ConnectionState, PortCore, PortEndpoint};

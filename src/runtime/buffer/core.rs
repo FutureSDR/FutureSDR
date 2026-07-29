@@ -341,7 +341,7 @@ enum PortBinding<I: BufferInbox = BlockInbox> {
     },
 }
 
-/// Shared per-port state that is independent from the concrete buffer backend.
+/// Optional helper for per-port state independent from a concrete buffer backend.
 #[derive(Debug, Clone)]
 pub struct PortCore<I: BufferInbox = BlockInbox> {
     binding: PortBinding<I>,
@@ -490,7 +490,7 @@ impl<I: BufferInbox> PortCore<I> {
     }
 }
 
-/// A peer endpoint captured during connection setup.
+/// Optional helper that packages a peer inbox and port index during connection setup.
 #[derive(Debug, Clone)]
 pub struct PortEndpoint<I: BufferInbox = BlockInbox> {
     inbox: I,
@@ -538,7 +538,7 @@ impl<I: BufferInbox, Q> CircuitReturn<I, Q> {
     }
 }
 
-/// A backend state that is either disconnected or fully connected.
+/// Optional helper for backend state that is either disconnected or fully connected.
 ///
 /// Buffer implementations use this helper when their reader or writer can be
 /// constructed before the peer endpoint exists, then filled in during

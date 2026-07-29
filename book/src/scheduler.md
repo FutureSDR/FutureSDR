@@ -28,7 +28,7 @@ use futuresdr::runtime::scheduler::SmolScheduler;
 let mut fg = Flowgraph::new();
 // set up the flowgraph
 
-let scheduler = SmolScheduler::new(2, false);
+let scheduler = SmolScheduler::with_config(2, false);
 let fg = Runtime::with_scheduler(scheduler).run(fg)?;
 ```
 
@@ -38,7 +38,7 @@ The first argument is the number of executor threads. The second argument enable
 use futuresdr::prelude::*;
 use futuresdr::runtime::scheduler::SmolScheduler;
 
-let scheduler = SmolScheduler::new(4, true);
+let scheduler = SmolScheduler::with_config(4, true);
 let rt = Runtime::with_scheduler(scheduler);
 ```
 
