@@ -20,7 +20,6 @@ Use `PortCore` and `ConnectionState` for the common lifecycle:
 
 ```rust
 use futuresdr::runtime::buffer::*;
-use futuresdr::runtime::{BlockId, Error, PortId};
 
 pub struct MyWriter<T> {
     core: PortCore,
@@ -31,7 +30,7 @@ pub struct MyWriter<T> {
 impl<T> Default for MyWriter<T> {
     fn default() -> Self {
         Self {
-            core: PortCore::new_disconnected(),
+            core: PortCore::new_unbound(),
             peer: ConnectionState::disconnected(),
             _type: std::marker::PhantomData,
         }
