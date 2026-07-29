@@ -8,15 +8,12 @@ use slab::Slab;
 use std::fmt;
 use std::panic::RefUnwindSafe;
 use std::panic::UnwindSafe;
-use std::pin::Pin;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering;
-use std::task::Context;
-use std::task::Poll;
 use std::task::Waker;
 use wasm_bindgen::JsValue;
 use wasm_bindgen::prelude::*;
@@ -31,6 +28,7 @@ use crate::runtime::scheduler::NormalRunningDomain;
 use crate::runtime::scheduler::RunnableBlock;
 use crate::runtime::scheduler::Scheduler;
 use crate::runtime::scheduler::StoppedBlock;
+use crate::runtime::scheduler::Task;
 use crate::runtime::yield_now;
 
 static WASM_EXECUTORS: once_cell::sync::Lazy<Mutex<Slab<Arc<WasmExecutor>>>> =
@@ -224,7 +222,7 @@ impl Scheduler for WasmScheduler {
         &self,
         future: impl Future<Output = T> + Send + 'static,
     ) -> Task<T> {
-        Task::new(self.inner.executor.spawn(future))
+        self.inner.executor.spawn(future)
     }
 }
 
@@ -268,7 +266,7 @@ impl Scheduler for WasmMainScheduler {
         &self,
         future: impl Future<Output = T> + Send + 'static,
     ) -> Task<T> {
-        Task::new(spawn_main(future))
+        spawn_main(future)
     }
 }
 
@@ -343,11 +341,11 @@ fn spawn_wasm_block(
     block: RunnableBlock,
     queue_index: usize,
 ) -> Task<StoppedBlock> {
-    Task::new(executor.spawn_executor(block.run(), queue_index))
+    executor.spawn_executor(block.run(), queue_index)
 }
 
 fn spawn_wasm_main_block(block: RunnableBlock) -> Task<StoppedBlock> {
-    Task::new(spawn_main(block.run()))
+    spawn_main(block.run())
 }
 
 fn spawn_main<T: Send + 'static>(
@@ -361,28 +359,6 @@ fn spawn_main<T: Send + 'static>(
     let (runnable, task) = async_task::spawn(future, schedule);
     runnable.schedule();
     task
-}
-
-/// WASM async task.
-pub struct Task<T>(async_task::Task<T>);
-
-impl<T> Task<T> {
-    fn new(task: async_task::Task<T>) -> Self {
-        Task(task)
-    }
-
-    /// Detach the task so it continues running when the task handle is dropped.
-    pub fn detach(self) {
-        self.0.detach();
-    }
-}
-
-impl<T> std::future::Future for Task<T> {
-    type Output = T;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        Pin::new(&mut self.get_mut().0).poll(cx)
-    }
 }
 
 /// A small async executor with per-worker local queues.

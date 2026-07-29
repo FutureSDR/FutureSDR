@@ -43,7 +43,5 @@ pub use wasm::WasmMainScheduler;
 #[cfg(target_arch = "wasm32")]
 pub use wasm::WasmScheduler;
 
-#[cfg(not(target_arch = "wasm32"))]
+#[doc(no_inline)]
 pub use async_task::Task;
-#[cfg(target_arch = "wasm32")]
-pub use wasm::Task;
