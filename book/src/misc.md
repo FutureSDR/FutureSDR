@@ -8,7 +8,8 @@ See [Android example](https://github.com/FutureSDR/FutureSDR/tree/main/examples/
 
 ## WebAssembly
 
-Use `trunk serve --release` to build and host the WebAssembly flowgraph. See the [ZigBee example](https://github.com/FutureSDR/FutureSDR/tree/main/examples/zigbee/).
+Use `trunk serve --release` to build and host a WebAssembly flowgraph. See the
+[browser ZigBee example](https://github.com/FutureSDR/FutureSDR/tree/main/examples/zigbee-wasm/).
 
 ## Web UI
 
