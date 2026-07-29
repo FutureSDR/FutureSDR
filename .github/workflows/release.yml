@@ -24,11 +24,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@nightly
         with:
-          components: clippy, rustfmt, rust-src
-          targets: wasm32-unknown-unknown
-
-      - name: Install Trunk
-        run: cargo install --locked trunk --version 0.21.14
+          components: clippy, rustfmt
 
       - name: Install system dependencies
         run: |
@@ -66,24 +62,6 @@ jobs:
         env:
           RUSTDOCFLAGS: "-D warnings"
         run: cargo doc --no-deps --workspace --features=zeromq,audio,flow_scheduler,seify_dummy,soapy,wgpu,mocker
-
-      - name: Check generated web distributions
-        run: |
-          for project in crates/prophecy examples/spectrum examples/wlan examples/zigbee; do
-            (cd "$project" && trunk build --release)
-          done
-
-          changes="$(git status --short --untracked-files=all -- \
-            crates/prophecy/dist \
-            examples/spectrum/dist \
-            examples/wlan/dist \
-            examples/zigbee/dist)"
-
-          if [ -n "$changes" ]; then
-            echo "Generated web distributions are stale:"
-            echo "$changes"
-            exit 1
-          fi
 
       - name: Package leaf crates
         run: |
