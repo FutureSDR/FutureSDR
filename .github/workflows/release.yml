@@ -25,6 +25,10 @@ jobs:
         uses: dtolnay/rust-toolchain@nightly
         with:
           components: clippy, rustfmt
+          targets: wasm32-unknown-unknown
+
+      - name: Install Trunk
+        run: cargo install --locked trunk --version 0.21.14
 
       - name: Install system dependencies
         run: |
@@ -56,6 +60,12 @@ jobs:
 
       - name: Check public API docs
         run: cargo doc --no-deps --workspace --features=zeromq,audio,flow_scheduler,seify_dummy,soapy,wgpu,mocker
+
+      - name: Check Prophecy distribution
+        working-directory: crates/prophecy
+        run: |
+          trunk build --release
+          git diff --exit-code -- dist
 
       - name: Package leaf crates
         run: |
