@@ -11,7 +11,6 @@ use futuresdr::runtime::Edge;
 use futuresdr::runtime::Error;
 use futuresdr::runtime::scheduler::LocalScheduler;
 use futuresdr::runtime::scheduler::dev::LocalBlockStop;
-use futuresdr::runtime::scheduler::dev::LocalDomainControl;
 use futuresdr::runtime::scheduler::dev::LocalDomainRunSpec;
 use futuresdr::runtime::scheduler::dev::StoppedLocalBlock;
 use std::cmp::Reverse;
@@ -252,8 +251,8 @@ where
             continue;
         }
 
-        let event = {
-            let next_event = spec.next_event();
+        let request_shutdown = {
+            let next_event = spec.handle_next_event();
             futures::pin_mut!(next_event);
 
             loop {
@@ -273,11 +272,9 @@ where
             }
         };
 
-        let Some(event) = event else {
+        let Some(request_shutdown) = request_shutdown else {
             break;
         };
-
-        let request_shutdown = spec.handle_event(event).await == LocalDomainControl::Stop;
 
         if request_shutdown {
             stop_blocks(&stop_handles).await;

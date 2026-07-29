@@ -30,8 +30,6 @@ pub use scheduler::Scheduler;
 /// Support types for implementing custom schedulers.
 pub mod dev {
     pub use super::local::LocalBlockStop;
-    pub use super::local::LocalDomainControl;
-    pub use super::local::LocalDomainRunEvent;
     pub use super::local::LocalDomainRunSpec;
     pub use super::local::RunnableLocalBlock;
     pub use super::local::StoppedLocalBlock;

@@ -76,20 +76,6 @@ pub struct LocalDomainRunSpec<'a, Shutdown> {
     pub(crate) external_inboxes: Vec<(BlockInboxReader, LocalBlockInbox)>,
 }
 
-/// Opaque event received by a local-domain run loop.
-pub struct LocalDomainRunEvent {
-    message: Option<LocalDomainMessage>,
-}
-
-/// Result of handling a local-domain run event.
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub enum LocalDomainControl {
-    /// Continue running local-domain block tasks.
-    Continue,
-    /// Stop running local-domain block tasks.
-    Stop,
-}
-
 /// Stop handle for one running local block.
 #[derive(Clone)]
 pub struct LocalBlockStop {
@@ -236,53 +222,51 @@ impl<'a, Shutdown> LocalDomainRunSpec<'a, Shutdown> {
         enter_local_domain_context(self.key, self.state.inboxes_by_local_id())
     }
 
-    /// Wait for the next local-domain run event or shutdown request.
+    /// Wait for and handle the next local-domain run event or shutdown request.
     ///
     /// If this future is selected against block-task completion, keep polling
     /// the same future after task completions win. It contains a channel
     /// receive that must not be dropped while the local domain continues
     /// running.
-    pub async fn next_event(&mut self) -> LocalDomainRunEvent
+    ///
+    /// Returns `true` when the local domain should stop.
+    pub async fn handle_next_event(&mut self) -> bool
     where
         Shutdown: Future + Unpin,
     {
         let next_domain = self.domain_rx.recv();
         futures::pin_mut!(next_domain);
-        match futures::future::select(next_domain, &mut *self.shutdown).await {
-            futures::future::Either::Left((message, _)) => LocalDomainRunEvent { message },
-            futures::future::Either::Right((_, _)) => LocalDomainRunEvent { message: None },
-        }
-    }
-
-    /// Handle a local-domain run event using the runtime's standard ingress semantics.
-    pub async fn handle_event(&mut self, event: LocalDomainRunEvent) -> LocalDomainControl {
-        let Some(message) = event.message else {
-            return LocalDomainControl::Stop;
+        let message = match futures::future::select(next_domain, &mut *self.shutdown).await {
+            futures::future::Either::Left((message, _)) => message,
+            futures::future::Either::Right((_, _)) => None,
+        };
+        let Some(message) = message else {
+            return true;
         };
         match message {
-            LocalDomainMessage::StopRun => LocalDomainControl::Stop,
-            LocalDomainMessage::Terminate => LocalDomainControl::Stop,
+            LocalDomainMessage::StopRun => true,
+            LocalDomainMessage::Terminate => true,
             LocalDomainMessage::Build { reply, .. } => {
                 let _ = reply.send(Err(Error::RuntimeError(
                     "cannot build a block while its local domain is running".to_string(),
                 )));
-                LocalDomainControl::Continue
+                false
             }
             LocalDomainMessage::Run { reply, .. } => {
                 let _ = reply.send(Err(Error::RuntimeError(
                     "local domain is already running".to_string(),
                 )));
-                LocalDomainControl::Continue
+                false
             }
             LocalDomainMessage::Exec(_) => {
                 warn!("local domain received exec while running");
-                LocalDomainControl::Continue
+                false
             }
             LocalDomainMessage::Post { addr, message } => {
                 if let Err(e) = self.state.push_message(addr, message).await {
                     warn!("failed to post to local block: {e}");
                 }
-                LocalDomainControl::Continue
+                false
             }
             LocalDomainMessage::Call {
                 addr,
@@ -293,7 +277,7 @@ impl<'a, Shutdown> LocalDomainRunSpec<'a, Shutdown> {
                 if let Err(e) = self.state.push_call(addr, port_id, data, reply).await {
                     warn!("failed to call local block: {e}");
                 }
-                LocalDomainControl::Continue
+                false
             }
         }
     }
@@ -486,19 +470,17 @@ where
                     continue;
                 }
 
-                let event = wait_for_event_preserving_receive(
-                    spec.next_event(),
+                let request_shutdown = wait_for_event_preserving_receive(
+                    spec.handle_next_event(),
                     &mut tasks,
                     &mut finished,
                     n_tasks,
                 )
                 .await;
 
-                let Some(event) = event else {
+                let Some(request_shutdown) = request_shutdown else {
                     break;
                 };
-
-                let request_shutdown = spec.handle_event(event).await == LocalDomainControl::Stop;
 
                 if request_shutdown {
                     for stop in &stop_handles {

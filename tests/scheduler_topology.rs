@@ -13,7 +13,6 @@ use futuresdr::runtime::scheduler::LocalScheduler;
 use futuresdr::runtime::scheduler::Scheduler;
 use futuresdr::runtime::scheduler::SmolScheduler;
 use futuresdr::runtime::scheduler::Task;
-use futuresdr::runtime::scheduler::dev::LocalDomainControl;
 use futuresdr::runtime::scheduler::dev::LocalDomainRunSpec;
 use futuresdr::runtime::scheduler::dev::NormalDomainSpec;
 use futuresdr::runtime::scheduler::dev::NormalRunningDomain;
@@ -122,8 +121,8 @@ impl LocalScheduler for LowLevelLocalScheduler {
                         continue;
                     }
 
-                    let event = {
-                        let next_event = spec.next_event();
+                    let request_shutdown = {
+                        let next_event = spec.handle_next_event();
                         futures::pin_mut!(next_event);
 
                         loop {
@@ -143,12 +142,9 @@ impl LocalScheduler for LowLevelLocalScheduler {
                         }
                     };
 
-                    let Some(event) = event else {
+                    let Some(request_shutdown) = request_shutdown else {
                         break;
                     };
-
-                    let request_shutdown =
-                        spec.handle_event(event).await == LocalDomainControl::Stop;
 
                     if request_shutdown {
                         for stop in &stop_handles {
