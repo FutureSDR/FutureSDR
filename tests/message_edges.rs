@@ -246,8 +246,8 @@ fn running_call_preserves_invalid_message_port_error() -> Result<()> {
 
     assert!(matches!(
         result,
-        Err(futuresdr::runtime::Error::InvalidMessagePort(ctx, port))
-            if ctx == futuresdr::runtime::BlockPortCtx::Id(snk.id())
+        Err(futuresdr::runtime::Error::InvalidMessagePort(block_id, port))
+            if block_id == snk.id()
                 && port == futuresdr::runtime::PortId::from("missing")
     ));
 

@@ -189,6 +189,7 @@ fn derive_exposes_message_metadata_and_dispatches_handlers() {
     let meta = BlockMeta::new();
 
     let ret = futuresdr::runtime::block_on(block.call_handler(
+        BlockId(0),
         &mut io,
         &mut mo,
         &meta,
@@ -199,6 +200,7 @@ fn derive_exposes_message_metadata_and_dispatches_handlers() {
     assert_eq!(ret, Pmt::Usize(1));
 
     let ret = futuresdr::runtime::block_on(block.call_handler(
+        BlockId(0),
         &mut io,
         &mut mo,
         &meta,
@@ -210,6 +212,7 @@ fn derive_exposes_message_metadata_and_dispatches_handlers() {
     assert_eq!(block.seen, vec![Pmt::U32(7), Pmt::U32(9)]);
 
     let err = futuresdr::runtime::block_on(block.call_handler(
+        BlockId(0),
         &mut io,
         &mut mo,
         &meta,
@@ -217,7 +220,11 @@ fn derive_exposes_message_metadata_and_dispatches_handlers() {
         Pmt::Null,
     ))
     .unwrap_err();
-    assert!(matches!(err, Error::InvalidMessagePort(_, port) if port == PortId::index(99)));
+    assert!(matches!(
+        err,
+        Error::InvalidMessagePort(block_id, port)
+            if block_id == BlockId(0) && port == PortId::index(99)
+    ));
 }
 
 #[derive(Block)]

@@ -4,7 +4,6 @@ use std::ops::DerefMut;
 
 use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
-use crate::runtime::BlockPortCtx;
 use crate::runtime::Error;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
@@ -118,18 +117,18 @@ impl<K: KernelInterface + Kernel + 'static> Mocker<K> {
     /// that should be processed by the work loop.
     pub fn post(&mut self, id: impl Into<PortId>, p: Pmt) -> Result<Pmt, Error> {
         let id = id.into();
-        let port_id = resolve_port_index(&id, K::message_inputs()).ok_or(
-            Error::InvalidMessagePort(BlockPortCtx::Id(self.block.id), id),
-        )?;
+        let port_id = resolve_port_index(&id, K::message_inputs())
+            .ok_or(Error::InvalidMessagePort(self.block.id, id))?;
         let mut io = WorkIo {
             call_again: false,
             finished: false,
         };
 
+        let block_id = self.block.id;
         let WrappedKernel {
             meta, mo, kernel, ..
         } = &mut self.block;
-        block_on(kernel.call_handler(&mut io, mo, meta, port_id, p))
+        block_on(kernel.call_handler(block_id, &mut io, mo, meta, port_id, p))
     }
 
     /// Run the block's `work()` loop synchronously.

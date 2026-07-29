@@ -4,7 +4,6 @@ use std::ops::Deref;
 use std::ops::DerefMut;
 
 use crate::runtime::BlockId;
-use crate::runtime::BlockPortCtx;
 use crate::runtime::Edge;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphId;
@@ -53,7 +52,7 @@ impl<K> TypedBlockGuard<'_, K> {
     {
         let name = name.into();
         K::message_input_id(name.clone())
-            .ok_or_else(|| Error::InvalidMessagePort(BlockPortCtx::Id(self.id), PortId::from(name)))
+            .ok_or_else(|| Error::InvalidMessagePort(self.id, PortId::from(name)))
     }
 
     /// Get block metadata.
@@ -88,7 +87,7 @@ impl<K> TypedBlockGuardMut<'_, K> {
     {
         let name = name.into();
         K::message_input_id(name.clone())
-            .ok_or_else(|| Error::InvalidMessagePort(BlockPortCtx::Id(self.id), PortId::from(name)))
+            .ok_or_else(|| Error::InvalidMessagePort(self.id, PortId::from(name)))
     }
 
     /// Get block metadata.
@@ -223,7 +222,7 @@ impl<K: KernelInterface> BlockRef<K> {
     pub fn message_input_id(&self, name: impl Into<PortName>) -> Result<PortIndex, Error> {
         let name = name.into();
         K::message_input_id(name.clone())
-            .ok_or_else(|| Error::InvalidMessagePort(BlockPortCtx::Id(self.id), PortId::from(name)))
+            .ok_or_else(|| Error::InvalidMessagePort(self.id, PortId::from(name)))
     }
 }
 

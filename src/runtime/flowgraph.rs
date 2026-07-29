@@ -3,7 +3,6 @@ use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
 use crate::runtime::BlockId;
-use crate::runtime::BlockPortCtx;
 use crate::runtime::Edge;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphId;
@@ -585,7 +584,7 @@ impl Flowgraph {
     ) -> Result<PortId, Error> {
         self.block_slot(block_id)?
             .stream_input_name(port_id)
-            .ok_or_else(|| Error::InvalidStreamPort(BlockPortCtx::Id(block_id), port_id.clone()))
+            .ok_or_else(|| Error::InvalidStreamPort(block_id, port_id.clone()))
     }
 
     pub(super) fn stream_output_name(
@@ -595,7 +594,7 @@ impl Flowgraph {
     ) -> Result<PortId, Error> {
         self.block_slot(block_id)?
             .stream_output_name(port_id)
-            .ok_or_else(|| Error::InvalidStreamPort(BlockPortCtx::Id(block_id), port_id.clone()))
+            .ok_or_else(|| Error::InvalidStreamPort(block_id, port_id.clone()))
     }
 
     pub(super) fn stream_input_index(
@@ -605,7 +604,7 @@ impl Flowgraph {
     ) -> Result<PortId, Error> {
         self.block_slot(block_id)?
             .stream_input_index(port_id)
-            .ok_or_else(|| Error::InvalidStreamPort(BlockPortCtx::Id(block_id), port_id.clone()))
+            .ok_or_else(|| Error::InvalidStreamPort(block_id, port_id.clone()))
     }
 
     pub(super) fn stream_output_index(
@@ -615,7 +614,7 @@ impl Flowgraph {
     ) -> Result<PortId, Error> {
         self.block_slot(block_id)?
             .stream_output_index(port_id)
-            .ok_or_else(|| Error::InvalidStreamPort(BlockPortCtx::Id(block_id), port_id.clone()))
+            .ok_or_else(|| Error::InvalidStreamPort(block_id, port_id.clone()))
     }
 
     pub(super) fn named_stream_edge(&self, edge: &Edge) -> Result<Edge, Error> {
@@ -642,17 +641,13 @@ impl Flowgraph {
             self.block_slot(edge.src_block)?.message_outputs(),
         )
         .map(PortId::index)
-        .ok_or_else(|| {
-            Error::InvalidMessagePort(BlockPortCtx::Id(edge.src_block), edge.src_port.clone())
-        })?;
+        .ok_or_else(|| Error::InvalidMessagePort(edge.src_block, edge.src_port.clone()))?;
         let dst_port = resolve_port_index(
             &edge.dst_port,
             self.block_slot(edge.dst_block)?.message_inputs(),
         )
         .map(PortId::index)
-        .ok_or_else(|| {
-            Error::InvalidMessagePort(BlockPortCtx::Id(edge.dst_block), edge.dst_port.clone())
-        })?;
+        .ok_or_else(|| Error::InvalidMessagePort(edge.dst_block, edge.dst_port.clone()))?;
         Ok(Edge::new(
             edge.src_block,
             src_port,

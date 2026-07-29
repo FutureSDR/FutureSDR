@@ -1,5 +1,4 @@
 use crate::runtime::BlockId;
-use crate::runtime::BlockPortCtx;
 use crate::runtime::Edge;
 use crate::runtime::Error;
 use crate::runtime::PortId;
@@ -39,10 +38,7 @@ impl Flowgraph {
         port_id: PortId,
         ports: &[&str],
     ) -> Result<PortId, Error> {
-        resolve_port_name(&port_id, ports).ok_or(Error::InvalidMessagePort(
-            BlockPortCtx::Id(block_id),
-            port_id,
-        ))
+        resolve_port_name(&port_id, ports).ok_or(Error::InvalidMessagePort(block_id, port_id))
     }
 
     fn normalize_message_edge(

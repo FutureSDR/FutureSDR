@@ -1047,16 +1047,16 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
             }
             async fn call_handler(
                 &mut self,
+                block_id: ::futuresdr::runtime::BlockId,
                 io: &mut #work_io_type,
                 mo: &mut ::futuresdr::runtime::dev::MessageOutputs,
                 meta: &::futuresdr::runtime::dev::BlockMeta,
                 id: ::futuresdr::runtime::PortIndex,
                 p: ::futuresdr::runtime::Pmt) ->
                     ::futuresdr::runtime::Result<::futuresdr::runtime::Pmt, ::futuresdr::runtime::Error> {
-                        use ::futuresdr::runtime::BlockPortCtx;
                         use ::futuresdr::runtime::Error;
                         #(#handler_matches)*
-                        Err(Error::InvalidMessagePort(BlockPortCtx::None, ::futuresdr::runtime::PortId::from(id)))
+                        Err(Error::InvalidMessagePort(block_id, ::futuresdr::runtime::PortId::from(id)))
             }
         }
 

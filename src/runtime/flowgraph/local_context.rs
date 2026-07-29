@@ -2,7 +2,6 @@ use std::cell::RefCell;
 use std::marker::PhantomData;
 
 use crate::runtime::BlockId;
-use crate::runtime::BlockPortCtx;
 use crate::runtime::Edge;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphId;
@@ -282,13 +281,11 @@ impl<'a, LS: LocalScheduler> LocalDomainContext<'a, LS> {
             .ok_or(Error::InvalidBlock(dst_block_id))?;
 
         let dst_block = inner.state.block(dst_local, dst_block_id)?;
-        let dst_port_id = resolve_port_name(&dst_port_id, dst_block.message_inputs()).ok_or(
-            Error::InvalidMessagePort(BlockPortCtx::Id(dst_block_id), dst_port_id),
-        )?;
+        let dst_port_id = resolve_port_name(&dst_port_id, dst_block.message_inputs())
+            .ok_or(Error::InvalidMessagePort(dst_block_id, dst_port_id))?;
         let src_block = inner.state.block(src_local, src_block_id)?;
-        let src_port_id = resolve_port_name(&src_port_id, src_block.message_outputs()).ok_or(
-            Error::InvalidMessagePort(BlockPortCtx::Id(src_block_id), src_port_id),
-        )?;
+        let src_port_id = resolve_port_name(&src_port_id, src_block.message_outputs())
+            .ok_or(Error::InvalidMessagePort(src_block_id, src_port_id))?;
         inner.message_edges.push(Edge::new(
             src_block_id,
             src_port_id,

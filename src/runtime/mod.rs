@@ -8,9 +8,6 @@
 //! For custom blocks and runtime extensions, see
 //! [`dev`].
 use futuresdr_types::PmtConversionError;
-use std::fmt;
-use std::fmt::Display;
-use std::fmt::Formatter;
 use thiserror::Error;
 
 use crate::runtime::channel::mpsc;
@@ -290,11 +287,11 @@ pub enum Error {
     #[error("Flowgraph terminated")]
     FlowgraphTerminated,
     /// A message port does not exist on the referenced block.
-    #[error("Block '{0}' does not have message port '{1:?}'")]
-    InvalidMessagePort(BlockPortCtx, PortId),
+    #[error("Block '{0:?}' does not have message port '{1:?}'")]
+    InvalidMessagePort(BlockId, PortId),
     /// A stream port does not exist on the referenced block.
-    #[error("Block '{0}' does not have stream port '{1:?}'")]
-    InvalidStreamPort(BlockPortCtx, PortId),
+    #[error("Block '{0:?}' does not have stream port '{1:?}'")]
+    InvalidStreamPort(BlockId, PortId),
     /// A parameter value was rejected by a runtime API.
     #[error("Invalid Parameter")]
     InvalidParameter,
@@ -370,24 +367,5 @@ impl<T> From<mpsc::TrySendError<T>> for Error {
 impl From<PmtConversionError> for Error {
     fn from(_value: PmtConversionError) -> Self {
         Error::PmtConversionError
-    }
-}
-
-/// Description of the block under which an [`Error::InvalidMessagePort`] or
-/// [`Error::InvalidStreamPort`] error occurred.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum BlockPortCtx {
-    /// BlockId is not specified
-    None,
-    /// Block is identified by its ID in the [`Flowgraph`]
-    Id(BlockId),
-}
-
-impl Display for BlockPortCtx {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            BlockPortCtx::None => write!(f, "<None>"),
-            BlockPortCtx::Id(id) => write!(f, "{id:?}"),
-        }
     }
 }

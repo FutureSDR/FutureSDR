@@ -1,7 +1,6 @@
 //! Message/Event/RPC-based Ports
 use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
-use crate::runtime::BlockPortCtx;
 use crate::runtime::Error;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
@@ -90,7 +89,7 @@ impl MessageOutputs {
         let id = id.into();
         let block_id = self.block_id;
         self.output_mut(&id)
-            .ok_or(Error::InvalidMessagePort(BlockPortCtx::Id(block_id), id))?
+            .ok_or(Error::InvalidMessagePort(block_id, id))?
             .post(p)
             .await;
         Ok(())
@@ -107,13 +106,10 @@ impl MessageOutputs {
     ) -> Result<(), Error> {
         let block_id = self.block_id;
         let PortId::Index(dst_port) = dst_port else {
-            return Err(Error::InvalidMessagePort(
-                BlockPortCtx::Id(block_id),
-                dst_port.clone(),
-            ));
+            return Err(Error::InvalidMessagePort(block_id, dst_port.clone()));
         };
         self.output_mut(src_port)
-            .ok_or_else(|| Error::InvalidMessagePort(BlockPortCtx::Id(block_id), src_port.clone()))?
+            .ok_or_else(|| Error::InvalidMessagePort(block_id, src_port.clone()))?
             .connect(*dst_port, dst_block_endpoint);
         Ok(())
     }
@@ -184,8 +180,8 @@ mod tests {
 
         assert!(matches!(
             result,
-            Err(Error::InvalidMessagePort(ctx, port))
-                if ctx == BlockPortCtx::Id(BlockId(7)) && port == PortId::from("missing")
+            Err(Error::InvalidMessagePort(block_id, port))
+                if block_id == BlockId(7) && port == PortId::from("missing")
         ));
     }
 }

@@ -1,7 +1,6 @@
 use std::future::Future;
 
 use crate::runtime::BlockId;
-use crate::runtime::BlockPortCtx;
 use crate::runtime::Error;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
@@ -59,6 +58,7 @@ pub trait KernelInterface {
     /// Call a message handler.
     fn call_handler(
         &mut self,
+        block_id: BlockId,
         _io: &mut WorkIo,
         _mo: &mut MessageOutputs,
         _meta: &BlockMeta,
@@ -125,7 +125,7 @@ pub(crate) fn stream_input_finish<K: KernelInterface>(
 ) -> Result<(), Error> {
     let (_, port) = kernel
         .stream_input_at(index)
-        .ok_or_else(|| Error::InvalidStreamPort(BlockPortCtx::Id(block_id), PortId::from(index)))?;
+        .ok_or_else(|| Error::InvalidStreamPort(block_id, PortId::from(index)))?;
     port.finish();
     Ok(())
 }
@@ -171,16 +171,14 @@ mod tests {
 
         async fn call_handler(
             &mut self,
+            block_id: BlockId,
             _io: &mut WorkIo,
             _mo: &mut MessageOutputs,
             _meta: &BlockMeta,
             id: PortIndex,
             _p: Pmt,
         ) -> Result<Pmt, Error> {
-            Err(Error::InvalidMessagePort(
-                BlockPortCtx::None,
-                PortId::from(id),
-            ))
+            Err(Error::InvalidMessagePort(block_id, PortId::from(id)))
         }
     }
 
@@ -191,8 +189,8 @@ mod tests {
 
         assert!(matches!(
             result,
-            Err(Error::InvalidStreamPort(ctx, port))
-                if ctx == BlockPortCtx::Id(BlockId(7)) && port == PortId::index(3)
+            Err(Error::InvalidStreamPort(block_id, port))
+                if block_id == BlockId(7) && port == PortId::index(3)
         ));
     }
 }

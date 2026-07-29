@@ -5,7 +5,6 @@ use std::ops::DerefMut;
 
 use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
-use crate::runtime::BlockPortCtx;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::PortId;
@@ -235,13 +234,16 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> KernelWrapper<K, I> {
                 stream_input_finish(kernel, id, input_id)?;
             }
             BlockMessage::StreamOutputDone { output_id } => {
-                kernel.stream_output_at(output_id).ok_or_else(|| {
-                    Error::InvalidStreamPort(BlockPortCtx::Id(id), PortId::from(output_id))
-                })?;
+                kernel
+                    .stream_output_at(output_id)
+                    .ok_or_else(|| Error::InvalidStreamPort(id, PortId::from(output_id)))?;
                 work_io.finished = true;
             }
             BlockMessage::Post { port_id, data } => {
-                match kernel.call_handler(work_io, mo, meta, port_id, data).await {
+                match kernel
+                    .call_handler(id, work_io, mo, meta, port_id, data)
+                    .await
+                {
                     Err(Error::InvalidMessagePort(_, port_id)) => {
                         error!(
                             "{}: BlockMessage::Post -> Invalid Handler {port_id:?}.",
@@ -256,15 +258,12 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> KernelWrapper<K, I> {
                 }
             }
             BlockMessage::Call { port_id, data, tx } => {
-                match kernel.call_handler(work_io, mo, meta, port_id, data).await {
+                match kernel
+                    .call_handler(id, work_io, mo, meta, port_id, data)
+                    .await
+                {
                     Ok(p) => {
                         let _ = tx.send(Ok(p));
-                    }
-                    Err(Error::InvalidMessagePort(_, port_id)) => {
-                        let _ = tx.send(Err(Error::InvalidMessagePort(
-                            BlockPortCtx::Id(id),
-                            port_id,
-                        )));
                     }
                     Err(e @ Error::HandlerError(..)) => {
                         error!("{}: BlockMessage::Call -> {e}. Terminating.", instance_name);

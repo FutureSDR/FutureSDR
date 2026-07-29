@@ -5,7 +5,6 @@ use std::sync::atomic::Ordering;
 use crate::runtime::BlockDescription;
 use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
-use crate::runtime::BlockPortCtx;
 use crate::runtime::BlockStatus;
 use crate::runtime::Edge;
 use crate::runtime::Error;
@@ -121,9 +120,8 @@ impl RunningBlockEntry {
     }
 
     fn message_input_index(&self, block_id: BlockId, port_id: PortId) -> Result<PortIndex, Error> {
-        resolve_port_index(&port_id, &self.description.message_inputs).ok_or(
-            Error::InvalidMessagePort(BlockPortCtx::Id(block_id), port_id),
-        )
+        resolve_port_index(&port_id, &self.description.message_inputs)
+            .ok_or(Error::InvalidMessagePort(block_id, port_id))
     }
 
     fn ensure_running(&self) -> Result<(), Error> {
