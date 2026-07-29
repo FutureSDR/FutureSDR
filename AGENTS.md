@@ -32,7 +32,9 @@ FutureSDR borrows ideas from the actor model, where a block is an actor that rea
 
 The root crate uses Rust 2024 edition, currently declares `rust-version = "1.95"`, and requires the nightly Rust channel. The repository includes `rust-toolchain.toml`, so cargo/rustup automatically select nightly inside the checkout. The `rust-version` value is only the minimum compiler version; it does not imply stable support.
 
-The root workspace contains `.`, `crates/futuredsp`, `crates/macros`, and `crates/types`. `crates/prophecy`, `crates/remote`, every directory under `examples/`, and every directory under `perf/` are independent Cargo workspaces.
+The root workspace contains `.`, `crates/futuredsp`, `crates/macros`,
+`crates/prophecy`, `crates/remote`, and `crates/types`. Every directory under
+`examples/` and `perf/` is an independent Cargo workspace.
 
 ```sh
 # Build main crate (default features)
@@ -42,7 +44,7 @@ cargo build
 cargo build --features=burn,zeromq,audio,flow_scheduler,seify_dummy,wgpu
 
 # Run all tests (main workspace)
-cargo test --all-targets --workspace --features=zeromq,audio,flow_scheduler,seify_dummy,soapy,wgpu
+cargo test --all-targets --workspace --features=zeromq,audio,flow_scheduler,seify_dummy,soapy,wgpu,mocker
 
 # Run a single test
 cargo test --test flowgraph
@@ -53,7 +55,7 @@ cargo test --all-targets --manifest-path=crates/futuredsp/Cargo.toml
 cargo test --all-targets --all-features --manifest-path=crates/types/Cargo.toml
 
 # Lint (matches the root check script)
-cargo clippy --all-targets --workspace --features=burn,zeromq,audio,flow_scheduler,soapy,wgpu,seify_dummy -- -D warnings
+cargo clippy --all-targets --workspace --features=burn,zeromq,audio,flow_scheduler,soapy,wgpu,seify_dummy,mocker -- -D warnings
 
 # Format (repository convention uses nightly rustfmt)
 cargo fmt --all
@@ -64,7 +66,9 @@ cargo fmt --all -- --check
 
 ### Examples, Perf, and independent crates
 
-`crates/prophecy`, `crates/remote`, and each directory under `examples/` and `perf/` is an independent Cargo workspace. Build/test them with `--manifest-path`:
+Each directory under `examples/` and `perf/` is an independent Cargo workspace.
+Build/test it with `--manifest-path`. Workspace packages can also be selected
+explicitly this way:
 
 ```sh
 cargo build --manifest-path=examples/wlan/Cargo.toml
@@ -90,7 +94,9 @@ trunk build --release   # output in dist/
 trunk serve             # dev server
 ```
 
-Served automatically at `http://localhost:1337/` when running any FutureSDR application.
+The control port serves this frontend, usually at `http://localhost:1337/`, when
+the application enables `ctrl_port` and the compiled `dist/` directory is
+available. This is automatic when running from the repository checkout.
 
 ## Architecture
 
@@ -106,9 +112,9 @@ Blocks are created using the `#[derive(Block)]` proc macro (from `crates/macros/
 **Flowgraph** (`src/runtime/flowgraph.rs`) — a directed graph of blocks connected via stream ports or message ports. Built using the `connect!` macro:
 ```rust
 connect!(fg,
-    src > head > snk;               // stream connection (default "out"/"in" ports)
-    src."custom out" > snk;         // named ports
-    producer | consumer;            // message connection
+    src > head > snk;                         // default "output"/"input" stream ports
+    src.custom_output > custom_input.snk;    // explicitly named stream ports
+    producer | consumer;                      // message connection
 );
 ```
 `connect!` both adds blocks to the flowgraph and wires their ports.
@@ -179,7 +185,7 @@ let (output, _tags) = mocker.output().get();
 
 - `wgpu` — WGPU GPU buffer support
 - `burn` — Burn ML framework integration
-- `flow_scheduler` — FlowScheduler (requires `spin`)
+- `flow_scheduler` — FlowScheduler
 - `audio` — Audio blocks (cpal/rodio/hound)
 - `zeromq` — ZeroMQ source/sink blocks
 - `seify` / `seify_dummy` — SDR hardware abstraction (RTL-SDR, HackRF, SoapySDR, etc.)
