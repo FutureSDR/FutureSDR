@@ -79,11 +79,15 @@ jobs:
         run: |
           version="${GITHUB_REF_NAME#v}"
 
+          crate_is_published() {
+            (cd "$RUNNER_TEMP" && cargo info --registry crates-io "$1@$version" >/dev/null 2>&1)
+          }
+
           wait_for_crate() {
             crate="$1"
 
             for attempt in {1..30}; do
-              if cargo info "$crate@$version" >/dev/null 2>&1; then
+              if crate_is_published "$crate"; then
                 return 0
               fi
 
@@ -99,7 +103,7 @@ jobs:
             manifest="$1"
             crate="$2"
 
-            if cargo info "$crate@$version" >/dev/null 2>&1; then
+            if crate_is_published "$crate"; then
               echo "$crate $version is already published"
               return 0
             fi
