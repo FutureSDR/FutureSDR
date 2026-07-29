@@ -44,6 +44,7 @@ curl http://127.0.0.1:1337/api/fg/0/ | jq
   "blocks": [
     {
       "id": 0,
+      "status": "Running",
       "type_name": "Encoder",
       "instance_name": "Encoder-0",
       "stream_inputs": [],
@@ -58,6 +59,7 @@ curl http://127.0.0.1:1337/api/fg/0/ | jq
     },
     {
       "id": 1,
+      "status": "Running",
       "type_name": "Mac",
       "instance_name": "Mac-1",
       "stream_inputs": [],
@@ -72,20 +74,20 @@ curl http://127.0.0.1:1337/api/fg/0/ | jq
     }
   ],
   "stream_edges": [
-    [
-      0,
-      "output",
-      2,
-      "input"
-    ]
+    {
+      "src_block": 0,
+      "src_port": "output",
+      "dst_block": 2,
+      "dst_port": "input"
+    }
   ],
   "message_edges": [
-    [
-      1,
-      "tx",
-      0,
-      "tx"
-    ]
+    {
+      "src_block": 1,
+      "src_port": "tx",
+      "dst_block": 0,
+      "dst_port": "tx"
+    }
   ]
 }
 ```
@@ -96,6 +98,7 @@ It is also possible to get information about a particular block.
 curl http://127.0.0.1:1337/api/fg/0/block/0/ | jq
 {
   "id": 0,
+  "status": "Running",
   "type_name": "Encoder",
   "instance_name": "Encoder-0",
   "stream_inputs": [],
