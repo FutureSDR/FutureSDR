@@ -1,11 +1,18 @@
 # Custom Schedulers
 
-Schedulers execute normal flowgraph block tasks and async tasks spawned through the runtime. Most applications should use `Runtime::new()` and the default `SmolScheduler`; write a scheduler only when you are experimenting with placement, latency, or executor integration.
+Schedulers execute normal flowgraph block tasks and async tasks spawned through
+the runtime. Most applications should use `Runtime::new()` and the platform
+default scheduler; write a scheduler only when you are experimenting with
+placement, latency, or executor integration.
 
 The scheduler trait is:
 
 ```rust
-pub trait Scheduler: Clone + Send + 'static {
+pub trait Scheduler: Clone + 'static
+where
+    #[cfg(not(target_arch = "wasm32"))]
+    Self: Send,
+{
     fn start_normal_domain(&self, spec: NormalDomainSpec) -> Result<NormalRunningDomain>;
 
     fn spawn<T: Send + 'static>(
@@ -15,7 +22,12 @@ pub trait Scheduler: Clone + Send + 'static {
 }
 ```
 
-`start_normal_domain()` receives the normal send-capable blocks and domain topology. It usually spawns each block, calls `block.run(main_channel).await`, and returns task handles through `NormalRunningDomain`. The runtime waits for those tasks and restores the finished block objects into the returned flowgraph.
+`start_normal_domain()` receives the normal send-capable blocks and domain
+topology. It usually takes each runnable block from the specification, spawns
+`block.run()`, and returns task and stop-handle pairs through
+`NormalRunningDomain`. Each `RunnableBlock` already owns the flowgraph channel it
+needs. The runtime waits for the tasks and restores the finished block objects
+into the returned flowgraph.
 
 Local domains are not started by the normal scheduler. The runtime activates the already-created local-domain thread or worker directly, constructs the flowgraph's local scheduler type with `Default` inside that domain, and lets it orchestrate non-`Send` block tasks through `LocalScheduler::run_local_domain()`.
 
