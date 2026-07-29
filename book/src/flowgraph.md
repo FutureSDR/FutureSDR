@@ -112,15 +112,15 @@ Create a local domain, add blocks through the provided `LocalDomainContext`, and
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
 use futuresdr::prelude::*;
-use futuresdr::runtime::buffer::LocalCpuReader;
-use futuresdr::runtime::buffer::LocalCpuWriter;
+use futuresdr::runtime::buffer::DefaultLocalCpuReader;
+use futuresdr::runtime::buffer::DefaultLocalCpuWriter;
 
 let mut fg = Flowgraph::new();
 let local = fg.local_domain()?;
 
 fg.with_local_domain(local, |ctx| {
-    let src = ctx.add(NullSource::<f32, LocalCpuWriter<f32>>::new());
-    let snk = ctx.add(NullSink::<f32, LocalCpuReader<f32>>::new());
+    let src = ctx.add(NullSource::<f32, DefaultLocalCpuWriter<f32>>::new());
+    let snk = ctx.add(NullSink::<f32, DefaultLocalCpuReader<f32>>::new());
 
     ctx.stream_local(&src, |b| b.output(), &snk, |b| b.input())?;
 
@@ -143,16 +143,16 @@ use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
 use futuresdr::prelude::*;
-use futuresdr::runtime::buffer::LocalCpuReader;
-use futuresdr::runtime::buffer::LocalCpuWriter;
+use futuresdr::runtime::buffer::DefaultLocalCpuReader;
+use futuresdr::runtime::buffer::DefaultLocalCpuWriter;
 
 let mut fg = Flowgraph::new();
 let local = fg.local_domain()?;
 
 let snk = fg.with_local_domain(local, |ctx| {
-    let src = ctx.add(NullSource::<u8, LocalCpuWriter<u8>>::new());
-    let head = ctx.add(Head::<u8, LocalCpuReader<u8>, LocalCpuWriter<u8>>::new(10));
-    let snk = ctx.add(NullSink::<u8, LocalCpuReader<u8>>::new());
+    let src = ctx.add(NullSource::<u8, DefaultLocalCpuWriter<u8>>::new());
+    let head = ctx.add(Head::<u8, DefaultLocalCpuReader<u8>, DefaultLocalCpuWriter<u8>>::new(10));
+    let snk = ctx.add(NullSink::<u8, DefaultLocalCpuReader<u8>>::new());
 
     connect!(ctx, src ~> head ~> snk);
 

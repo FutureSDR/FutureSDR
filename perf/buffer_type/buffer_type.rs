@@ -7,7 +7,7 @@ use futuresdr::runtime::buffer::dev::LocalBlockInbox;
 use futuresdr::runtime::dev::BufferWriter;
 use futuresdr::runtime::dev::CpuBufferReader;
 use futuresdr::runtime::dev::CpuBufferWriter;
-use futuresdr::runtime::dev::LocalCpuWriter;
+use futuresdr::runtime::dev::DefaultLocalCpuWriter;
 use futuresdr::runtime::dev::SendKernel;
 use futuresdr::runtime::dev::ThreadSafeConnect;
 use futuresdr::runtime::dev::prelude::*;
@@ -63,7 +63,7 @@ impl LocalBufferType for LocalSpscBuffer {
 }
 pub struct LocalSlabBuffer;
 impl LocalBufferType for LocalSlabBuffer {
-    type Writer<T: CpuSample> = LocalCpuWriter<T>;
+    type Writer<T: CpuSample> = DefaultLocalCpuWriter<T>;
 }
 
 type ReaderOf<B, T> = <<B as BufferType>::Writer<T> as BufferWriter>::Reader;

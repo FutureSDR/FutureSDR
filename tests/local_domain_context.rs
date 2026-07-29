@@ -5,14 +5,17 @@ use futuresdr::blocks::NullSource;
 use futuresdr::prelude::*;
 use futuresdr::runtime::BlockId;
 use futuresdr::runtime::Error;
-use futuresdr::runtime::buffer::LocalCpuReader;
-use futuresdr::runtime::buffer::LocalCpuWriter;
+use futuresdr::runtime::buffer::DefaultLocalCpuReader;
+use futuresdr::runtime::buffer::DefaultLocalCpuWriter;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 
-fn run_and_check(fg: Flowgraph, snk: BlockRef<NullSink<u8, LocalCpuReader<u8>>>) -> Result<()> {
+fn run_and_check(
+    fg: Flowgraph,
+    snk: BlockRef<NullSink<u8, DefaultLocalCpuReader<u8>>>,
+) -> Result<()> {
     let fg = Runtime::new().run(fg)?;
     let received = fg.with(&snk, |snk| snk.n_received())?;
     assert_eq!(received, 10);
@@ -25,9 +28,13 @@ fn connect_macro_works_in_local_domain_context() -> Result<()> {
     let local = fg.local_domain()?;
 
     let snk = fg.with_local_domain(local, |ctx| {
-        let src = ctx.add(NullSource::<u8, LocalCpuWriter<u8>>::new());
-        let head = ctx.add(Head::<u8, LocalCpuReader<u8>, LocalCpuWriter<u8>>::new(10));
-        let snk = ctx.add(NullSink::<u8, LocalCpuReader<u8>>::new());
+        let src = ctx.add(NullSource::<u8, DefaultLocalCpuWriter<u8>>::new());
+        let head = ctx.add(Head::<
+            u8,
+            DefaultLocalCpuReader<u8>,
+            DefaultLocalCpuWriter<u8>,
+        >::new(10));
+        let snk = ctx.add(NullSink::<u8, DefaultLocalCpuReader<u8>>::new());
 
         connect!(ctx, src ~> head ~> snk);
 
@@ -43,9 +50,13 @@ fn local_port_selectors_can_capture_non_send_state() -> Result<()> {
     let local = fg.local_domain()?;
 
     let snk = fg.with_local_domain(local, |ctx| {
-        let src = ctx.add(NullSource::<u8, LocalCpuWriter<u8>>::new());
-        let head = ctx.add(Head::<u8, LocalCpuReader<u8>, LocalCpuWriter<u8>>::new(10));
-        let snk = ctx.add(NullSink::<u8, LocalCpuReader<u8>>::new());
+        let src = ctx.add(NullSource::<u8, DefaultLocalCpuWriter<u8>>::new());
+        let head = ctx.add(Head::<
+            u8,
+            DefaultLocalCpuReader<u8>,
+            DefaultLocalCpuWriter<u8>,
+        >::new(10));
+        let snk = ctx.add(NullSink::<u8, DefaultLocalCpuReader<u8>>::new());
         let state = Rc::new(());
         let src_state = state.clone();
 
@@ -75,13 +86,13 @@ fn failed_local_domain_context_rolls_back_added_blocks() -> Result<()> {
     let local = fg.local_domain()?;
 
     let err: std::result::Result<(), Error> = fg.with_local_domain(local, |ctx| {
-        ctx.add(NullSink::<u8, LocalCpuReader<u8>>::new());
+        ctx.add(NullSink::<u8, DefaultLocalCpuReader<u8>>::new());
         Err(Error::ValidationError("builder failed".to_string()))
     });
     assert!(matches!(err, Err(Error::ValidationError(_))));
 
     let snk = fg.with_local_domain(local, |ctx| {
-        Ok(ctx.add(NullSink::<u8, LocalCpuReader<u8>>::new()))
+        Ok(ctx.add(NullSink::<u8, DefaultLocalCpuReader<u8>>::new()))
     })?;
     assert_eq!(snk.id(), BlockId(0));
 
@@ -120,9 +131,13 @@ fn local_domain_context_spawn_background_survives_until_run() -> Result<()> {
             ran_for_task.store(true, Ordering::SeqCst);
         });
 
-        let src = ctx.add(NullSource::<u8, LocalCpuWriter<u8>>::new());
-        let head = ctx.add(Head::<u8, LocalCpuReader<u8>, LocalCpuWriter<u8>>::new(10));
-        let snk = ctx.add(NullSink::<u8, LocalCpuReader<u8>>::new());
+        let src = ctx.add(NullSource::<u8, DefaultLocalCpuWriter<u8>>::new());
+        let head = ctx.add(Head::<
+            u8,
+            DefaultLocalCpuReader<u8>,
+            DefaultLocalCpuWriter<u8>,
+        >::new(10));
+        let snk = ctx.add(NullSink::<u8, DefaultLocalCpuReader<u8>>::new());
 
         connect!(ctx, src ~> head ~> snk);
 
@@ -148,9 +163,13 @@ fn connect_macro_works_in_async_local_domain_context() -> Result<()> {
             .with_local_domain_async(local, async |ctx: &LocalDomainContext<'_>| {
                 futures::future::ready(()).await;
 
-                let src = ctx.add(NullSource::<u8, LocalCpuWriter<u8>>::new());
-                let head = ctx.add(Head::<u8, LocalCpuReader<u8>, LocalCpuWriter<u8>>::new(10));
-                let snk = ctx.add(NullSink::<u8, LocalCpuReader<u8>>::new());
+                let src = ctx.add(NullSource::<u8, DefaultLocalCpuWriter<u8>>::new());
+                let head = ctx.add(Head::<
+                    u8,
+                    DefaultLocalCpuReader<u8>,
+                    DefaultLocalCpuWriter<u8>,
+                >::new(10));
+                let snk = ctx.add(NullSink::<u8, DefaultLocalCpuReader<u8>>::new());
 
                 connect!(ctx, src ~> head ~> snk);
 

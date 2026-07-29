@@ -34,11 +34,11 @@ pub use self::core::CpuBufferWriter;
 pub use self::core::CpuSample;
 pub use self::core::DefaultCpuReader;
 pub use self::core::DefaultCpuWriter;
+pub use self::core::DefaultLocalCpuReader;
+pub use self::core::DefaultLocalCpuWriter;
 pub use self::core::InplaceBuffer;
 pub use self::core::InplaceReader;
 pub use self::core::InplaceWriter;
-pub use self::core::LocalCpuReader;
-pub use self::core::LocalCpuWriter;
 pub use self::core::Tags;
 pub use self::core::ThreadSafeConnect;
 

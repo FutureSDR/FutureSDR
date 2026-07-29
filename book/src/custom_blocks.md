@@ -128,7 +128,7 @@ use futuresdr::runtime::dev::prelude::*;
 #[derive(Block)]
 pub struct UiBoundBlock {
     #[input]
-    input: LocalCpuReader<f32>,
+    input: DefaultLocalCpuReader<f32>,
 }
 
 impl Kernel for UiBoundBlock {
@@ -150,14 +150,14 @@ Add local blocks to a `LocalDomain` with `Flowgraph::with_local_domain()`. The c
 
 ```rust
 use futuresdr::prelude::*;
-use futuresdr::runtime::buffer::LocalCpuReader;
+use futuresdr::runtime::buffer::DefaultLocalCpuReader;
 
 let mut fg = Flowgraph::new();
 let local = fg.local_domain()?;
 
 let block = fg.with_local_domain(local, |ctx| {
     Ok(ctx.add(UiBoundBlock {
-        input: LocalCpuReader::<f32>::default(),
+        input: DefaultLocalCpuReader::<f32>::default(),
     }))
 })?;
 ```

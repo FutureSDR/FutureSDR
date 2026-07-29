@@ -5,18 +5,18 @@ use futuresdr::blocks::VectorSource;
 use futuresdr::prelude::*;
 use futuresdr::runtime::buffer::DefaultCpuReader;
 use futuresdr::runtime::buffer::DefaultCpuWriter;
-use futuresdr::runtime::buffer::LocalCpuReader;
-use futuresdr::runtime::buffer::LocalCpuWriter;
+use futuresdr::runtime::buffer::DefaultLocalCpuReader;
+use futuresdr::runtime::buffer::DefaultLocalCpuWriter;
 
 fn main() -> Result<()> {
     let mut fg = Flowgraph::new();
     let local = fg.local_domain()?;
 
     let head = fg.with_local_domain(local, |ctx| {
-        let src = ctx.add(VectorSource::<u8, LocalCpuWriter<u8>>::new(vec![
+        let src = ctx.add(VectorSource::<u8, DefaultLocalCpuWriter<u8>>::new(vec![
             1, 2, 3, 4,
         ]));
-        let head = ctx.add(Head::<u8, LocalCpuReader<u8>, DefaultCpuWriter<u8>>::new(3));
+        let head = ctx.add(Head::<u8, DefaultLocalCpuReader<u8>, DefaultCpuWriter<u8>>::new(3));
         connect!(ctx, src ~> head);
         Ok(head)
     })?;

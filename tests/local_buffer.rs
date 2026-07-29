@@ -9,10 +9,10 @@ use futuresdr::runtime::buffer::CpuBufferReader;
 use futuresdr::runtime::buffer::CpuBufferWriter;
 use futuresdr::runtime::buffer::DefaultCpuReader;
 use futuresdr::runtime::buffer::DefaultCpuWriter;
+use futuresdr::runtime::buffer::DefaultLocalCpuReader;
+use futuresdr::runtime::buffer::DefaultLocalCpuWriter;
 use futuresdr::runtime::buffer::InplaceReader;
 use futuresdr::runtime::buffer::InplaceWriter;
-use futuresdr::runtime::buffer::LocalCpuReader;
-use futuresdr::runtime::buffer::LocalCpuWriter;
 use futuresdr::runtime::buffer::ThreadSafeConnect;
 use futuresdr::runtime::buffer::circuit;
 use futuresdr::runtime::dev::SendKernel;
@@ -40,8 +40,8 @@ fn normal_and_local_types_use_the_same_traits() {
     assert_thread_safe_connect::<DefaultCpuWriter<u8>>();
     assert_local_cpu_reader::<DefaultCpuReader<u8>>();
     assert_local_cpu_writer::<DefaultCpuWriter<u8>>();
-    assert_local_cpu_reader::<LocalCpuReader<u8>>();
-    assert_local_cpu_writer::<LocalCpuWriter<u8>>();
+    assert_local_cpu_reader::<DefaultLocalCpuReader<u8>>();
+    assert_local_cpu_writer::<DefaultLocalCpuWriter<u8>>();
     assert_inplace_reader::<circuit::Reader<i32>>();
     assert_inplace_writer::<circuit::Writer<i32>>();
     #[cfg(not(target_arch = "wasm32"))]
@@ -53,7 +53,7 @@ fn normal_and_local_types_use_the_same_traits() {
 
 #[test]
 fn derived_block_interface_supports_local_buffers() {
-    assert_kernel_interface::<VectorSource<u8, LocalCpuWriter<u8>>>();
+    assert_kernel_interface::<VectorSource<u8, DefaultLocalCpuWriter<u8>>>();
     assert_send_kernel::<VectorSource<u8, DefaultCpuWriter<u8>>>();
 }
 

@@ -1078,10 +1078,10 @@ pub type DefaultCpuReader<D> = slab::Reader<D>;
 #[cfg(target_arch = "wasm32")]
 /// Default [`CpuBufferWriter`] implementation on WASM.
 pub type DefaultCpuWriter<D> = slab::Writer<D>;
-/// Local [`CpuBufferReader`] implementation.
-pub type LocalCpuReader<D> = local::Reader<D>;
-/// Local [`CpuBufferWriter`] implementation.
-pub type LocalCpuWriter<D> = local::Writer<D>;
+/// Default local [`CpuBufferReader`] implementation.
+pub type DefaultLocalCpuReader<D> = local::Reader<D>;
+/// Default local [`CpuBufferWriter`] implementation.
+pub type DefaultLocalCpuWriter<D> = local::Writer<D>;
 
 /// Helper for adding tags to an output buffer.
 pub struct Tags<'a> {

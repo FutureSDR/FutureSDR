@@ -12,8 +12,8 @@ use futuresdr::runtime::buffer::CpuBufferReader;
 use futuresdr::runtime::buffer::CpuBufferWriter;
 use futuresdr::runtime::buffer::DefaultCpuReader;
 use futuresdr::runtime::buffer::DefaultCpuWriter;
-use futuresdr::runtime::buffer::LocalCpuReader;
-use futuresdr::runtime::buffer::LocalCpuWriter;
+use futuresdr::runtime::buffer::DefaultLocalCpuReader;
+use futuresdr::runtime::buffer::DefaultLocalCpuWriter;
 use futuresdr::runtime::buffer::Tags;
 use futuresdr::runtime::buffer::ThreadSafeConnect;
 use futuresdr::runtime::buffer::dev::BlockInbox;
@@ -447,10 +447,10 @@ fn local_to_local_and_local_to_normal() -> Result<()> {
     let local = fg.local_domain()?;
 
     let head = fg.with_local_domain(local, |ctx| {
-        let src = ctx.add(VectorSource::<u8, LocalCpuWriter<u8>>::new(vec![
+        let src = ctx.add(VectorSource::<u8, DefaultLocalCpuWriter<u8>>::new(vec![
             1, 2, 3, 4,
         ]));
-        let head = ctx.add(Head::<u8, LocalCpuReader<u8>, DefaultCpuWriter<u8>>::new(3));
+        let head = ctx.add(Head::<u8, DefaultLocalCpuReader<u8>, DefaultCpuWriter<u8>>::new(3));
         connect!(ctx, src ~> head);
         Ok(head)
     })?;
@@ -469,10 +469,10 @@ fn connect_macro_supports_local_stream_operator() -> Result<()> {
     let local = fg.local_domain()?;
 
     let snk = fg.with_local_domain(local, |ctx| {
-        let src = ctx.add(VectorSource::<u8, LocalCpuWriter<u8>>::new(vec![
+        let src = ctx.add(VectorSource::<u8, DefaultLocalCpuWriter<u8>>::new(vec![
             1, 2, 3, 4,
         ]));
-        let snk = ctx.add(NullSink::<u8, LocalCpuReader<u8>>::new());
+        let snk = ctx.add(NullSink::<u8, DefaultLocalCpuReader<u8>>::new());
         connect!(ctx, src ~> snk);
         Ok(snk)
     })?;
@@ -842,10 +842,10 @@ fn stream_dyn_connects_same_domain_local_buffers() -> Result<()> {
 
     let local = fg.local_domain()?;
     let snk = fg.with_local_domain(local, |ctx| {
-        let src = ctx.add(VectorSource::<u8, LocalCpuWriter<u8>>::new(vec![
+        let src = ctx.add(VectorSource::<u8, DefaultLocalCpuWriter<u8>>::new(vec![
             1, 2, 3, 4,
         ]));
-        let snk = ctx.add(NullSink::<u8, LocalCpuReader<u8>>::new());
+        let snk = ctx.add(NullSink::<u8, DefaultLocalCpuReader<u8>>::new());
         ctx.stream_local(&src, |b| b.output(), &snk, |b| b.input())?;
         Ok(snk)
     })?;
@@ -875,11 +875,11 @@ fn local_streams_reject_different_domains() -> Result<()> {
     let mut fg = Flowgraph::new();
     let local_a = fg.local_domain()?;
     let src = fg.with_local_domain(local_a, |ctx| {
-        Ok(ctx.add(VectorSource::<u8, LocalCpuWriter<u8>>::new(vec![1])))
+        Ok(ctx.add(VectorSource::<u8, DefaultLocalCpuWriter<u8>>::new(vec![1])))
     })?;
     let local_b = fg.local_domain()?;
     let snk = fg.with_local_domain(local_b, |ctx| {
-        Ok(ctx.add(NullSink::<u8, LocalCpuReader<u8>>::new()))
+        Ok(ctx.add(NullSink::<u8, DefaultLocalCpuReader<u8>>::new()))
     })?;
 
     fg.stream_dyn(src, "output", snk, "input")?;
