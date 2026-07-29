@@ -63,11 +63,23 @@ jobs:
           RUSTDOCFLAGS: "-D warnings"
         run: cargo doc --no-deps --workspace --features=zeromq,audio,flow_scheduler,seify_dummy,soapy,wgpu,mocker
 
-      - name: Check Prophecy distribution
-        working-directory: crates/prophecy
+      - name: Check generated web distributions
         run: |
-          trunk build --release
-          git diff --exit-code -- dist
+          for project in crates/prophecy examples/spectrum examples/wlan examples/zigbee; do
+            (cd "$project" && trunk build --release)
+          done
+
+          changes="$(git status --short --untracked-files=all -- \
+            crates/prophecy/dist \
+            examples/spectrum/dist \
+            examples/wlan/dist \
+            examples/zigbee/dist)"
+
+          if [ -n "$changes" ]; then
+            echo "Generated web distributions are stale:"
+            echo "$changes"
+            exit 1
+          fi
 
       - name: Package leaf crates
         run: |
