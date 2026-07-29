@@ -438,6 +438,7 @@ jobs:
       - run: sudo apt-get -y install libasound2-dev
       - run: sudo apt-get -y install liblttng-ust-dev
       - run: sudo apt-get -y install libsoapysdr-dev
+      - run: sudo apt-get -y install mesa-vulkan-drivers
       - run: cargo test --package=futuresdr --features=burn,aaronia_http,rtlsdr,zeromq,audio,flow_scheduler,seify_dummy,soapy,wgpu,mocker
       - run: cargo test --package=futuredsp
       - run: cargo test --all-features --package=futuresdr-types
