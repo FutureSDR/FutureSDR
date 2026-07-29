@@ -20,6 +20,7 @@ use crate::runtime::local_domain_common::LocalDomainState;
 use crate::runtime::resolve_port_name;
 use crate::runtime::scheduler::BasicLocalScheduler;
 use crate::runtime::scheduler::LocalScheduler;
+use crate::runtime::scheduler::Task;
 use crate::runtime::wrapped_kernel::LocalWrappedKernel;
 
 use super::BlockSlot;
@@ -103,11 +104,11 @@ impl<'a, LS: LocalScheduler> LocalDomainContext<'a, LS> {
     /// The scheduler is owned by the local domain and is reused when the
     /// flowgraph later starts running, so a task whose handle is retained or
     /// detached can continue beyond this builder closure. Dropping the returned
-    /// task follows the cancellation semantics of the selected local scheduler.
+    /// task cancels it.
     pub fn spawn<T: 'static>(
         &self,
         future: impl std::future::Future<Output = T> + 'static,
-    ) -> LS::Task<T> {
+    ) -> Task<T> {
         self.scheduler.spawn(future)
     }
 
@@ -116,8 +117,7 @@ impl<'a, LS: LocalScheduler> LocalDomainContext<'a, LS> {
         &self,
         future: impl std::future::Future<Output = T> + 'static,
     ) {
-        let task = self.scheduler.spawn(future);
-        self.scheduler.detach(task);
+        self.scheduler.spawn(future).detach();
     }
 
     pub(super) fn take_entries(

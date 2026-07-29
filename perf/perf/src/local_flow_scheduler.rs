@@ -152,17 +152,8 @@ impl LocalFlowScheduler {
 }
 
 impl LocalScheduler for LocalFlowScheduler {
-    type Task<T>
-        = Task<T>
-    where
-        T: 'static;
-
-    fn spawn<T: 'static>(&self, future: impl Future<Output = T> + 'static) -> Self::Task<T> {
+    fn spawn<T: 'static>(&self, future: impl Future<Output = T> + 'static) -> Task<T> {
         self.spawn_aux(future)
-    }
-
-    fn detach<T: 'static>(&self, task: Self::Task<T>) {
-        task.detach();
     }
 
     async fn run<'a, T: 'a>(&'a self, future: impl Future<Output = T> + 'a) -> T {
@@ -191,7 +182,7 @@ impl LocalScheduler for LocalFlowScheduler {
                 tasks.push(self.spawn_block(priority, block.run()));
             }
 
-            self.detach(self.spawn(spec.external_inbox_forwarder()));
+            self.spawn(spec.external_inbox_forwarder()).detach();
 
             let n_tasks = tasks.len();
             let _local_context = spec.enter_context();

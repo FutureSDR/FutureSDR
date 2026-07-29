@@ -26,6 +26,7 @@ use crate::runtime::channel::mpsc;
 use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::local_domain_common::LocalDomainMessage;
 use crate::runtime::local_domain_common::LocalRunningState;
+use crate::runtime::scheduler::Task;
 use crate::runtime::scheduler::dev::DomainTopology;
 #[cfg(target_arch = "wasm32")]
 use crate::runtime::yield_now;
@@ -39,16 +40,8 @@ use crate::runtime::yield_now;
 /// local-domain run loop.
 #[allow(async_fn_in_trait)]
 pub trait LocalScheduler: Default + 'static {
-    /// Task handle returned by [`LocalScheduler::spawn`].
-    type Task<T>: Future<Output = T> + 'static
-    where
-        T: 'static;
-
     /// Spawn a non-`Send` task in the local domain.
-    fn spawn<T: 'static>(&self, future: impl Future<Output = T> + 'static) -> Self::Task<T>;
-
-    /// Detach a local task so it keeps running without an owned task handle.
-    fn detach<T: 'static>(&self, task: Self::Task<T>);
+    fn spawn<T: 'static>(&self, future: impl Future<Output = T> + 'static) -> Task<T>;
 
     /// Drive this local scheduler until `future` completes.
     async fn run<'a, T: 'a>(&'a self, future: impl Future<Output = T> + 'a) -> T;
@@ -338,17 +331,8 @@ impl Default for BasicLocalScheduler {
 
 #[cfg(not(target_arch = "wasm32"))]
 impl LocalScheduler for BasicLocalScheduler {
-    type Task<T>
-        = async_executor::Task<T>
-    where
-        T: 'static;
-
-    fn spawn<T: 'static>(&self, future: impl Future<Output = T> + 'static) -> Self::Task<T> {
+    fn spawn<T: 'static>(&self, future: impl Future<Output = T> + 'static) -> Task<T> {
         self.executor.spawn(future)
-    }
-
-    fn detach<T: 'static>(&self, task: Self::Task<T>) {
-        task.detach();
     }
 
     async fn run<'a, T: 'a>(&'a self, future: impl Future<Output = T> + 'a) -> T {
@@ -414,12 +398,7 @@ impl Default for BasicLocalScheduler {
 
 #[cfg(target_arch = "wasm32")]
 impl LocalScheduler for BasicLocalScheduler {
-    type Task<T>
-        = async_task::Task<T>
-    where
-        T: 'static;
-
-    fn spawn<T: 'static>(&self, future: impl Future<Output = T> + 'static) -> Self::Task<T> {
+    fn spawn<T: 'static>(&self, future: impl Future<Output = T> + 'static) -> Task<T> {
         let queue = self.queue.clone();
         let schedule = move |runnable| {
             queue.push(runnable).unwrap();
@@ -427,10 +406,6 @@ impl LocalScheduler for BasicLocalScheduler {
         let (runnable, task) = async_task::spawn_local(future, schedule);
         runnable.schedule();
         task
-    }
-
-    fn detach<T: 'static>(&self, task: Self::Task<T>) {
-        task.detach();
     }
 
     async fn run<'a, T: 'a>(&'a self, future: impl Future<Output = T> + 'a) -> T {
@@ -493,7 +468,7 @@ where
         tasks.push(scheduler.spawn(block.run()));
     }
 
-    scheduler.detach(scheduler.spawn(spec.external_inbox_forwarder()));
+    scheduler.spawn(spec.external_inbox_forwarder()).detach();
 
     let n_tasks = tasks.len();
     let _local_context = spec.enter_context();

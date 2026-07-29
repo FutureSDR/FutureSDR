@@ -58,17 +58,8 @@ struct CountingLocalScheduler {
 }
 
 impl LocalScheduler for CountingLocalScheduler {
-    type Task<T>
-        = <BasicLocalScheduler as LocalScheduler>::Task<T>
-    where
-        T: 'static;
-
-    fn spawn<T: 'static>(&self, future: impl Future<Output = T> + 'static) -> Self::Task<T> {
+    fn spawn<T: 'static>(&self, future: impl Future<Output = T> + 'static) -> Task<T> {
         self.inner.spawn(future)
-    }
-
-    fn detach<T: 'static>(&self, task: Self::Task<T>) {
-        self.inner.detach(task);
     }
 
     async fn run<'a, T: 'a>(&'a self, future: impl Future<Output = T> + 'a) -> T {
@@ -83,17 +74,8 @@ struct LowLevelLocalScheduler {
 }
 
 impl LocalScheduler for LowLevelLocalScheduler {
-    type Task<T>
-        = <BasicLocalScheduler as LocalScheduler>::Task<T>
-    where
-        T: 'static;
-
-    fn spawn<T: 'static>(&self, future: impl Future<Output = T> + 'static) -> Self::Task<T> {
+    fn spawn<T: 'static>(&self, future: impl Future<Output = T> + 'static) -> Task<T> {
         self.inner.spawn(future)
-    }
-
-    fn detach<T: 'static>(&self, task: Self::Task<T>) {
-        self.inner.detach(task);
     }
 
     async fn run<'a, T: 'a>(&'a self, future: impl Future<Output = T> + 'a) -> T {
@@ -122,7 +104,7 @@ impl LocalScheduler for LowLevelLocalScheduler {
             tasks.push(self.spawn(block.run()));
         }
 
-        self.detach(self.spawn(spec.external_inbox_forwarder()));
+        self.spawn(spec.external_inbox_forwarder()).detach();
 
         let n_tasks = tasks.len();
         let _local_context = spec.enter_context();
