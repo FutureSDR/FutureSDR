@@ -4,7 +4,7 @@
 
 This example demonstrates how to add custom handlers for the integrated web server. You can use this to add custom REST endpoints to serve pages or trigger actions. In this example, a flowgraph is spawned on the runtime.
 
-If you only want to serve a custom web frontend, you can set `frontend_path` in your `config.toml`. See the [documentation](https://www.futuresdr.org/learn/flowgraph_interaction.html#web-ui) for more information.
+If you only want to serve a custom web frontend, you can set `frontend_path` in your `config.toml`. See the [configuration documentation](https://www.futuresdr.org/learn/running_apps.html#configuration) for more information.
 
 ## How It Works
 
