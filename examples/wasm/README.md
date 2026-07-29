@@ -22,8 +22,7 @@ cargo run --release
 When the flowgraph finishes, you will see the following logs:
 
 ```text
-INFO main futuresdr::runtime::runtime: after init in runtime
-INFO main futuresdr::runtime::runtime: runtime constructed
+INFO main wasm: start flowgraph
 INFO main wasm: data matches
 ```
 
