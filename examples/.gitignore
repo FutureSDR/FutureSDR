@@ -1,0 +1,9 @@
+# Web build outputs that are not shipped from the repository.
+/cw/dist/
+/rattlegram/dist/
+/spectrum/dist-web/
+/wasm/dist/
+/web-spectrum/dist/
+/wgpu/dist/
+/wlan-wasm/dist/
+/zigbee-wasm/dist/

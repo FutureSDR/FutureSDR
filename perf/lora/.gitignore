@@ -1,6 +1,3 @@
 *.cf32
-perf-data
-lora.pdf
-lora-dumps
-target
-gnuradio-rx
+/lora-dumps/
+/gnuradio-rx

@@ -1,7 +1,10 @@
 Cargo.lock
-target
-node_modules
-perf-data
-package-lock.json
+target/
+build/
+perf-data/
+profile.json.gz
+__pycache__/
 *.syms.json
 .idea/
+.DS_Store
+*.iml

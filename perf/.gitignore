@@ -1,3 +1,2 @@
-perf-data
 *.pdf
-profile.json.gz
+latency.data

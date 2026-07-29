@@ -1,3 +1,2 @@
-preprocessed_npy/*
-model/*
-profile.json.gz
+/preprocessed_npy/
+/model/
