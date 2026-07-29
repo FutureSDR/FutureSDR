@@ -19,7 +19,7 @@ Most custom buffers also implement one of the higher-level buffer families:
 Use `PortCore` and `ConnectionState` for the common lifecycle:
 
 ```rust
-use futuresdr::runtime::buffer::*;
+use futuresdr::runtime::buffer::dev::{ConnectionState, PortCore, PortEndpoint};
 
 pub struct MyWriter<T> {
     core: PortCore,

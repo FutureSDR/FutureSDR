@@ -2,8 +2,7 @@
 //!
 //! Buffers are the transport layer between stream ports. Application and block
 //! code uses the buffer families and traits in this module. Support types for
-//! implementing a custom buffer backend are grouped under
-//! [`dev`](crate::runtime::buffer::dev).
+//! implementing a custom buffer backend are grouped under [`dev`].
 //!
 //! # Stream termination and fanout
 //!
