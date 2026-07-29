@@ -9,9 +9,9 @@ use crate::runtime::Error;
 use crate::runtime::block_on;
 use crate::runtime::channel::oneshot;
 use crate::runtime::config;
-use crate::runtime::scheduler::NormalDomainSpec;
-use crate::runtime::scheduler::NormalRunningDomain;
 use crate::runtime::scheduler::Scheduler;
+use crate::runtime::scheduler::dev::NormalDomainSpec;
+use crate::runtime::scheduler::dev::NormalRunningDomain;
 
 /// Native scheduler backed by the `smol` async executor.
 ///

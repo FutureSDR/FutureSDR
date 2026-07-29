@@ -26,7 +26,7 @@ use crate::runtime::channel::mpsc;
 use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::local_domain_common::LocalDomainMessage;
 use crate::runtime::local_domain_common::LocalRunningState;
-use crate::runtime::scheduler::DomainTopology;
+use crate::runtime::scheduler::dev::DomainTopology;
 #[cfg(target_arch = "wasm32")]
 use crate::runtime::yield_now;
 

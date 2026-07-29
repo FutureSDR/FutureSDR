@@ -18,8 +18,8 @@ use crate::runtime::block_inbox::LocalBlockInbox;
 use crate::runtime::block_inbox::LocalDomainKey;
 use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::channel::oneshot;
-use crate::runtime::scheduler::DomainTopology;
 use crate::runtime::scheduler::LocalScheduler;
+use crate::runtime::scheduler::dev::DomainTopology;
 
 pub(crate) type LocalBlockBuilder = Box<dyn FnOnce(usize) -> Box<dyn LocalBlock> + Send + 'static>;
 

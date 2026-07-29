@@ -56,7 +56,7 @@ pub(crate) trait BlockObject: Any {
 /// Internal object-safe interface for normal-domain wrapped kernel instances.
 ///
 /// Custom blocks implement [`Kernel`](crate::runtime::dev::Kernel). Scheduler
-/// extensions receive [`RunnableBlock`](crate::runtime::scheduler::RunnableBlock)
+/// extensions receive [`RunnableBlock`](crate::runtime::scheduler::dev::RunnableBlock)
 /// instead of raw block trait objects.
 #[async_trait::async_trait]
 pub(crate) trait Block: BlockObject + Send {

@@ -14,8 +14,8 @@ use crate::runtime::local_domain_common::LocalDomainRuntimeBase;
 use crate::runtime::local_domain_common::LocalDomainState;
 use crate::runtime::local_domain_common::finish_local_run_result;
 use crate::runtime::local_domain_common::handle_idle_domain_message;
-use crate::runtime::scheduler::LocalDomainRunSpec;
 use crate::runtime::scheduler::LocalScheduler;
+use crate::runtime::scheduler::dev::LocalDomainRunSpec;
 
 pub(crate) type LocalDomainRuntime = LocalDomainRuntimeBase<LocalDomainController>;
 
@@ -152,7 +152,7 @@ mod tests {
     use crate::runtime::buffer::DynBufferWriter;
     use crate::runtime::local_domain_common::build_local_block;
     use crate::runtime::scheduler::BasicLocalScheduler;
-    use crate::runtime::scheduler::DomainTopology;
+    use crate::runtime::scheduler::dev::DomainTopology;
 
     struct WaitForTerminate {
         id: BlockId,

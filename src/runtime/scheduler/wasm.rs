@@ -23,12 +23,12 @@ use web_sys::WorkerType;
 
 use crate::runtime::Error;
 use crate::runtime::init;
-use crate::runtime::scheduler::NormalDomainSpec;
-use crate::runtime::scheduler::NormalRunningDomain;
-use crate::runtime::scheduler::RunnableBlock;
 use crate::runtime::scheduler::Scheduler;
-use crate::runtime::scheduler::StoppedBlock;
 use crate::runtime::scheduler::Task;
+use crate::runtime::scheduler::dev::NormalDomainSpec;
+use crate::runtime::scheduler::dev::NormalRunningDomain;
+use crate::runtime::scheduler::dev::RunnableBlock;
+use crate::runtime::scheduler::dev::StoppedBlock;
 use crate::runtime::yield_now;
 
 static WASM_EXECUTORS: once_cell::sync::Lazy<Mutex<Slab<Arc<WasmExecutor>>>> =

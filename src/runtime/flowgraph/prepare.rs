@@ -15,13 +15,13 @@ use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::channel::oneshot;
 use crate::runtime::flowgraph_handle::RunningBlockEntry;
 use crate::runtime::flowgraph_handle::RunningFlowgraphRegistry;
-use crate::runtime::scheduler::DomainTopology;
 use crate::runtime::scheduler::LocalDomainSpec;
 use crate::runtime::scheduler::LocalRunningDomain;
 use crate::runtime::scheduler::NormalBlocks;
-use crate::runtime::scheduler::NormalDomainSpec;
-use crate::runtime::scheduler::NormalRunningDomain;
 use crate::runtime::scheduler::Scheduler;
+use crate::runtime::scheduler::dev::DomainTopology;
+use crate::runtime::scheduler::dev::NormalDomainSpec;
+use crate::runtime::scheduler::dev::NormalRunningDomain;
 
 use super::BlockSlot;
 use super::Flowgraph;
