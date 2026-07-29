@@ -11,7 +11,7 @@ use futuresdr::runtime::Edge;
 use futuresdr::runtime::Error;
 use futuresdr::runtime::scheduler::LocalScheduler;
 use futuresdr::runtime::scheduler::dev::LocalBlockStop;
-use futuresdr::runtime::scheduler::dev::LocalDomainRunSpec;
+use futuresdr::runtime::scheduler::dev::LocalDomainSpec;
 use futuresdr::runtime::scheduler::dev::StoppedLocalBlock;
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
@@ -161,7 +161,7 @@ impl LocalScheduler for LocalFlowScheduler {
 
     async fn run_local_domain<'a, Shutdown>(
         &'a self,
-        mut spec: LocalDomainRunSpec<'a, Shutdown>,
+        mut spec: LocalDomainSpec<'a, Shutdown>,
     ) -> Result<(), Error>
     where
         Shutdown: Future + Unpin + 'a,
@@ -231,7 +231,7 @@ async fn drive_until<'a, T: 'a>(
 }
 
 async fn run_domain_until_stopped<'a, Shutdown>(
-    spec: &mut LocalDomainRunSpec<'a, Shutdown>,
+    spec: &mut LocalDomainSpec<'a, Shutdown>,
     mut tasks: FuturesUnordered<Task<StoppedLocalBlock>>,
     stop_handles: Vec<LocalBlockStop>,
     n_tasks: usize,

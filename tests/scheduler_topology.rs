@@ -13,7 +13,7 @@ use futuresdr::runtime::scheduler::LocalScheduler;
 use futuresdr::runtime::scheduler::Scheduler;
 use futuresdr::runtime::scheduler::SmolScheduler;
 use futuresdr::runtime::scheduler::Task;
-use futuresdr::runtime::scheduler::dev::LocalDomainRunSpec;
+use futuresdr::runtime::scheduler::dev::LocalDomainSpec;
 use futuresdr::runtime::scheduler::dev::NormalDomainSpec;
 use futuresdr::runtime::scheduler::dev::NormalRunningDomain;
 use std::future::Future;
@@ -83,7 +83,7 @@ impl LocalScheduler for LowLevelLocalScheduler {
 
     async fn run_local_domain<'a, Shutdown>(
         &'a self,
-        mut spec: LocalDomainRunSpec<'a, Shutdown>,
+        mut spec: LocalDomainSpec<'a, Shutdown>,
     ) -> std::result::Result<(), Error>
     where
         Shutdown: Future + Unpin + 'a,

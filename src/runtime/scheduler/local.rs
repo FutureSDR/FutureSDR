@@ -50,10 +50,10 @@ pub trait LocalScheduler: Default + 'static {
     ///
     /// The default implementation uses FutureSDR's standard local-domain run
     /// loop. Implementations may override it with their own policy using the
-    /// public [`LocalDomainRunSpec`] primitives.
+    /// public [`LocalDomainSpec`] primitives.
     async fn run_local_domain<'a, Shutdown>(
         &'a self,
-        spec: LocalDomainRunSpec<'a, Shutdown>,
+        spec: LocalDomainSpec<'a, Shutdown>,
     ) -> Result<(), Error>
     where
         Self: Sized,
@@ -63,8 +63,8 @@ pub trait LocalScheduler: Default + 'static {
     }
 }
 
-/// Run specification handed to a [`LocalScheduler`].
-pub struct LocalDomainRunSpec<'a, Shutdown> {
+/// Specification handed to a [`LocalScheduler`] for one local domain.
+pub struct LocalDomainSpec<'a, Shutdown> {
     pub(crate) domain_id: usize,
     pub(crate) slots: Vec<(BlockId, usize)>,
     pub(crate) topology: DomainTopology,
@@ -168,7 +168,7 @@ where
     }
 }
 
-impl<'a, Shutdown> LocalDomainRunSpec<'a, Shutdown> {
+impl<'a, Shutdown> LocalDomainSpec<'a, Shutdown> {
     /// Get the local domain id.
     pub fn domain_id(&self) -> usize {
         self.domain_id
@@ -436,7 +436,7 @@ async fn forward_external_inboxes(mut external: Vec<(BlockInboxReader, LocalBloc
 
 async fn run_local_domain_basic<'a, S, Shutdown>(
     scheduler: &'a S,
-    mut spec: LocalDomainRunSpec<'a, Shutdown>,
+    mut spec: LocalDomainSpec<'a, Shutdown>,
 ) -> Result<(), Error>
 where
     S: LocalScheduler,

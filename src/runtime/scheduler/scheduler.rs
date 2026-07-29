@@ -172,8 +172,8 @@ impl StoppedBlock {
     }
 }
 
-/// Specification for an existing local scheduling domain.
-pub(crate) struct LocalDomainSpec {
+/// Prepared local scheduling domain.
+pub(crate) struct PreparedLocalDomain {
     pub(crate) domain_id: usize,
     pub(crate) inbox: LocalDomainInbox,
     pub(crate) slots: Vec<(BlockId, usize)>,
@@ -181,7 +181,7 @@ pub(crate) struct LocalDomainSpec {
     pub(crate) main_channel: Sender<FlowgraphMessage>,
 }
 
-impl LocalDomainSpec {
+impl PreparedLocalDomain {
     /// Create a local-domain specification.
     pub(crate) fn new(
         domain_id: usize,

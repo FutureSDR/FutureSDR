@@ -15,7 +15,7 @@ use crate::runtime::local_domain_common::LocalDomainState;
 use crate::runtime::local_domain_common::finish_local_run_result;
 use crate::runtime::local_domain_common::handle_idle_domain_message;
 use crate::runtime::scheduler::LocalScheduler;
-use crate::runtime::scheduler::dev::LocalDomainRunSpec;
+use crate::runtime::scheduler::dev::LocalDomainSpec;
 
 pub(crate) type LocalDomainRuntime = LocalDomainRuntimeBase<LocalDomainController>;
 
@@ -112,7 +112,7 @@ async fn run_domain_thread<LS: LocalScheduler>(
                         continue;
                     }
                 };
-                let spec = LocalDomainRunSpec {
+                let spec = LocalDomainSpec {
                     domain_id,
                     slots,
                     topology,

@@ -22,15 +22,15 @@ pub use local::BasicLocalScheduler;
 pub use local::LocalScheduler;
 #[allow(clippy::module_inception)]
 mod scheduler;
-pub(crate) use scheduler::LocalDomainSpec;
 pub(crate) use scheduler::LocalRunningDomain;
 pub(crate) use scheduler::NormalBlocks;
+pub(crate) use scheduler::PreparedLocalDomain;
 pub use scheduler::Scheduler;
 
 /// Support types for implementing custom schedulers.
 pub mod dev {
     pub use super::local::LocalBlockStop;
-    pub use super::local::LocalDomainRunSpec;
+    pub use super::local::LocalDomainSpec;
     pub use super::local::RunnableLocalBlock;
     pub use super::local::StoppedLocalBlock;
     pub use super::scheduler::BlockStop;

@@ -15,9 +15,9 @@ use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::channel::oneshot;
 use crate::runtime::flowgraph_handle::RunningBlockEntry;
 use crate::runtime::flowgraph_handle::RunningFlowgraphRegistry;
-use crate::runtime::scheduler::LocalDomainSpec;
 use crate::runtime::scheduler::LocalRunningDomain;
 use crate::runtime::scheduler::NormalBlocks;
+use crate::runtime::scheduler::PreparedLocalDomain;
 use crate::runtime::scheduler::Scheduler;
 use crate::runtime::scheduler::dev::DomainTopology;
 use crate::runtime::scheduler::dev::NormalDomainSpec;
@@ -61,7 +61,7 @@ pub(super) struct PreparedFlowgraph {
     graph_domains: FlowgraphDomains,
     registry: Arc<RunningFlowgraphRegistry>,
     normal_topology: DomainTopology,
-    local_domains: Vec<LocalDomainSpec>,
+    local_domains: Vec<PreparedLocalDomain>,
     main_channel: Sender<FlowgraphMessage>,
 }
 
@@ -399,7 +399,7 @@ fn local_domain_specs(
     stream_edges: &[Edge],
     message_edges: &[Edge],
     main_channel: &Sender<FlowgraphMessage>,
-) -> Vec<LocalDomainSpec> {
+) -> Vec<PreparedLocalDomain> {
     let mut local_slots_by_domain = vec![Vec::new(); flowgraph.domains.domain_len()];
     for location in block_locations {
         if location.is_local() {
@@ -420,7 +420,7 @@ fn local_domain_specs(
                 .iter()
                 .map(|(block_id, _)| *block_id)
                 .collect::<Vec<_>>();
-            Some(LocalDomainSpec::new(
+            Some(PreparedLocalDomain::new(
                 domain_id,
                 flowgraph
                     .domains
