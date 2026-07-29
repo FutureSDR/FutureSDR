@@ -7,7 +7,6 @@ while rendering.
 
 The HackRF source and WebGPU spectrum block run in separate Web Workers. The
 GUI sink and the default WASM scheduler remain on the browser main thread.
-Release builds retain DWARF debug information for browser performance traces.
 
 WebGPU and WebUSB require a supported browser and a secure context (`localhost`
 is sufficient for local development). Build or serve it with Trunk:

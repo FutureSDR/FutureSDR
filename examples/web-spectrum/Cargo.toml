@@ -6,8 +6,8 @@ edition = "2024"
 [workspace]
 
 [profile.release]
-debug = true
-strip = false
+debug = false
+strip = true
 
 [[bin]]
 name = "futuresdr_app"
