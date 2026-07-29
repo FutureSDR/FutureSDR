@@ -41,13 +41,13 @@ members = [
 ]
 
 [workspace.package]
-version = "0.6.0-dev"
+version = "0.6.0"
 
 [workspace.dependencies]
-futuredsp = { path = "crates/futuredsp", version = "0.6.0-dev" }
-futuresdr = { path = ".", version = "0.6.0-dev" }
-futuresdr-macros = { path = "crates/macros", version = "0.6.0-dev" }
-futuresdr-types = { path = "crates/types", version = "0.6.0-dev" }
+futuredsp = { path = "crates/futuredsp", version = "0.6.0" }
+futuresdr = { path = ".", version = "0.6.0" }
+futuresdr-macros = { path = "crates/macros", version = "0.6.0" }
+futuresdr-types = { path = "crates/types", version = "0.6.0" }
 
 [features]
 default = ["ctrl_port", "tracing_max_level_debug", "tracing_release_max_level_info"]
