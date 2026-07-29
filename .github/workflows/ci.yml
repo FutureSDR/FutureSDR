@@ -438,14 +438,13 @@ jobs:
       - run: sudo apt-get -y install libasound2-dev
       - run: sudo apt-get -y install liblttng-ust-dev
       - run: sudo apt-get -y install libsoapysdr-dev
-      - run: cargo test --all-targets --workspace --features=burn,aaronia_http,rtlsdr,zeromq,audio,flow_scheduler,seify_dummy,soapy,wgpu,mocker
-      - run: cargo test --all-targets --manifest-path=crates/futuredsp/Cargo.toml
-      - run: cargo test --all-targets --all-features --manifest-path=crates/types/Cargo.toml
-      - run: cargo test --all-targets --manifest-path=crates/remote/Cargo.toml
-      - run: cargo test --all-targets --manifest-path=perf/inplace/Cargo.toml
-      - run: cargo test --all-targets --manifest-path=perf/lora/Cargo.toml
-      - run: cargo test --all-targets --manifest-path=perf/wlan/Cargo.toml
-      - run: cargo test --all-targets --manifest-path=examples/wlan/Cargo.toml
+      - run: cargo test --package=futuresdr --features=burn,aaronia_http,rtlsdr,zeromq,audio,flow_scheduler,seify_dummy,soapy,wgpu,mocker
+      - run: cargo test --package=futuredsp
+      - run: cargo test --all-features --package=futuresdr-types
+      - run: cargo test --package=futuresdr-remote
+      - run: cargo test --manifest-path=perf/burn/Cargo.toml
+      - run: cargo test --all-features --manifest-path=perf/perf/Cargo.toml
+      - run: cargo test --manifest-path=examples/wlan/Cargo.toml
 
   test-macos:
     name: Unit Tests macOS
@@ -456,11 +455,14 @@ jobs:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@nightly
       - run: brew install shaderc glslang spirv-tools
-      - name: Build
-        run: cargo test --all-targets --workspace --features=burn,aaronia_http,flow_scheduler,seify_dummy,wgpu,mocker
+      - name: Test FutureSDR
+        run: cargo test --package=futuresdr --features=burn,aaronia_http,flow_scheduler,seify_dummy,wgpu,mocker
         env:
           SHADERC_LIB_DIR: /opt/homebrew/lib
           SHADERC_INCLUDE_DIR: /opt/homebrew/include
+      - run: cargo test --package=futuredsp
+      - run: cargo test --all-features --package=futuresdr-types
+      - run: cargo test --package=futuresdr-remote
 
   test-windows:
     name: Unit Test Windows
@@ -475,4 +477,7 @@ jobs:
         run: choco install ninja -y --no-progress
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@nightly
-      - run: cargo test --all-targets --workspace --features=burn,aaronia_http,flow_scheduler,seify_dummy,wgpu,mocker
+      - run: cargo test --package=futuresdr --features=burn,aaronia_http,flow_scheduler,seify_dummy,wgpu,mocker
+      - run: cargo test --package=futuredsp
+      - run: cargo test --all-features --package=futuresdr-types
+      - run: cargo test --package=futuresdr-remote

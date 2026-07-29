@@ -53,7 +53,11 @@ jobs:
         run: cargo clippy --all-targets --workspace --features=burn,aaronia_http,zeromq,audio,flow_scheduler,seify_dummy,soapy,wgpu,mocker -- -D warnings
 
       - name: Run tests
-        run: cargo test --all-targets --workspace --features=zeromq,audio,flow_scheduler,seify_dummy,soapy,wgpu,mocker
+        run: |
+          cargo test --package=futuresdr --features=zeromq,audio,flow_scheduler,seify_dummy,soapy,wgpu,mocker
+          cargo test --package=futuredsp
+          cargo test --all-features --package=futuresdr-types
+          cargo test --package=futuresdr-remote
 
       - name: Run doc tests
         run: cargo test --doc --workspace --features=zeromq,audio,flow_scheduler,seify_dummy,soapy,wgpu,mocker

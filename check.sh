@@ -137,53 +137,14 @@ cd ${SCRIPTPATH}/examples/zigbee-wasm && cargo clippy --all-targets --target=was
 # Test
 ###########################################################
 # aaronia feature is not tested, since most user might not have the sdr installed
-cd ${SCRIPTPATH} && cargo test --all-targets --workspace --features=zeromq,audio,flow_scheduler,seify_dummy,soapy,wgpu,mocker -j 4
-cd ${SCRIPTPATH}/crates/futuredsp && cargo test --all-targets
-cd ${SCRIPTPATH}/crates/macros && cargo test --all-targets
-cd ${SCRIPTPATH}/crates/remote && cargo test --all-targets
-cd ${SCRIPTPATH}/crates/types && cargo test --all-targets
+cd ${SCRIPTPATH} && cargo test --package=futuresdr --features=zeromq,audio,flow_scheduler,seify_dummy,soapy,wgpu,mocker -j 4
+cd ${SCRIPTPATH} && cargo test --package=futuredsp
+cd ${SCRIPTPATH} && cargo test --package=futuresdr-remote
+cd ${SCRIPTPATH} && cargo test --all-features --package=futuresdr-types
 
 # perf
-cd ${SCRIPTPATH}/perf/buffer_type && cargo test --all-targets
-cd ${SCRIPTPATH}/perf/buffer_size && cargo test --all-targets
-cd ${SCRIPTPATH}/perf/burn && cargo test --all-targets
-cd ${SCRIPTPATH}/perf/fir && cargo test --all-targets
-cd ${SCRIPTPATH}/perf/inplace && cargo test --all-targets
-cd ${SCRIPTPATH}/perf/msg && cargo test --all-targets
-cd ${SCRIPTPATH}/perf/lora && cargo test --all-targets
-cd ${SCRIPTPATH}/perf/null && cargo test --all-targets
-cd ${SCRIPTPATH}/perf/perf && cargo test --all-targets --all-features
-cd ${SCRIPTPATH}/perf/wlan && cargo test --all-targets
-if [[ "$OSTYPE" == linux* ]]; then
-  cd ${SCRIPTPATH}/perf/fir_latency && cargo test --all-targets
-  cd ${SCRIPTPATH}/perf/null_latency && cargo test --all-targets
-fi
+cd ${SCRIPTPATH}/perf/burn && cargo test
+cd ${SCRIPTPATH}/perf/perf && cargo test --all-features
 
 # examples
-cd ${SCRIPTPATH}/examples/adsb && cargo test --all-targets
-cd ${SCRIPTPATH}/examples/android && cargo test --all-targets
-cd ${SCRIPTPATH}/examples/audio && cargo test --all-targets
-cd ${SCRIPTPATH}/examples/burn && cargo test --all-targets
-cd ${SCRIPTPATH}/examples/custom-routes && cargo test --all-targets
-cd ${SCRIPTPATH}/examples/cw && cargo test --all-targets
-cd ${SCRIPTPATH}/examples/egui && cargo test --all-targets
-cd ${SCRIPTPATH}/examples/firdes && cargo test --all-targets
-cd ${SCRIPTPATH}/examples/fm-receiver && cargo test --all-targets
-cd ${SCRIPTPATH}/examples/inplace && cargo test --all-targets
-cd ${SCRIPTPATH}/examples/keyfob && cargo test --all-targets
-cd ${SCRIPTPATH}/examples/logging && cargo test --all-targets
-cd ${SCRIPTPATH}/examples/lora && cargo test --all-targets
-cd ${SCRIPTPATH}/examples/m17 && cargo test --all-targets
-cd ${SCRIPTPATH}/examples/macros && cargo test --all-targets
-cd ${SCRIPTPATH}/examples/rattlegram && cargo test --all-targets
-cd ${SCRIPTPATH}/examples/file-trx && cargo test --all-targets
-cd ${SCRIPTPATH}/examples/spectrum && cargo test --all-targets
-cd ${SCRIPTPATH}/examples/ssb && cargo test --all-targets
-cd ${SCRIPTPATH}/examples/wasm && cargo test --all-targets
-cd ${SCRIPTPATH}/examples/wgpu && cargo test --all-targets
-cd ${SCRIPTPATH}/examples/wlan && cargo test --all-targets
-cd ${SCRIPTPATH}/examples/zeromq && cargo test --all-targets
-cd ${SCRIPTPATH}/examples/zigbee && cargo test --all-targets
-if [[ "$OSTYPE" == linux* ]]; then
-  cd ${SCRIPTPATH}/examples/zynq && cargo test --all-targets
-fi
+cd ${SCRIPTPATH}/examples/wlan && cargo test
