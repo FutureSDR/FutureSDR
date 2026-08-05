@@ -244,31 +244,33 @@ where
                 _ => None,
             });
 
-            let consumed = if let Some(len) = t {
-                if n >= len {
-                    // send burst
-                    let bufs: Vec<&[Complex32]> = bufs.iter().map(|b| &b[0..len]).collect();
-                    streamer.write_all(&bufs, None, true, 2_000_000)?;
-                    len
-                } else if len > max_input_buffer_size_in_samples {
+            let (write_len, end_burst) = match t {
+                Some(len) if n >= len => (len, true),
+                Some(len) if len > max_input_buffer_size_in_samples => {
                     warn!(
                         "input buffers of seify sink too small ({} samples) to fit complete burst ({len} samples). sending in non-burst mode",
                         max_input_buffer_size_in_samples
                     );
-                    let bufs: Vec<&[Complex32]> = bufs.iter().map(|b| &b[0..n]).collect();
-                    streamer.write_all(&bufs, None, true, 2_000_000)?;
-                    n
-                } else {
-                    // wait for more samples
-                    0
+                    (n, false)
                 }
+                Some(_) => (0, true),
+                None => (n, false),
+            };
+
+            let consumed = if write_len == 0 {
+                0
             } else {
-                // send in non-burst mode
-                let ret = streamer.write(&bufs, None, false, 2_000_000)?;
-                if ret != n {
+                let bufs: Vec<&[Complex32]> = bufs.iter().map(|b| &b[..write_len]).collect();
+                let written = if end_burst {
+                    streamer.write_all(&bufs, None, true, 2_000_000)?;
+                    write_len
+                } else {
+                    streamer.write(&bufs, None, false, 2_000_000)?
+                };
+                if !end_burst && written != n {
                     io.call_again = true;
                 }
-                ret
+                written
             };
 
             self.inputs.iter_mut().for_each(|i| i.consume(consumed));
