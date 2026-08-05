@@ -50,7 +50,7 @@ the pieces your application needs explicitly.
 - `ctrl_port`: enable the native HTTP control port and static frontend server
 - `flow_scheduler`: enable the [Flow Scheduler](scheduler.md#flow)
 - `hackrf`: enable Rust HackRF driver for Seify (unstable, not recommended)
-- `hydrasdr`: enable HydraSDR driver for Seify
+- `hydrasdr`: enable the native and WebUSB async HydraSDR driver for Seify
 - `mocker`: enable the native-only [`Mocker`](mocker.md) test and benchmark harness
 - `rtlsdr`: enable Rust RTL SDR driver for Seify (unstable, not recommended)
 - `seify`: enable Seify SDR hardware abstraction
