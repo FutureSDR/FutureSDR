@@ -80,6 +80,8 @@
 //! |---|---|---|---|
 //! | `seify::Sink` | Transmit samples with a Seify device. | seify | ❌ |
 //! | `seify::Source` | Receive samples from a Seify device. | seify | ❌ |
+//! | `seify::AsyncSink` | Transmit samples with an async Seify device. | seify | ✅ |
+//! | `seify::AsyncSource` | Receive samples from an async Seify device. | seify | ✅ |
 //!
 //! ## Hardware Acceleration
 //! | Block | Usage | WebAssembly? | Feature |
@@ -181,7 +183,7 @@ pub use pfb::arb_resampler::PfbArbResampler;
 pub use pfb::channelizer::PfbChannelizer;
 pub use pfb::synthesizer::PfbSynthesizer;
 /// Seify hardware driver blocks
-#[cfg(all(feature = "seify", not(target_arch = "wasm32")))]
+#[cfg(feature = "seify")]
 pub mod seify;
 mod selector;
 pub use selector::DropPolicy as SelectorDropPolicy;

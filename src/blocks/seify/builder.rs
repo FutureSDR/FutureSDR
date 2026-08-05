@@ -7,34 +7,13 @@ use seify::TxDevice;
 use seify::dev::DynDeviceBackend;
 
 use crate::blocks::seify::Config;
+use crate::blocks::seify::IntoAntenna;
 use crate::blocks::seify::Sink;
 use crate::blocks::seify::Source;
 use crate::num_complex::Complex32;
 use crate::runtime::Error;
 use crate::runtime::buffer::CpuBufferReader;
 use crate::runtime::buffer::CpuBufferWriter;
-
-pub trait IntoAntenna {
-    fn into(self) -> Option<String>;
-}
-
-impl IntoAntenna for &str {
-    fn into(self) -> Option<String> {
-        Some(self.to_string())
-    }
-}
-
-impl IntoAntenna for String {
-    fn into(self) -> Option<String> {
-        Some(self)
-    }
-}
-
-impl IntoAntenna for Option<String> {
-    fn into(self) -> Option<String> {
-        self
-    }
-}
 
 /// Seify Device builder
 pub struct Builder<D> {

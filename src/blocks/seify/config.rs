@@ -1,4 +1,6 @@
 use seify::Direction;
+use seify::DynAsyncDevice;
+#[cfg(not(target_arch = "wasm32"))]
 use seify::DynDevice;
 use std::collections::HashMap;
 
@@ -58,6 +60,7 @@ impl Config {
     }
 
     /// Apply config to a device
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn apply(&self, dev: &DynDevice, channels: &[usize], dir: Direction) -> Result<(), Error> {
         if let Some(chan) = self.selected_channel(channels)? {
             self.apply_channel(dev, dir, chan)?;
@@ -70,6 +73,25 @@ impl Config {
         Ok(())
     }
 
+    /// Apply config to an asynchronous device.
+    pub async fn apply_async(
+        &self,
+        dev: &DynAsyncDevice,
+        channels: &[usize],
+        dir: Direction,
+    ) -> Result<(), Error> {
+        if let Some(chan) = self.selected_channel(channels)? {
+            self.apply_async_channel(dev, dir, chan).await?;
+        } else {
+            for &chan in channels {
+                self.apply_async_channel(dev, dir, chan).await?;
+            }
+        }
+
+        Ok(())
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
     fn apply_channel(&self, dev: &DynDevice, dir: Direction, chan: usize) -> Result<(), Error> {
         match dir {
             Direction::Rx => {
@@ -113,6 +135,74 @@ impl Config {
         Ok(())
     }
 
+    async fn apply_async_channel(
+        &self,
+        dev: &DynAsyncDevice,
+        dir: Direction,
+        chan: usize,
+    ) -> Result<(), Error> {
+        match dir {
+            Direction::Rx => {
+                let channel = dev.rx(chan).await?;
+                if let Some(ref a) = self.antenna {
+                    channel.antenna().select(a).await.map_err(|error| {
+                        Error::SeifyError(format!("selecting async RX antenna: {error}"))
+                    })?;
+                }
+                if let Some(b) = self.bandwidth {
+                    channel.bandwidth().set(b).await.map_err(|error| {
+                        Error::SeifyError(format!("setting async RX bandwidth: {error}"))
+                    })?;
+                }
+                if let Some(f) = self.freq {
+                    channel.frequency().set(f).await.map_err(|error| {
+                        Error::SeifyError(format!("setting async RX frequency: {error}"))
+                    })?;
+                }
+                if let Some(g) = self.gain {
+                    channel.gain().set(g).await.map_err(|error| {
+                        Error::SeifyError(format!("setting async RX gain: {error}"))
+                    })?;
+                }
+                if let Some(s) = self.sample_rate {
+                    channel.sample_rate().set(s).await.map_err(|error| {
+                        Error::SeifyError(format!("setting async RX sample rate: {error}"))
+                    })?;
+                }
+            }
+            Direction::Tx => {
+                let channel = dev.tx(chan).await?;
+                if let Some(ref a) = self.antenna {
+                    channel.antenna().select(a).await.map_err(|error| {
+                        Error::SeifyError(format!("selecting async TX antenna: {error}"))
+                    })?;
+                }
+                if let Some(b) = self.bandwidth {
+                    channel.bandwidth().set(b).await.map_err(|error| {
+                        Error::SeifyError(format!("setting async TX bandwidth: {error}"))
+                    })?;
+                }
+                if let Some(f) = self.freq {
+                    channel.frequency().set(f).await.map_err(|error| {
+                        Error::SeifyError(format!("setting async TX frequency: {error}"))
+                    })?;
+                }
+                if let Some(g) = self.gain {
+                    channel.gain().set(g).await.map_err(|error| {
+                        Error::SeifyError(format!("setting async TX gain: {error}"))
+                    })?;
+                }
+                if let Some(s) = self.sample_rate {
+                    channel.sample_rate().set(s).await.map_err(|error| {
+                        Error::SeifyError(format!("setting async TX sample rate: {error}"))
+                    })?;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     fn selected_channel(&self, channels: &[usize]) -> Result<Option<usize>, Error> {
         self.chan
             .map(|idx| channels.get(idx).copied().ok_or(Error::InvalidParameter))
@@ -120,6 +210,7 @@ impl Config {
     }
 
     /// Extracts a [`Config`] from a [`DynDevice`], [`Direction`], and channel id.
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn from(dev: &DynDevice, dir: Direction, channel: usize) -> Result<Self, Error> {
         let (antenna, bandwidth, freq, gain, sample_rate) = match dir {
             Direction::Rx => {
@@ -140,6 +231,45 @@ impl Config {
                     Self::optional_control(channel.frequency().value())?,
                     Self::optional_control(channel.gain().value())?.flatten(),
                     Self::optional_control(channel.sample_rate().value())?,
+                )
+            }
+        };
+
+        Ok(Config {
+            chan: None,
+            antenna,
+            bandwidth,
+            freq,
+            gain,
+            sample_rate,
+        })
+    }
+
+    /// Extract a [`Config`] from an asynchronous device channel.
+    pub async fn from_async(
+        dev: &DynAsyncDevice,
+        dir: Direction,
+        channel: usize,
+    ) -> Result<Self, Error> {
+        let (antenna, bandwidth, freq, gain, sample_rate) = match dir {
+            Direction::Rx => {
+                let channel = dev.rx(channel).await?;
+                (
+                    Self::optional_control(channel.antenna().selected().await)?,
+                    Self::optional_control(channel.bandwidth().value().await)?,
+                    Self::optional_control(channel.frequency().value().await)?,
+                    Self::optional_control(channel.gain().value().await)?.flatten(),
+                    Self::optional_control(channel.sample_rate().value().await)?,
+                )
+            }
+            Direction::Tx => {
+                let channel = dev.tx(channel).await?;
+                (
+                    Self::optional_control(channel.antenna().selected().await)?,
+                    Self::optional_control(channel.bandwidth().value().await)?,
+                    Self::optional_control(channel.frequency().value().await)?,
+                    Self::optional_control(channel.gain().value().await)?.flatten(),
+                    Self::optional_control(channel.sample_rate().value().await)?,
                 )
             }
         };

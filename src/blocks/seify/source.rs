@@ -7,6 +7,8 @@ use seify::RxStreamer;
 use std::time::Duration;
 
 use crate::blocks::seify::Config;
+use crate::blocks::seify::SourceCapabilities;
+use crate::blocks::seify::source_capabilities::configured_channel_id;
 use crate::runtime::Timer;
 use crate::runtime::dev::prelude::*;
 
@@ -34,6 +36,9 @@ use crate::runtime::dev::prelude::*;
 ///
 /// `config`: `u32`, `u64`, or `usize` channel index to return a `Pmt::MapStrPmt` [`Config`].
 ///
+/// `capabilities`: configured-channel index whose controllable ranges and options should be
+/// returned.
+///
 /// `overflows`: Query the number of receive overflows as `Pmt::U64`.
 ///
 /// # Message Outputs
@@ -52,7 +57,16 @@ use crate::runtime::dev::prelude::*;
 /// ```
 #[derive(Block)]
 #[blocking]
-#[message_inputs(freq, gain, sample_rate, cmd, terminate, config, overflows)]
+#[message_inputs(
+    freq,
+    gain,
+    sample_rate,
+    cmd,
+    terminate,
+    config,
+    capabilities,
+    overflows
+)]
 #[type_name(SeifySource)]
 pub struct Source<D, OUT = DefaultCpuWriter<Complex32>>
 where
@@ -201,12 +215,8 @@ where
         _meta: &BlockMeta,
         channel: Pmt,
     ) -> Result<Pmt> {
-        let id = match channel {
-            Pmt::Null | Pmt::Ok => 0,
-            Pmt::U32(id) => id as usize,
-            Pmt::U64(id) => id as usize,
-            Pmt::Usize(id) => id,
-            _ => return Ok(Pmt::InvalidValue),
+        let Some(id) = configured_channel_id(&channel) else {
+            return Ok(Pmt::InvalidValue);
         };
         if id >= self.channels.len() {
             return Ok(Pmt::InvalidValue);
@@ -214,6 +224,31 @@ where
         let mut config = Config::from(&self.ctrl, Rx, self.channels[id])?;
         config.chan = Some(id);
         Ok(config.to_serializable_pmt())
+    }
+
+    async fn capabilities(
+        &mut self,
+        _io: &mut WorkIo,
+        _mo: &mut MessageOutputs,
+        _meta: &BlockMeta,
+        channel: Pmt,
+    ) -> Result<Pmt> {
+        let Some(id) = configured_channel_id(&channel) else {
+            return Ok(Pmt::InvalidValue);
+        };
+        let Some(&channel) = self.channels.get(id) else {
+            return Ok(Pmt::InvalidValue);
+        };
+        let capabilities = self.ctrl.capabilities()?;
+        let Some(channel) = capabilities
+            .rx_channels
+            .iter()
+            .find(|capabilities| capabilities.channel == channel)
+        else {
+            return Ok(Pmt::InvalidValue);
+        };
+
+        Ok(SourceCapabilities::from_channel_controls(id, &channel.controls).to_serializable_pmt())
     }
 
     async fn overflows(
