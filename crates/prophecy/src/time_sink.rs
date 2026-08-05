@@ -45,7 +45,10 @@ pub fn TimeSink(
     #[prop(into)] max: Signal<f32>,
     #[prop(optional)] mode: TimeSinkMode,
 ) -> impl IntoView {
-    let data = match mode {
+    // The producer may update the signal from a FutureSDR worker while the
+    // animation callback reads it. ArcReadSignal propagates lock contention
+    // from try_read_untracked() instead of turning it into a signal panic.
+    let data: ArcReadSignal<Vec<u8>> = match mode {
         TimeSinkMode::Data(d) => d,
         TimeSinkMode::Websocket(s) => {
             let (data, set_data) = signal(vec![]);
@@ -67,7 +70,8 @@ pub fn TimeSink(
             });
             data
         }
-    };
+    }
+    .into();
 
     let canvas_ref = NodeRef::<Canvas>::new();
     Effect::new(move || {
@@ -154,7 +158,7 @@ pub fn TimeSink(
                 shader,
                 vertex_len: 0,
             }));
-            start_render_loop(state, data, min, max);
+            start_render_loop(state, data.clone(), min, max);
         }
     });
 
@@ -163,7 +167,7 @@ pub fn TimeSink(
 
 fn start_render_loop(
     state: Rc<RefCell<RenderState>>,
-    data: ReadSignal<Vec<u8>>,
+    data: ArcReadSignal<Vec<u8>>,
     min: Signal<f32>,
     max: Signal<f32>,
 ) {
@@ -184,7 +188,7 @@ fn start_render_loop(
                 return;
             }
 
-            render_frame(&state, data, min, max);
+            render_frame(&state, &data, min, max);
 
             if alive.load(Ordering::Relaxed) && !data.is_disposed() {
                 if let (Some(window), Some(callback)) =
@@ -205,7 +209,7 @@ fn start_render_loop(
 
 fn render_frame(
     state: &Rc<RefCell<RenderState>>,
-    data: ReadSignal<Vec<u8>>,
+    data: &ArcReadSignal<Vec<u8>>,
     min: Signal<f32>,
     max: Signal<f32>,
 ) {

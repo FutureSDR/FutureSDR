@@ -45,7 +45,10 @@ pub fn Waterfall(
     #[prop(into)] max: Signal<f32>,
     #[prop(optional)] mode: WaterfallMode,
 ) -> impl IntoView {
-    let data = match mode {
+    // The producer may update the signal from a FutureSDR worker while the
+    // animation callback reads it. ArcReadSignal propagates lock contention
+    // from try_read_untracked() instead of turning it into a signal panic.
+    let data: ArcReadSignal<Vec<u8>> = match mode {
         WaterfallMode::Data(d) => d,
         WaterfallMode::Websocket(s) => {
             let (data, set_data) = signal(vec![]);
@@ -67,7 +70,8 @@ pub fn Waterfall(
             });
             data
         }
-    };
+    }
+    .into();
 
     let canvas_ref = NodeRef::<Canvas>::new();
     Effect::new(move || {
@@ -173,7 +177,7 @@ pub fn Waterfall(
                 shader,
                 texture_offset: 0,
             }));
-            start_render_loop(state, data, fft_size, min, max);
+            start_render_loop(state, data.clone(), fft_size, min, max);
         }
     });
 
@@ -182,7 +186,7 @@ pub fn Waterfall(
 
 fn start_render_loop(
     state: Rc<RefCell<RenderState>>,
-    data: ReadSignal<Vec<u8>>,
+    data: ArcReadSignal<Vec<u8>>,
     fft_size: usize,
     min: Signal<f32>,
     max: Signal<f32>,
@@ -205,7 +209,7 @@ fn start_render_loop(
                 return;
             }
 
-            last_fft_size = render_frame(&state, data, last_fft_size, min, max);
+            last_fft_size = render_frame(&state, &data, last_fft_size, min, max);
 
             if alive.load(Ordering::Relaxed) && !data.is_disposed() {
                 if let (Some(window), Some(callback)) =
@@ -226,7 +230,7 @@ fn start_render_loop(
 
 fn render_frame(
     state: &Rc<RefCell<RenderState>>,
-    data: ReadSignal<Vec<u8>>,
+    data: &ArcReadSignal<Vec<u8>>,
     last_fft_size: usize,
     min: Signal<f32>,
     max: Signal<f32>,
