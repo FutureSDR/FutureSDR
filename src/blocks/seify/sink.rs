@@ -248,18 +248,16 @@ where
                 if n >= len {
                     // send burst
                     let bufs: Vec<&[Complex32]> = bufs.iter().map(|b| &b[0..len]).collect();
-                    let ret = streamer.write(&bufs, None, true, 2_000_000)?;
-                    debug_assert_eq!(ret, len);
-                    ret
+                    streamer.write_all(&bufs, None, true, 2_000_000)?;
+                    len
                 } else if len > max_input_buffer_size_in_samples {
                     warn!(
                         "input buffers of seify sink too small ({} samples) to fit complete burst ({len} samples). sending in non-burst mode",
                         max_input_buffer_size_in_samples
                     );
                     let bufs: Vec<&[Complex32]> = bufs.iter().map(|b| &b[0..n]).collect();
-                    let ret = streamer.write(&bufs, None, true, 2_000_000)?;
-                    debug_assert_eq!(ret, n);
-                    ret
+                    streamer.write_all(&bufs, None, true, 2_000_000)?;
+                    n
                 } else {
                     // wait for more samples
                     0
