@@ -44,6 +44,8 @@ features = [
     'Element',
     'HtmlCanvasElement',
     'HtmlElement',
+    'HtmlInputElement',
+    'HtmlSelectElement',
     'WheelEvent',
     'ImageData',
     'WebGlBuffer',

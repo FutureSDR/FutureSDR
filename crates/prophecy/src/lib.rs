@@ -40,6 +40,9 @@ pub use pmt::PmtInputList;
 mod radio_selector;
 pub use radio_selector::RadioSelector;
 
+mod seify_source;
+pub use seify_source::SeifySource;
+
 mod slider;
 pub use slider::Slider;
 
