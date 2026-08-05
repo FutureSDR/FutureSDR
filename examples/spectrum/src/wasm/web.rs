@@ -2,22 +2,20 @@ use futuresdr::blocks::Apply;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::FftDirection;
 use futuresdr::blocks::MovingAvg;
-use futuresdr::blocks::wasm::HackRf;
+use futuresdr::blocks::seify::AsyncBuilder;
 use futuresdr::runtime::dev::prelude::*;
-use leptos::web_sys::HtmlInputElement;
+use futuresdr::seify::AsyncRegistry;
 use prophecy::FlowgraphCanvas;
 use prophecy::FlowgraphTable;
-use prophecy::ListSelector;
 use prophecy::PmtEditor;
+use prophecy::SeifySource;
 use prophecy::TimeSink;
 use prophecy::TimeSinkMode;
 use prophecy::Waterfall;
 use prophecy::WaterfallMode;
 use prophecy::leptos;
-use prophecy::leptos::html::Span;
 use prophecy::leptos::prelude::*;
 use prophecy::leptos::task::spawn_local;
-use prophecy::leptos::wasm_bindgen::JsCast;
 use prophecy::leptos::web_sys::KeyboardEvent;
 use wasm_bindgen_futures::js_sys;
 
@@ -32,83 +30,50 @@ struct MessageInputTarget {
 }
 
 #[component]
-fn HackRfControls(handle: prophecy::FlowgraphHandle, block_id: usize) -> impl IntoView {
+fn PowerScale(
+    min: ReadSignal<f32>,
+    set_min: WriteSignal<f32>,
+    max: ReadSignal<f32>,
+    set_max: WriteSignal<f32>,
+) -> impl IntoView {
     view! {
-        <div class="basis-1/3">
-            <span class="m-2 text-white">Frequency</span>
-            <ListSelector
-                fg_handle=handle.clone()
-                block_id=block_id
-                handler="freq"
-                values=[
-                    ("100 MHz".to_string(), Pmt::F64(100e6)),
-                    ("433 MHz".to_string(), Pmt::F64(433e6)),
-                    ("868 MHz".to_string(), Pmt::F64(868e6)),
-                    ("915 MHz".to_string(), Pmt::F64(915e6)),
-                    ("2.4 GHz".to_string(), Pmt::F64(2.4e9)),
-                ]
-            />
-        </div>
-        <div class="basis-1/3">
-            <span class="m-2 text-white">Amp</span>
-            <ListSelector
-                fg_handle=handle.clone()
-                block_id=block_id
-                handler="amp"
-                values=[
-                    ("Disable".to_string(), Pmt::Bool(false)),
-                    ("Enable".to_string(), Pmt::Bool(true)),
-                ]
-            />
-        </div>
-        <div class="basis-1/3">
-            <span class="m-2 text-white">LNA Gain</span>
-            <ListSelector
-                fg_handle=handle.clone()
-                block_id=block_id
-                handler="lna"
-                values=[
-                    ("0".to_string(), Pmt::U32(0)),
-                    ("8".to_string(), Pmt::U32(8)),
-                    ("16".to_string(), Pmt::U32(16)),
-                    ("24".to_string(), Pmt::U32(24)),
-                    ("32".to_string(), Pmt::U32(32)),
-                    ("40".to_string(), Pmt::U32(40)),
-                ]
-            />
-        </div>
-        <div class="basis-1/3">
-            <span class="m-2 text-white">VGA Gain</span>
-            <ListSelector
-                fg_handle=handle.clone()
-                block_id=block_id
-                handler="vga"
-                values=[
-                    ("0".to_string(), Pmt::U32(0)),
-                    ("8".to_string(), Pmt::U32(8)),
-                    ("16".to_string(), Pmt::U32(16)),
-                    ("24".to_string(), Pmt::U32(24)),
-                    ("32".to_string(), Pmt::U32(32)),
-                    ("40".to_string(), Pmt::U32(40)),
-                    ("48".to_string(), Pmt::U32(48)),
-                    ("56".to_string(), Pmt::U32(56)),
-                ]
-            />
-        </div>
-        <div class="basis-1/3">
-            <span class="m-2 text-white">Sample Rate</span>
-            <ListSelector
-                fg_handle=handle
-                block_id=block_id
-                handler="sample_rate"
-                values=[
-                    ("2 MHz".to_string(), Pmt::F64(2e6)),
-                    ("4 MHz".to_string(), Pmt::F64(4e6)),
-                    ("8 MHz".to_string(), Pmt::F64(8e6)),
-                    ("16 MHz".to_string(), Pmt::F64(16e6)),
-                    ("20 MHz".to_string(), Pmt::F64(20e6)),
-                ]
-            />
+        <div class="basis-full grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div class="rounded border border-slate-700 bg-slate-900 p-3">
+                <label class="mb-2 block text-sm text-slate-300">"Minimum Power"</label>
+                <input
+                    type="range"
+                    min="-100"
+                    max="50"
+                    prop:value=move || min.get()
+                    class="w-full align-middle"
+                    on:input=move |event| {
+                        if let Ok(value) = event_target_value(&event).parse() {
+                            set_min(value);
+                        }
+                    }
+                />
+                <div class="mt-1 text-sm text-white">
+                    {move || format!("{} dB", min.get())}
+                </div>
+            </div>
+            <div class="rounded border border-slate-700 bg-slate-900 p-3">
+                <label class="mb-2 block text-sm text-slate-300">"Maximum Power"</label>
+                <input
+                    type="range"
+                    min="-40"
+                    max="100"
+                    prop:value=move || max.get()
+                    class="w-full align-middle"
+                    on:input=move |event| {
+                        if let Ok(value) = event_target_value(&event).parse() {
+                            set_max(value);
+                        }
+                    }
+                />
+                <div class="mt-1 text-sm text-white">
+                    {move || format!("{} dB", max.get())}
+                </div>
+            </div>
         </div>
     }
 }
@@ -119,7 +84,7 @@ pub fn Spectrum(
     handle: prophecy::FlowgraphHandle,
     time_data: ReadSignal<Vec<u8>>,
     waterfall_data: ReadSignal<Vec<u8>>,
-    hackrf_block_id: Option<usize>,
+    seify_block_id: Option<usize>,
 ) -> impl IntoView {
     let fg_desc = LocalResource::new({
         let handle = handle.clone();
@@ -136,11 +101,6 @@ pub fn Spectrum(
 
     let (min, set_min) = signal(-40.0f32);
     let (max, set_max) = signal(20.0f32);
-
-    let min_label = NodeRef::<Span>::new();
-    let max_label = NodeRef::<Span>::new();
-
-    let handle_store = StoredValue::new_local(handle.clone());
 
     let (ctrl, set_ctrl) = signal(true);
     let ctrl_click = move |_| {
@@ -194,61 +154,15 @@ pub fn Spectrum(
     view! {
         <div class="text-white">
             <button class="p-2 m-4 rounded bg-slate-600 hover:bg-slate-800" on:click=ctrl_click>
-                Show/Hide Controlls
+                Show/Hide Controls
             </button>
         </div>
         <Show when=ctrl>
-            <div class="flex flex-row flex-wrap p-4 m-4 border-2 rounded-md border-slate-500 gap-y-4">
-                <div class="basis-1/3">
-                    <input
-                        type="range"
-                        min="-100"
-                        max="50"
-                        value="-40"
-                        class="align-middle"
-                        on:change=move |v| {
-                            let target = v.target().unwrap();
-                            let input: HtmlInputElement = target.dyn_into().unwrap();
-                            min_label
-                                .get()
-                                .unwrap()
-                                .set_inner_text(&format!("min: {} dB", input.value()));
-                            set_min(input.value().parse().unwrap());
-                        }
-                    />
-                    <span class="p-2 m-2 text-white" node_ref=min_label>
-                        "min: -40 dB"
-                    </span>
-                </div>
-                <div class="basis-1/3">
-                    <input
-                        type="range"
-                        min="-40"
-                        max="100"
-                        value="20"
-                        class="align-middle"
-                        on:change=move |v| {
-                            let target = v.target().unwrap();
-                            let input: HtmlInputElement = target.dyn_into().unwrap();
-                            max_label
-                                .get()
-                                .unwrap()
-                                .set_inner_text(&format!("max: {} dB", input.value()));
-                            set_max(input.value().parse().unwrap());
-                        }
-                    />
-                    <span class="p-2 m-2 text-white" node_ref=max_label>
-                        "max: 20 dB"
-                    </span>
-                </div>
-                {move || {
-                    hackrf_block_id
-                        .map(|block_id| {
-                            view! { <HackRfControls handle=handle_store.get_value() block_id=block_id /> }
-                                .into_any()
-                        })
-                        .unwrap_or(().into_any())
-                }}
+            <div class="flex flex-row flex-wrap gap-4 p-4 m-4 border-2 rounded-md border-slate-500">
+                <PowerScale min=min set_min=set_min max=max set_max=set_max />
+                {seify_block_id.map(|block_id| {
+                    view! { <SeifySource fg_handle=handle.clone() block_id=block_id /> }
+                })}
             </div>
         </Show>
         <div
@@ -349,7 +263,7 @@ pub fn Gui() -> impl IntoView {
     let (handle, set_handle) = signal_local(None);
     let (time_data, set_time_data) = signal(vec![]);
     let (waterfall_data, set_waterfall_data) = signal(vec![]);
-    let (hackrf_block_id, set_hackrf_block_id) = signal(None::<usize>);
+    let (seify_block_id, set_seify_block_id) = signal(None::<usize>);
     let (start_error, set_start_error) = signal(None::<String>);
 
     view! {
@@ -363,7 +277,7 @@ pub fn Gui() -> impl IntoView {
                             handle=handle
                             time_data=time_data
                             waterfall_data=waterfall_data
-                            hackrf_block_id=hackrf_block_id()
+                            seify_block_id=seify_block_id()
                         />
                     }
                         .into_any()
@@ -375,14 +289,14 @@ pub fn Gui() -> impl IntoView {
                                 class="p-2 rounded bg-slate-600 hover:bg-slate-700"
                                 on:click=move |_| {
                                     set_start_error(None);
-                                    set_hackrf_block_id(None);
+                                    set_seify_block_id(None);
                                     spawn_local({
                                         async move {
                                             if let Err(e) = run(
                                                 set_handle,
                                                 set_time_data,
                                                 set_waterfall_data,
-                                                set_hackrf_block_id,
+                                                set_seify_block_id,
                                             )
                                             .await
                                             {
@@ -479,17 +393,39 @@ async fn run(
     set_handle: WriteSignal<Option<FlowgraphHandle>, LocalStorage>,
     set_time_data: WriteSignal<Vec<u8>>,
     set_waterfall_data: WriteSignal<Vec<u8>>,
-    set_hackrf_block_id: WriteSignal<Option<usize>>,
+    set_seify_block_id: WriteSignal<Option<usize>>,
 ) -> Result<()> {
-    HackRf::request_permission().await?;
+    AsyncRegistry::default()
+        .request_permission("")
+        .await
+        .map_err(|error| {
+            futuresdr::runtime::Error::RuntimeError(format!(
+                "requesting WebUSB permission for async Seify device: {error}"
+            ))
+        })?;
 
     let mut fg = Flowgraph::new();
 
     let local = fg.local_domain()?;
-    let hackrf_block_id = fg
+    let seify_block_id = fg
         .with_local_domain_async(local, async move |ctx: &LocalDomainContext<'_>| {
-            let src = ctx.add(HackRf::new());
-            let hackrf_block_id = src.id().0;
+            let src = AsyncBuilder::new("")
+                .await
+                .map_err(|error| {
+                    futuresdr::runtime::Error::RuntimeError(format!(
+                        "opening async Seify device: {error}"
+                    ))
+                })?
+                .frequency(100e6)
+                .sample_rate(10e6)
+                .build_source_in(ctx)
+                .await
+                .map_err(|error| {
+                    futuresdr::runtime::Error::RuntimeError(format!(
+                        "configuring async Seify source: {error}"
+                    ))
+                })?;
+            let seify_block_id = src.id().0;
             let fft = ctx.add(Fft::with_options(
                 FFT_SIZE,
                 FftDirection::Forward,
@@ -500,15 +436,17 @@ async fn run(
             let keep = ctx.add(MovingAvg::<FFT_SIZE>::new(0.1, 3));
             let snk = ctx.add(Sink::new(set_time_data, set_waterfall_data));
 
-            connect_async!(ctx, src ~> fft ~> mag_sqr ~> keep ~> snk);
+            connect_async!(ctx, src.outputs[0] ~> fft ~> mag_sqr ~> keep ~> snk);
 
-            Ok(hackrf_block_id)
+            Ok(seify_block_id)
         })
         .await?;
-    let _ = set_hackrf_block_id.try_set(Some(hackrf_block_id));
+    let _ = set_seify_block_id.try_set(Some(seify_block_id));
 
     let rt = Runtime::new();
-    let running = rt.start_async(fg).await?;
+    let running = rt.start_async(fg).await.map_err(|error| {
+        futuresdr::runtime::Error::RuntimeError(format!("initializing async Seify source: {error}"))
+    })?;
     let _ = set_handle.try_set(Some(running.handle()));
 
     let _ = running.wait_async().await;
