@@ -12,7 +12,7 @@ path = "src/bin/futuresdr_app.rs"
 
 [dependencies]
 anyhow = "1.0"
-futuresdr = { path = "../..", default-features = false }
+futuresdr = { path = "../..", default-features = false, features = ["hackrf"] }
 zigbee = { path = "../zigbee", default-features = false }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

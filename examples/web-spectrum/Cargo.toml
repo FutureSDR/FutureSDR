@@ -17,7 +17,7 @@ path = "src/main.rs"
 anyhow = "1.0"
 bytemuck = { version = "1.25", features = ["derive"] }
 console_error_panic_hook = "0.1"
-futuresdr = { path = "../..", default-features = false, features = ["wgpu"] }
+futuresdr = { path = "../..", default-features = false, features = ["hackrf", "hydrasdr", "wgpu"] }
 leptos = { version = "0.8", features = ["csr", "nightly"] }
 prophecy = { path = "../../crates/prophecy" }
 wasm-bindgen-futures = "0.4"

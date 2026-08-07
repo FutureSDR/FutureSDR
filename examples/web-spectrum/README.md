@@ -1,11 +1,12 @@
 # FutureSDR WebGPU Spectrum
 
-This browser-only example receives IQ samples from a HackRF through WebUSB and
-computes a 32-frame, 2048-bin spectrum directly with WGPU/WGSL. The GPU emits
+This browser-only example receives IQ samples from a HackRF or HydraSDR through
+Seify's async WebUSB backend and computes a 32-frame, 2048-bin spectrum directly
+with WGPU/WGSL. The GPU emits
 linear mean power; the Prophecy spectrum and waterfall shaders convert it to dB
 while rendering.
 
-The HackRF source and WebGPU spectrum block run in separate Web Workers. The
+The async Seify source and WebGPU spectrum block run in separate Web Workers. The
 GUI sink and the default WASM scheduler remain on the browser main thread.
 
 WebGPU and WebUSB require a supported browser and a secure context (`localhost`

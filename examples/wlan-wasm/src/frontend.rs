@@ -4,7 +4,9 @@ use futuresdr::blocks::Combine;
 use futuresdr::blocks::Delay;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::StreamDuplicator;
-use futuresdr::blocks::wasm::HackRf;
+use futuresdr::blocks::seify::AsyncBuilder;
+use futuresdr::blocks::seify::AsyncSource;
+use futuresdr::blocks::seify::SourceCapabilities;
 use futuresdr::prelude::*;
 use futuresdr::runtime::channel::mpsc;
 use futuresdr::runtime::dev::BlockMeta;
@@ -12,6 +14,9 @@ use futuresdr::runtime::dev::MessageOutputs;
 use futuresdr::runtime::dev::WorkIo;
 use futuresdr::runtime::macros::Block;
 use futuresdr::runtime::scheduler::WasmScheduler;
+use futuresdr::seify::AsyncRegistry;
+use futuresdr::seify::DynAsyncDevice;
+use futuresdr::seify::RangeItem;
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -31,6 +36,7 @@ use wlan::SyncShort;
 const DEFAULT_CHANNEL: &str = "11";
 const DEFAULT_FREQUENCY: f64 = 2_462_000_000.0;
 const DEFAULT_SAMPLE_RATE: f64 = 20_000_000.0;
+const DEFAULT_GAIN: f64 = 70.0;
 const DC_OFFSET_CORRECTION: bool = true;
 const DC_OFFSET_WARMUP_SAMPLES: usize = 1_000_000;
 const STREAM_BUFFER_SIZE: usize = 512 * 1024;
@@ -124,10 +130,15 @@ struct Receiver {
 struct ReceiverConfig {
     frequency: f64,
     sample_rate: f64,
-    lna_gain: u16,
-    vga_gain: u16,
-    amp: bool,
+    gain: f64,
     dc_offset: bool,
+}
+
+#[derive(Clone, Copy)]
+struct GainRange {
+    min: f64,
+    max: f64,
+    step: f64,
 }
 
 #[derive(Block)]
@@ -182,9 +193,8 @@ pub fn Gui() -> impl IntoView {
     let (frames, set_frames) = signal(VecDeque::<Frame>::new());
     let (control, set_control) = signal(None::<RunControl>);
     let (frequency, set_frequency) = signal(DEFAULT_FREQUENCY);
-    let (lna_gain, set_lna_gain) = signal(32u16);
-    let (vga_gain, set_vga_gain) = signal(24u16);
-    let (amp, set_amp) = signal(true);
+    let (gain, set_gain) = signal(DEFAULT_GAIN);
+    let (gain_range, set_gain_range) = signal(None::<GainRange>);
     let receiver_store = Shared::<Receiver>::default();
 
     let start = move |_| {
@@ -195,19 +205,19 @@ pub fn Gui() -> impl IntoView {
         let config = ReceiverConfig {
             frequency: frequency.get_untracked(),
             sample_rate: DEFAULT_SAMPLE_RATE,
-            lna_gain: lna_gain.get_untracked(),
-            vga_gain: vga_gain.get_untracked(),
-            amp: amp.get_untracked(),
+            gain: gain.get_untracked(),
             dc_offset: DC_OFFSET_CORRECTION,
         };
 
         set_running.set(true);
         set_status.set("requesting HackRF permission".to_string());
         set_frames.set(VecDeque::new());
+        set_gain_range.set(None);
         let receiver_store = receiver_store.clone();
 
         spawn_local(async move {
-            match start_receiver(config, set_status, set_frames, set_control).await {
+            match start_receiver(config, set_status, set_frames, set_control, set_gain_range).await
+            {
                 Ok(receiver) => {
                     set_status.set("running".to_string());
                     if let Ok(mut stored) = receiver_store.lock() {
@@ -232,7 +242,7 @@ pub fn Gui() -> impl IntoView {
             <header class="bg-slate-800 border-b border-slate-700 shadow-lg">
                 <div class="flex items-center gap-3 px-4 py-3">
                     <div class="text-white font-semibold tracking-tight text-base">"FutureSDR WLAN RX"</div>
-                    <div class="text-xs text-slate-400">"HackRF local domain + 4 WASM scheduler workers, 20 MHz, DC correction"</div>
+                    <div class="text-xs text-slate-400">"HackRF via async Seify + 4 WASM scheduler workers, 20 MHz, DC correction"</div>
                 </div>
             </header>
 
@@ -243,7 +253,7 @@ pub fn Gui() -> impl IntoView {
                         <span class="text-sm text-slate-300">{move || status.get()}</span>
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-4 items-end">
+                    <div class="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-4 items-end">
                         <label class="block">
                             <span class="text-slate-300 text-sm">"WLAN Channel"</span>
                             <select
@@ -272,57 +282,23 @@ pub fn Gui() -> impl IntoView {
                         </label>
 
                         <label class="block">
-                            <span class="text-slate-300 text-sm">"LNA Gain: " {move || lna_gain.get()} " dB"</span>
+                            <span class="text-slate-300 text-sm">"Gain: " {move || gain.get()} " dB"</span>
                             <input
                                 class="mt-2 w-full accent-cyan-400"
                                 type="range"
-                                min="0"
-                                max="40"
-                                step="8"
-                                value="32"
+                                min=move || gain_range.get().map(|range| range.min)
+                                max=move || gain_range.get().map(|range| range.max)
+                                step=move || gain_range.get().map(|range| range.step)
+                                value=DEFAULT_GAIN
+                                disabled=move || gain_range.get().is_none() || control.get().is_none()
                                 on:input=move |ev| {
                                     let input: HtmlInputElement = ev.target().unwrap().dyn_into().unwrap();
-                                    let gain = input.value().parse::<u16>().unwrap_or(32);
-                                    futuresdr::tracing::info!("GUI LNA gain changed to {gain} dB");
-                                    set_lna_gain.set(gain);
-                                    post_source(control, "lna", Pmt::U32(gain.into()));
+                                    let value = input.value().parse::<f64>().unwrap_or(DEFAULT_GAIN);
+                                    futuresdr::tracing::info!("GUI gain changed to {value} dB");
+                                    set_gain.set(value);
+                                    post_source(control, "gain", Pmt::F64(value));
                                 }
                             />
-                        </label>
-
-                        <label class="block">
-                            <span class="text-slate-300 text-sm">"VGA Gain: " {move || vga_gain.get()} " dB"</span>
-                            <input
-                                class="mt-2 w-full accent-cyan-400"
-                                type="range"
-                                min="0"
-                                max="62"
-                                step="2"
-                                value="24"
-                                on:input=move |ev| {
-                                    let input: HtmlInputElement = ev.target().unwrap().dyn_into().unwrap();
-                                    let gain = input.value().parse::<u16>().unwrap_or(24);
-                                    futuresdr::tracing::info!("GUI VGA gain changed to {gain} dB");
-                                    set_vga_gain.set(gain);
-                                    post_source(control, "vga", Pmt::U32(gain.into()));
-                                }
-                            />
-                        </label>
-
-                        <label class="inline-flex items-center gap-2 text-sm text-slate-300">
-                            <input
-                                class="accent-cyan-400"
-                                type="checkbox"
-                                checked=true
-                                on:change=move |ev| {
-                                    let input: HtmlInputElement = ev.target().unwrap().dyn_into().unwrap();
-                                    let enabled = input.checked();
-                                    futuresdr::tracing::info!("GUI RF amp changed to {enabled}");
-                                    set_amp.set(enabled);
-                                    post_source(control, "amp", Pmt::Bool(enabled));
-                                }
-                            />
-                            "RF Amp"
                         </label>
 
                         <label class="inline-flex items-center gap-2 text-sm text-slate-300">
@@ -387,15 +363,16 @@ async fn start_receiver(
     set_status: WriteSignal<String>,
     set_frames: WriteSignal<VecDeque<Frame>>,
     set_control: WriteSignal<Option<RunControl>>,
+    set_gain_range: WriteSignal<Option<GainRange>>,
 ) -> anyhow::Result<Receiver> {
-    HackRf::request_permission().await?;
+    AsyncRegistry::default()
+        .request_permission("driver=hackrf")
+        .await?;
     futuresdr::tracing::info!(
-        "starting WLAN WASM RX: frequency {} Hz, sample rate {} Hz, LNA {} dB, VGA {} dB, amp {}, dc_offset {}",
+        "starting WLAN WASM RX: frequency {} Hz, sample rate {} Hz, gain {} dB, dc_offset {}",
         config.frequency,
         config.sample_rate,
-        config.lna_gain,
-        config.vga_gain,
-        config.amp,
+        config.gain,
         config.dc_offset
     );
     set_status.set("starting flowgraph".to_string());
@@ -416,23 +393,41 @@ async fn start_receiver(
         let result = async move {
             let src = fg
                 .with_local_domain_async(local, async move |ctx: &LocalDomainContext<'_>| {
-                    Ok(ctx.add(
-                        HackRf::new()
-                            .frequency(config.frequency as u64)
-                            .sample_rate(config.sample_rate)
-                            .lna_gain(config.lna_gain)
-                            .vga_gain(config.vga_gain)
-                            .amp_enable(config.amp),
-                    ))
+                    AsyncBuilder::new("driver=hackrf")
+                        .await?
+                        .frequency(config.frequency)
+                        .sample_rate(config.sample_rate)
+                        .gain(config.gain)
+                        .build_source_in(ctx)
+                        .await
                 })
                 .await?;
             let source = src.id();
             build_rx_flowgraph(&mut fg, src, frames_for_pipe, config.dc_offset).await?;
             futuresdr::tracing::debug!("starting WLAN WASM flowgraph");
             let running = rt_handle.start(fg).await?;
-            set_control.set(Some(RunControl {
-                source: running.handle().block(source),
-            }));
+            let source = running.handle().block(source);
+            match source.call("capabilities", Pmt::U64(0)).await {
+                Ok(capabilities) => match SourceCapabilities::try_from(capabilities)
+                    .map_err(|error| error.to_string())
+                    .and_then(gain_range_from_capabilities)
+                {
+                    Ok(range) => set_gain_range.set(Some(range)),
+                    Err(error) => {
+                        futuresdr::tracing::warn!(
+                            "failed to configure gain control from HackRF capabilities: {error}"
+                        );
+                        set_status.set(format!("running (gain control unavailable: {error})"));
+                    }
+                },
+                Err(error) => {
+                    futuresdr::tracing::warn!(
+                        "failed to query HackRF source capabilities: {error}"
+                    );
+                    set_status.set(format!("running (gain control unavailable: {error})"));
+                }
+            }
+            set_control.set(Some(RunControl { source }));
             futuresdr::tracing::debug!("WLAN receiver control handle installed");
             futuresdr::tracing::debug!("WLAN WASM flowgraph started; detaching runtime task");
             drop(running);
@@ -450,9 +445,29 @@ async fn start_receiver(
     Ok(Receiver { _runtime: rt })
 }
 
+fn gain_range_from_capabilities(
+    capabilities: SourceCapabilities,
+) -> std::result::Result<GainRange, String> {
+    let range = capabilities
+        .gain
+        .ok_or_else(|| "source exposes no overall gain range".to_string())?;
+    let [RangeItem::Step(min, max, step)] = range.items.as_slice() else {
+        return Err("source gain range is not one stepped interval".to_string());
+    };
+    if !min.is_finite() || !max.is_finite() || !step.is_finite() || max < min || *step <= 0.0 {
+        return Err("source gain range has invalid bounds or step".to_string());
+    }
+
+    Ok(GainRange {
+        min: *min,
+        max: *max,
+        step: *step,
+    })
+}
+
 async fn build_rx_flowgraph(
     fg: &mut Flowgraph,
-    src: BlockRef<HackRf>,
+    src: BlockRef<AsyncSource<DynAsyncDevice>>,
     frames: FrameSender,
     dc_offset: bool,
 ) -> Result<()> {
@@ -466,10 +481,10 @@ async fn build_rx_flowgraph(
             Complex32::new(c.re - avg_real, c.im - avg_img)
         });
 
-        connect_async!(fg, src > dc);
+        connect_async!(fg, src.outputs[0] > dc);
         (dc.into(), "output")
     } else {
-        (src.into(), "output")
+        (src.into(), "outputs[0]")
     };
 
     // Drop the initial samples while the simple IIR DC-offset correction

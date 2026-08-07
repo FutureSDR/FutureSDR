@@ -1,11 +1,12 @@
 use bytemuck::cast_slice;
-use futuresdr::blocks::wasm::HackRf;
+use futuresdr::blocks::seify::AsyncBuilder;
 use futuresdr::runtime::dev::prelude::*;
+use futuresdr::seify::AsyncRegistry;
 use leptos::web_sys::HtmlInputElement;
 use prophecy::FlowgraphCanvas;
 use prophecy::FlowgraphTable;
-use prophecy::ListSelector;
 use prophecy::PmtEditor;
+use prophecy::SeifySource;
 use prophecy::TimeSink;
 use prophecy::TimeSinkMode;
 use prophecy::Waterfall;
@@ -30,95 +31,12 @@ struct MessageInputTarget {
 }
 
 #[component]
-fn HackRfControls(handle: prophecy::FlowgraphHandle, block_id: usize) -> impl IntoView {
-    view! {
-        <div class="basis-1/3">
-            <span class="m-2 text-white">Frequency</span>
-            <ListSelector
-                fg_handle=handle.clone()
-                block_id=block_id
-                handler="freq"
-                values=[
-                    ("100 MHz".to_string(), Pmt::F64(100e6)),
-                    ("433 MHz".to_string(), Pmt::F64(433e6)),
-                    ("810 MHz".to_string(), Pmt::F64(810e6)),
-                    ("868 MHz".to_string(), Pmt::F64(868e6)),
-                    ("915 MHz".to_string(), Pmt::F64(915e6)),
-                    ("2.4 GHz".to_string(), Pmt::F64(2.4e9)),
-                ]
-            />
-        </div>
-        <div class="basis-1/3">
-            <span class="m-2 text-white">Amp</span>
-            <ListSelector
-                fg_handle=handle.clone()
-                block_id=block_id
-                handler="amp"
-                values=[
-                    ("Disable".to_string(), Pmt::Bool(false)),
-                    ("Enable".to_string(), Pmt::Bool(true)),
-                ]
-            />
-        </div>
-        <div class="basis-1/3">
-            <span class="m-2 text-white">LNA Gain</span>
-            <ListSelector
-                fg_handle=handle.clone()
-                block_id=block_id
-                handler="lna"
-                values=[
-                    ("0".to_string(), Pmt::U32(0)),
-                    ("8".to_string(), Pmt::U32(8)),
-                    ("16".to_string(), Pmt::U32(16)),
-                    ("24".to_string(), Pmt::U32(24)),
-                    ("32".to_string(), Pmt::U32(32)),
-                    ("40".to_string(), Pmt::U32(40)),
-                ]
-            />
-        </div>
-        <div class="basis-1/3">
-            <span class="m-2 text-white">VGA Gain</span>
-            <ListSelector
-                fg_handle=handle.clone()
-                block_id=block_id
-                handler="vga"
-                values=[
-                    ("0".to_string(), Pmt::U32(0)),
-                    ("8".to_string(), Pmt::U32(8)),
-                    ("16".to_string(), Pmt::U32(16)),
-                    ("24".to_string(), Pmt::U32(24)),
-                    ("32".to_string(), Pmt::U32(32)),
-                    ("40".to_string(), Pmt::U32(40)),
-                    ("48".to_string(), Pmt::U32(48)),
-                    ("56".to_string(), Pmt::U32(56)),
-                ]
-            />
-        </div>
-        <div class="basis-1/3">
-            <span class="m-2 text-white">Sample Rate</span>
-            <ListSelector
-                fg_handle=handle
-                block_id=block_id
-                handler="sample_rate"
-                values=[
-                    ("2 MHz".to_string(), Pmt::F64(2e6)),
-                    ("4 MHz".to_string(), Pmt::F64(4e6)),
-                    ("8 MHz".to_string(), Pmt::F64(8e6)),
-                    ("16 MHz".to_string(), Pmt::F64(16e6)),
-                    ("20 MHz".to_string(), Pmt::F64(20e6)),
-                ]
-            />
-        </div>
-    }
-}
-
-#[component]
 /// Spectrum Widget
 pub fn Spectrum(
     handle: prophecy::FlowgraphHandle,
     time_data: ReadSignal<Vec<u8>>,
     waterfall_data: ReadSignal<Vec<u8>>,
-    hackrf_block_id: Option<usize>,
+    seify_block_id: Option<usize>,
 ) -> impl IntoView {
     let fg_desc = LocalResource::new({
         let handle = handle.clone();
@@ -241,11 +159,8 @@ pub fn Spectrum(
                     </span>
                 </div>
                 {move || {
-                    hackrf_block_id
-                        .map(|block_id| {
-                            view! { <HackRfControls handle=handle_store.get_value() block_id=block_id /> }
-                                .into_any()
-                        })
+                    seify_block_id
+                        .map(|block_id| view! { <SeifySource fg_handle=handle_store.get_value() block_id=block_id /> }.into_any())
                         .unwrap_or(().into_any())
                 }}
             </div>
@@ -348,7 +263,7 @@ pub fn Gui() -> impl IntoView {
     let (handle, set_handle) = signal_local(None);
     let (time_data, set_time_data) = signal(vec![]);
     let (waterfall_data, set_waterfall_data) = signal(vec![]);
-    let (hackrf_block_id, set_hackrf_block_id) = signal(None::<usize>);
+    let (seify_block_id, set_seify_block_id) = signal(None::<usize>);
     let (start_error, set_start_error) = signal(None::<String>);
 
     view! {
@@ -362,7 +277,7 @@ pub fn Gui() -> impl IntoView {
                             handle=handle
                             time_data=time_data
                             waterfall_data=waterfall_data
-                            hackrf_block_id=hackrf_block_id()
+                            seify_block_id=seify_block_id()
                         />
                     }
                         .into_any()
@@ -374,14 +289,14 @@ pub fn Gui() -> impl IntoView {
                                 class="p-2 rounded bg-slate-600 hover:bg-slate-700"
                                 on:click=move |_| {
                                     set_start_error(None);
-                                    set_hackrf_block_id(None);
+                                    set_seify_block_id(None);
                                     spawn_local({
                                         async move {
                                             if let Err(e) = run(
                                                 set_handle,
                                                 set_time_data,
                                                 set_waterfall_data,
-                                                set_hackrf_block_id,
+                                                set_seify_block_id,
                                             )
                                             .await
                                             {
@@ -473,18 +388,23 @@ async fn run(
     set_handle: WriteSignal<Option<FlowgraphHandle>, LocalStorage>,
     set_time_data: WriteSignal<Vec<u8>>,
     set_waterfall_data: WriteSignal<Vec<u8>>,
-    set_hackrf_block_id: WriteSignal<Option<usize>>,
+    set_seify_block_id: WriteSignal<Option<usize>>,
 ) -> Result<()> {
-    HackRf::request_permission().await?;
+    AsyncRegistry::default().request_permission("").await?;
 
     let mut fg = Flowgraph::new();
-    let hackrf_domain = fg.local_domain()?;
+    let seify_domain = fg.local_domain()?;
     let src = fg
-        .with_local_domain_async(hackrf_domain, async move |ctx: &LocalDomainContext<'_>| {
-            Ok(ctx.add(HackRf::new()))
+        .with_local_domain_async(seify_domain, async move |ctx: &LocalDomainContext<'_>| {
+            AsyncBuilder::new("")
+                .await?
+                .frequency(100_000_000.0)
+                .sample_rate(10_000_000.0)
+                .build_source_in(ctx)
+                .await
         })
         .await?;
-    let hackrf_block_id = src.id().0;
+    let seify_block_id = src.id().0;
 
     let wgpu_domain = fg.local_domain()?;
     let spectrum = fg
@@ -501,8 +421,8 @@ async fn run(
         .await?;
 
     // Slab connection tokens link the three execution domains.
-    connect_async!(fg, src > spectrum > snk);
-    let _ = set_hackrf_block_id.try_set(Some(hackrf_block_id));
+    connect_async!(fg, src.outputs[0] > spectrum > snk);
+    let _ = set_seify_block_id.try_set(Some(seify_block_id));
 
     let rt = Runtime::new();
     let running = rt.start_async(fg).await?;

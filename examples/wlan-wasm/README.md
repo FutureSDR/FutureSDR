@@ -1,7 +1,8 @@
 # Wi-Fi WASM Receiver
 
-This crate is the browser/WASM WLAN receiver. It uses the WebUSB HackRF source,
-WASM scheduler workers, and the WLAN PHY blocks in this example crate.
+This crate is the browser/WASM WLAN receiver. It uses the asynchronous Seify
+WebUSB source with the HackRF backend, WASM scheduler workers, and the WLAN PHY
+blocks in this example crate.
 
 ## Running
 

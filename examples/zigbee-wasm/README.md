@@ -1,6 +1,6 @@
 # ZigBee WASM Receiver
 
-Browser-based ZigBee receiver for HackRF/WebUSB. The signal-processing blocks live in `../zigbee`; this crate only contains the WASM UI and flowgraph wiring.
+Browser-based ZigBee receiver using Seify's async HackRF/WebUSB backend. The signal-processing blocks live in `../zigbee`; this crate only contains the WASM UI and flowgraph wiring.
 
 Build and serve with Trunk. The `.cargo/config.toml` enables the WASM atomics/shared-memory settings and `Trunk.toml` serves the required COOP/COEP headers:
 

@@ -2,13 +2,14 @@ use any_spawner::Executor;
 use anyhow::Result;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::NullSink;
-use futuresdr::blocks::wasm::HackRf;
+use futuresdr::blocks::seify::AsyncBuilder;
 use futuresdr::prelude::*;
 use futuresdr::runtime::dev::BlockMeta;
 use futuresdr::runtime::dev::MessageOutputs;
 use futuresdr::runtime::dev::WorkIo;
 use futuresdr::runtime::macros::Block;
 use futuresdr::runtime::scheduler::WasmScheduler;
+use futuresdr::seify::AsyncRegistry;
 use futuresdr::tracing::info;
 use leptos::html::Input;
 use leptos::html::Select;
@@ -26,6 +27,7 @@ use zigbee::Mac;
 const FRAME_QUEUE_LIMIT: usize = 100;
 const DISPLAY_FRAME_LIMIT: usize = 20;
 const DEFAULT_CHANNEL: &str = "26";
+const DEFAULT_GAIN: f64 = 48.0;
 const ZIGBEE_CHANNELS: &[(&str, u64)] = &[
     ("11", 2_405_000_000),
     ("12", 2_410_000_000),
@@ -228,34 +230,20 @@ fn Gui() -> impl IntoView {
 
 #[component]
 fn GainControls(control: ReadSignal<Option<RunControl>>) -> impl IntoView {
-    let (lna_gain, set_lna_gain) = signal(32u16);
-    let (vga_gain, set_vga_gain) = signal(2u16);
-    let lna_ref = NodeRef::<Input>::new();
-    let vga_ref = NodeRef::<Input>::new();
-    let set_lna = move |_| {
-        let input = lna_ref.get().unwrap();
-        let gain: u16 = input.value().parse().unwrap();
-        set_lna_gain.set(gain);
-        post_source(control, "lna", Pmt::U64(gain as u64));
-    };
-    let set_vga = move |_| {
-        let input = vga_ref.get().unwrap();
-        let gain: u16 = input.value().parse().unwrap();
-        set_vga_gain.set(gain);
-        post_source(control, "vga", Pmt::U64(gain as u64));
+    let (gain, set_gain) = signal(DEFAULT_GAIN);
+    let gain_ref = NodeRef::<Input>::new();
+    let change = move |_| {
+        let input = gain_ref.get().unwrap();
+        let value: f64 = input.value().parse().unwrap_or(DEFAULT_GAIN);
+        set_gain.set(value);
+        post_source(control, "gain", Pmt::F64(value));
     };
 
     view! {
-        <>
-            <label class="block rounded-lg bg-slate-900 border border-slate-700 p-4 h-full">
-                <span class="text-slate-300 text-sm">"LNA Gain: " {move || lna_gain.get()} " dB"</span>
-                <input class="mt-2 w-full accent-cyan-400" type="range" min="0" max="40" step="8" value="32" node_ref=lna_ref on:change=set_lna/>
-            </label>
-            <label class="block rounded-lg bg-slate-900 border border-slate-700 p-4 h-full">
-                <span class="text-slate-300 text-sm">"VGA Gain: " {move || vga_gain.get()} " dB"</span>
-                <input class="mt-2 w-full accent-cyan-400" type="range" min="0" max="62" step="2" value="2" node_ref=vga_ref on:change=set_vga/>
-            </label>
-        </>
+        <label class="block rounded-lg bg-slate-900 border border-slate-700 p-4 h-full">
+            <span class="text-slate-300 text-sm">"Gain: " {move || gain.get()} " dB"</span>
+            <input class="mt-2 w-full accent-cyan-400" type="range" min="0" max="116" step="2" value=DEFAULT_GAIN node_ref=gain_ref on:change=change/>
+        </label>
     }
 }
 
@@ -291,7 +279,9 @@ async fn start_receiver(
     set_control: WriteSignal<Option<RunControl>>,
     set_status: WriteSignal<String>,
 ) -> Result<Receiver> {
-    HackRf::request_permission().await?;
+    AsyncRegistry::default()
+        .request_permission("driver=hackrf")
+        .await?;
     set_status.set("starting flowgraph".to_string());
 
     let rt = Runtime::with_scheduler(WasmScheduler::new(2));
@@ -303,7 +293,13 @@ async fn start_receiver(
     let local = fg.local_domain()?;
     let src = fg
         .with_local_domain_async(local, async |ctx: &LocalDomainContext<'_>| {
-            Ok(ctx.add(HackRf::new()))
+            AsyncBuilder::new("driver=hackrf")
+                .await?
+                .frequency(2_480_000_000.0)
+                .sample_rate(4_000_000.0)
+                .gain(DEFAULT_GAIN)
+                .build_source_in(ctx)
+                .await
         })
         .await?;
     let source = src.id();
@@ -326,7 +322,7 @@ async fn start_receiver(
             let snk = NullSink::<u8>::new();
             let frame_pipe = FramePipe::new(frames_for_pipe);
 
-            connect_async!(fg, src > avg > mm > decoder;
+            connect_async!(fg, src.outputs[0] > avg > mm > decoder;
                          mac > snk;
                          decoder | rx.mac;
                          mac.rxed | frame_pipe);
