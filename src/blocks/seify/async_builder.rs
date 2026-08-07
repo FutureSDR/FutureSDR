@@ -25,7 +25,7 @@ use super::IntoAntenna;
 /// Opening and building are asynchronous because device discovery, permission
 /// requests, configuration, and streamer creation may perform asynchronous I/O.
 /// On WebAssembly, request WebUSB permission through
-/// [`seify::AsyncRegistry::request_permission`] from a browser-window user
+/// [`seify::AsyncRegistry`]`::request_permission` from a browser-window user
 /// gesture first. The authorized device can then be opened and owned by a Web
 /// Worker local domain:
 ///

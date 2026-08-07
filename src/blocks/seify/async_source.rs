@@ -15,7 +15,7 @@ use crate::runtime::dev::prelude::*;
 ///
 /// On WebAssembly, the opened Seify device is local to its execution context. Build and add this
 /// block inside a [`Flowgraph::local_domain`](crate::runtime::Flowgraph::local_domain) or
-/// [`Flowgraph::main_thread_domain`](crate::runtime::Flowgraph::main_thread_domain) context.
+/// [`Flowgraph`](crate::runtime::Flowgraph)`::main_thread_domain` context.
 ///
 /// # Stream Inputs
 ///
