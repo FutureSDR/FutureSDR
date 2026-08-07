@@ -91,7 +91,6 @@
 //! ## WASM-specific (target `wasm32-unknown-unknown`)
 //! | Block | Usage | WebAssembly? |
 //! |---|---|---|
-//! | HackRf | WASM + WebUSB source for HackRF. | ✅ |
 //! | WasmWsSink | Send samples via a WebSocket. | ✅ |
 //!
 //! ## Signal Sources
