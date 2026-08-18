@@ -31,6 +31,8 @@ use crate::runtime::scheduler::dev::RunnableBlock;
 use crate::runtime::scheduler::dev::StoppedBlock;
 use crate::runtime::yield_now;
 
+mod dependent_module;
+
 static WASM_EXECUTORS: once_cell::sync::Lazy<Mutex<Slab<Arc<WasmExecutor>>>> =
     once_cell::sync::Lazy::new(|| Mutex::new(Slab::new()));
 static WASM_THREAD_METADATA_RESET: AtomicBool = AtomicBool::new(false);
@@ -39,22 +41,40 @@ unsafe extern "C" {
     static __heap_base: u8;
 }
 
-pub(crate) const DEFAULT_WORKER_SCRIPT: &str = "./futuresdr-wasm-scheduler-worker.js";
+const DEFAULT_WORKER_SOURCE: &str = include_str!("wasm/worker.js");
 
-static WASM_WORKER_SCRIPT: once_cell::sync::Lazy<Mutex<String>> =
-    once_cell::sync::Lazy::new(|| Mutex::new(DEFAULT_WORKER_SCRIPT.to_string()));
+static WASM_WORKER_SCRIPT: once_cell::sync::Lazy<Mutex<Option<String>>> =
+    once_cell::sync::Lazy::new(|| Mutex::new(None));
 
-/// Set the default worker script used by the WASM scheduler and local domains.
+/// Set a custom worker script used by the WASM scheduler and local domains.
 ///
-/// Applications that do not serve `./futuresdr-wasm-scheduler-worker.js` should
-/// call this before creating [`WasmScheduler`]s or [`LocalDomain`](crate::runtime::LocalDomain)s.
+/// By default, FutureSDR creates an embedded worker module as a Blob URL. Call
+/// this before creating [`WasmScheduler`]s or
+/// [`LocalDomain`](crate::runtime::LocalDomain)s when an application needs to
+/// serve a static worker, for example because its Content Security Policy does
+/// not allow `blob:` workers.
 pub fn set_worker_script(worker_script: impl Into<String>) {
-    *WASM_WORKER_SCRIPT.lock().unwrap() = worker_script.into();
+    *WASM_WORKER_SCRIPT.lock().unwrap() = Some(worker_script.into());
 }
 
-/// Return the default worker script used by the WASM scheduler and local domains.
+/// Return the worker script used by the WASM scheduler and local domains.
+///
+/// Unless overridden with [`set_worker_script`], this lazily creates and caches
+/// an embedded worker module as a Blob URL.
 pub fn worker_script() -> String {
-    WASM_WORKER_SCRIPT.lock().unwrap().clone()
+    try_worker_script()
+        .unwrap_or_else(|e| panic!("failed to create embedded WASM worker module: {e:?}"))
+}
+
+pub(crate) fn try_worker_script() -> Result<String, JsValue> {
+    let mut worker_script = WASM_WORKER_SCRIPT.lock().unwrap();
+    if let Some(worker_script) = worker_script.as_ref() {
+        return Ok(worker_script.clone());
+    }
+
+    let generated = dependent_module::create(DEFAULT_WORKER_SOURCE)?;
+    *worker_script = Some(generated.clone());
+    Ok(generated)
 }
 
 pub(crate) fn reset_wasm_thread_metadata() {
@@ -149,9 +169,9 @@ impl Drop for WasmSchedulerInner {
 impl WasmScheduler {
     /// Create a scheduler with `n_threads` worker threads.
     ///
-    /// A thread count of zero is treated as one. The scheduler expects the
-    /// worker script configured with [`set_worker_script`], defaulting to
-    /// `./futuresdr-wasm-scheduler-worker.js`.
+    /// A thread count of zero is treated as one. By default, FutureSDR embeds
+    /// the worker module in the generated application. Use [`set_worker_script`]
+    /// to provide a static worker URL instead.
     pub fn new(n_threads: usize) -> WasmScheduler {
         let worker_script = worker_script();
         let n_threads = n_threads.max(1);
@@ -173,8 +193,9 @@ impl WasmScheduler {
                     let _ = WASM_EXECUTORS.lock().unwrap().try_remove(executor_id);
                     panic!(
                         "failed to spawn WASM scheduler web worker from {worker_script:?}: {e:?}. \
-                         Serve a worker script that dispatches FutureSDR scheduler/local-domain \
-                         init messages, or configure it with \
+                         The embedded default requires Content Security Policy support for \
+                         `blob:` workers; otherwise serve a compatible worker script and \
+                         configure it with \
                          futuresdr::runtime::scheduler::wasm::set_worker_script(path)."
                     );
                 }

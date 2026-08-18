@@ -106,29 +106,30 @@ in `Flowgraph::main_thread_domain()`. With the default scheduler, the normal
 domain and this local domain share the physical main thread but remain separate
 logical domains.
 
-Local domains are available on WASM as well. A local domain creates a dedicated web worker and receives the closure that instantiates each local block, mirroring the native local-domain model. FutureSDR uses one worker script path for both scheduler workers and local-domain workers. The default is `./futuresdr-wasm-scheduler-worker.js`; configure a different path with `futuresdr::runtime::scheduler::wasm::set_worker_script(path)` before creating schedulers or local domains.
+Local domains are available on WASM as well. A local domain creates a dedicated
+web worker and receives the closure that instantiates each local block,
+mirroring the native local-domain model. FutureSDR embeds the worker module in
+the generated application, discovers that application's wasm-bindgen module
+through `import.meta.url`, and creates workers from a cached Blob URL. No
+separate worker JavaScript file or fixed wasm-bindgen output name is required.
 
-With Trunk, the simplest setup is to give the Rust output a fixed target name and copy the stock worker template. For a `cdylib` app:
-
-```html
-<link data-trunk rel="rust" data-target-name="futuresdr_app" data-weak-refs data-reference-types />
-<link data-trunk rel="copy-file" href="assets/futuresdr-wasm-scheduler-worker.js" />
-```
-
-For a bin target, add a `[[bin]]` alias named `futuresdr_app` in `Cargo.toml` and select it from Trunk:
-
-```toml
-[[bin]]
-name = "futuresdr_app"
-path = "src/bin/app.rs"
-```
+With Trunk, a `cdylib` app only needs the normal Rust asset:
 
 ```html
-<link data-trunk rel="rust" data-bin="futuresdr_app" data-weak-refs data-reference-types />
-<link data-trunk rel="copy-file" href="assets/futuresdr-wasm-scheduler-worker.js" />
+<link data-trunk rel="rust" data-weak-refs data-reference-types />
 ```
 
-The worker template imports `./futuresdr_app.js`, initializes the module/memory from the init message, and dispatches both `futuresdr-wasm-scheduler-init` and `futuresdr-wasm-local-domain-init` messages. See `examples/wasm/assets/futuresdr-wasm-scheduler-worker.js` for the template. If a flowgraph is started from another web worker, give that worker target the `futuresdr_app` name/alias and use the same template there as well.
+For a bin target, select the desired binary as usual:
+
+```html
+<link data-trunk rel="rust" data-bin="app" data-weak-refs data-reference-types />
+```
+
+The default requires Content Security Policy support for Blob workers, normally
+`worker-src blob:`. Applications that prohibit Blob workers can serve a custom
+static module and call
+`futuresdr::runtime::scheduler::wasm::set_worker_script(path)` before creating
+a `WasmScheduler` or local domain.
 
 ```rust
 use futuresdr::prelude::*;

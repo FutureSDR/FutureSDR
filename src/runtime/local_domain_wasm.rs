@@ -25,7 +25,7 @@ use crate::runtime::scheduler::LocalScheduler;
 use crate::runtime::scheduler::dev::LocalDomainSpec;
 use crate::runtime::scheduler::wasm::WasmWorker;
 use crate::runtime::scheduler::wasm::spawn_local_domain_worker;
-use crate::runtime::scheduler::wasm::worker_script;
+use crate::runtime::scheduler::wasm::try_worker_script;
 
 pub(crate) type LocalDomainRuntime = LocalDomainRuntimeBase<LocalDomainController>;
 
@@ -65,13 +65,18 @@ impl LocalDomainController {
         let domain_id = NEXT_WASM_LOCAL_DOMAIN_ID.fetch_add(1, Ordering::Relaxed);
         let previous = WASM_LOCAL_DOMAINS.lock().unwrap().insert(domain_id, init);
         debug_assert!(previous.is_none());
-        let worker_script = worker_script();
+        let worker_script = try_worker_script().map_err(|e| {
+            WASM_LOCAL_DOMAINS.lock().unwrap().remove(&domain_id);
+            Error::RuntimeError(format!(
+                "failed to create embedded WASM worker module: {e:?}"
+            ))
+        })?;
         let worker = spawn_local_domain_worker(&worker_script, domain_id).map_err(|e| {
             WASM_LOCAL_DOMAINS.lock().unwrap().remove(&domain_id);
             Error::RuntimeError(format!(
                 "failed to spawn WASM local-domain worker from {worker_script:?}: {e:?}. \
-                 Serve a worker script that dispatches FutureSDR scheduler/local-domain init \
-                 messages, or configure it with \
+                 The embedded default requires Content Security Policy support for `blob:` \
+                 workers; otherwise serve a compatible worker script and configure it with \
                  futuresdr::runtime::scheduler::wasm::set_worker_script(path)."
             ))
         })?;
