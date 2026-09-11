@@ -293,13 +293,14 @@ async fn start_receiver(
     let local = fg.local_domain()?;
     let src = fg
         .with_local_domain_async(local, async |ctx: &LocalDomainContext<'_>| {
-            AsyncBuilder::new("driver=hackrf")
+            let src = AsyncBuilder::new("driver=hackrf")
                 .await?
                 .frequency(2_480_000_000.0)
                 .sample_rate(4_000_000.0)
                 .gain(DEFAULT_GAIN)
-                .build_source_in(ctx)
-                .await
+                .build_source()
+                .await?;
+            Ok(ctx.add(src))
         })
         .await?;
     let source = src.id();

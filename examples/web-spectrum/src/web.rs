@@ -396,12 +396,13 @@ async fn run(
     let seify_domain = fg.local_domain()?;
     let src = fg
         .with_local_domain_async(seify_domain, async move |ctx: &LocalDomainContext<'_>| {
-            AsyncBuilder::new("")
+            let src = AsyncBuilder::new("")
                 .await?
                 .frequency(100_000_000.0)
                 .sample_rate(10_000_000.0)
-                .build_source_in(ctx)
-                .await
+                .build_source()
+                .await?;
+            Ok(ctx.add(src))
         })
         .await?;
     let seify_block_id = src.id().0;

@@ -418,13 +418,14 @@ async fn run(
                 })?
                 .frequency(100e6)
                 .sample_rate(10e6)
-                .build_source_in(ctx)
+                .build_source()
                 .await
                 .map_err(|error| {
                     futuresdr::runtime::Error::RuntimeError(format!(
                         "configuring async Seify source: {error}"
                     ))
                 })?;
+            let src = ctx.add(src);
             let seify_block_id = src.id().0;
             let fft = ctx.add(Fft::with_options(
                 FFT_SIZE,

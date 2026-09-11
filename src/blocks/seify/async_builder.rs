@@ -11,12 +11,9 @@ use crate::blocks::seify::AsyncSink;
 use crate::blocks::seify::AsyncSource;
 use crate::blocks::seify::Config;
 use crate::num_complex::Complex32;
-use crate::runtime::BlockRef;
 use crate::runtime::Error;
-use crate::runtime::LocalDomainContext;
 use crate::runtime::buffer::CpuBufferReader;
 use crate::runtime::buffer::CpuBufferWriter;
-use crate::runtime::scheduler::LocalScheduler;
 
 use super::IntoAntenna;
 
@@ -38,12 +35,13 @@ use super::IntoAntenna;
 /// let domain = flowgraph.local_domain()?;
 /// let source = flowgraph
 ///     .with_local_domain_async(domain, async move |context| {
-///         AsyncBuilder::new("driver=hydrasdr")
+///         let source = AsyncBuilder::new("driver=hydrasdr")
 ///             .await?
 ///             .frequency(100e6)
 ///             .sample_rate(10e6)
-///             .build_source_in(context)
-///             .await
+///             .build_source()
+///             .await?;
+///         Ok(context.add(source))
 ///     })
 ///     .await?;
 /// ```
@@ -178,20 +176,6 @@ impl<D> AsyncBuilder<D> {
         self.build_source_with_buffer().await
     }
 
-    /// Configure, build, and add an asynchronous source to a local domain.
-    ///
-    /// This is the convenient placement API for WebUSB sources on WebAssembly.
-    pub async fn build_source_in<LS>(
-        self,
-        context: &LocalDomainContext<'_, LS>,
-    ) -> Result<BlockRef<AsyncSource<D>>, Error>
-    where
-        D: AsyncRxDevice + 'static,
-        LS: LocalScheduler,
-    {
-        Ok(context.add(self.build_source().await?))
-    }
-
     /// Configure the device and build an asynchronous Seify source with a custom buffer.
     pub async fn build_source_with_buffer<B>(self) -> Result<AsyncSource<D, B>, Error>
     where
@@ -215,20 +199,6 @@ impl<D> AsyncBuilder<D> {
         D: AsyncTxDevice,
     {
         self.build_sink_with_buffer().await
-    }
-
-    /// Configure, build, and add an asynchronous sink to a local domain.
-    ///
-    /// This is the convenient placement API for local-only devices on WebAssembly.
-    pub async fn build_sink_in<LS>(
-        self,
-        context: &LocalDomainContext<'_, LS>,
-    ) -> Result<BlockRef<AsyncSink<D>>, Error>
-    where
-        D: AsyncTxDevice + 'static,
-        LS: LocalScheduler,
-    {
-        Ok(context.add(self.build_sink().await?))
     }
 
     /// Configure the device and build an asynchronous Seify sink with a custom buffer.
