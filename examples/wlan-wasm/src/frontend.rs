@@ -1,21 +1,12 @@
 use any_spawner::Executor;
-use futuresdr::blocks::Apply;
-use futuresdr::blocks::Combine;
-use futuresdr::blocks::Delay;
-use futuresdr::blocks::Fft;
-use futuresdr::blocks::StreamDuplicator;
 use futuresdr::blocks::seify::AsyncBuilder;
-use futuresdr::blocks::seify::AsyncSource;
 use futuresdr::blocks::seify::SourceCapabilities;
 use futuresdr::prelude::*;
+use futuresdr::runtime::buffer::mpsc_queue;
+use futuresdr::runtime::buffer::slab;
 use futuresdr::runtime::channel::mpsc;
-use futuresdr::runtime::dev::BlockMeta;
-use futuresdr::runtime::dev::MessageOutputs;
-use futuresdr::runtime::dev::WorkIo;
-use futuresdr::runtime::macros::Block;
-use futuresdr::runtime::scheduler::WasmScheduler;
+use futuresdr::runtime::scheduler::WasmMainScheduler;
 use futuresdr::seify::AsyncRegistry;
-use futuresdr::seify::DynAsyncDevice;
 use futuresdr::seify::RangeItem;
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
@@ -27,18 +18,11 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use wlan::Decoder;
-use wlan::FrameEqualizer;
-use wlan::MovingAverage;
-use wlan::SyncLong;
-use wlan::SyncShort;
-
 const DEFAULT_CHANNEL: &str = "11";
 const DEFAULT_FREQUENCY: f64 = 2_462_000_000.0;
 const DEFAULT_SAMPLE_RATE: f64 = 20_000_000.0;
 const DEFAULT_GAIN: f64 = 70.0;
 const DC_OFFSET_CORRECTION: bool = true;
-const DC_OFFSET_WARMUP_SAMPLES: usize = 1_000_000;
 const STREAM_BUFFER_SIZE: usize = 512 * 1024;
 const FRAME_QUEUE_LIMIT: usize = 100;
 const DISPLAY_FRAME_LIMIT: usize = 50;
@@ -123,7 +107,7 @@ struct RunControl {
 }
 
 struct Receiver {
-    _runtime: Runtime<WasmScheduler>,
+    _runtime: Runtime<WasmMainScheduler>,
 }
 
 #[derive(Clone, Copy)]
@@ -139,51 +123,6 @@ struct GainRange {
     min: f64,
     max: f64,
     step: f64,
-}
-
-#[derive(Block)]
-#[message_inputs(r#in)]
-#[null_kernel]
-struct FramePipe {
-    frames: FrameSender,
-}
-
-impl FramePipe {
-    fn new(frames: FrameSender) -> Self {
-        Self { frames }
-    }
-
-    async fn r#in(
-        &mut self,
-        _io: &mut WorkIo,
-        _mo: &mut MessageOutputs,
-        _meta: &BlockMeta,
-        p: Pmt,
-    ) -> Result<Pmt> {
-        if let Pmt::Blob(data) = p {
-            let len = data.len();
-            match self.frames.try_send(data) {
-                Ok(()) => {
-                    futuresdr::tracing::info!("WLAN decoder queued frame for GUI: {len} bytes");
-                    Ok(Pmt::Ok)
-                }
-                Err(mpsc::TrySendError::Full(_)) => {
-                    futuresdr::tracing::warn!(
-                        "WLAN GUI frame queue overrun; dropping {len}-byte frame"
-                    );
-                    Ok(Pmt::InvalidValue)
-                }
-                Err(mpsc::TrySendError::Disconnected(_)) => {
-                    futuresdr::tracing::warn!(
-                        "failed to queue WLAN frame for GUI: receiver disconnected"
-                    );
-                    Ok(Pmt::InvalidValue)
-                }
-            }
-        } else {
-            Ok(Pmt::InvalidValue)
-        }
-    }
 }
 
 #[component]
@@ -242,7 +181,7 @@ pub fn Gui() -> impl IntoView {
             <header class="bg-slate-800 border-b border-slate-700 shadow-lg">
                 <div class="flex items-center gap-3 px-4 py-3">
                     <div class="text-white font-semibold tracking-tight text-base">"FutureSDR WLAN RX"</div>
-                    <div class="text-xs text-slate-400">"HackRF via async Seify + 4 WASM scheduler workers, 20 MHz, DC correction"</div>
+                    <div class="text-xs text-slate-400">"HackRF source worker + 4 DSP worker domains, 20 MHz, DC correction"</div>
                 </div>
             </header>
 
@@ -378,7 +317,7 @@ async fn start_receiver(
     set_status.set("starting flowgraph".to_string());
 
     futuresdr::runtime::config::set("buffer_size", STREAM_BUFFER_SIZE as i64);
-    let rt = Runtime::with_scheduler(WasmScheduler::new(4));
+    let rt = Runtime::with_scheduler(WasmMainScheduler::new());
     let rt_handle = rt.handle();
     let (frame_tx, frames) = mpsc::channel::<Vec<u8>>(FRAME_QUEUE_LIMIT);
     let frames_for_pipe = frame_tx.clone();
@@ -386,24 +325,11 @@ async fn start_receiver(
     spawn_local(poll_frames(frames, failure.clone(), set_frames, set_status));
 
     let mut fg = Flowgraph::new();
-    let local = fg.local_domain()?;
 
     let failure_for_task = failure.clone();
     spawn_local(async move {
         let result = async move {
-            let src = fg
-                .with_local_domain_async(local, async move |ctx: &LocalDomainContext<'_>| {
-                    AsyncBuilder::new("driver=hackrf")
-                        .await?
-                        .frequency(config.frequency)
-                        .sample_rate(config.sample_rate)
-                        .gain(config.gain)
-                        .build_source_in(ctx)
-                        .await
-                })
-                .await?;
-            let source = src.id();
-            build_rx_flowgraph(&mut fg, src, frames_for_pipe, config.dc_offset).await?;
+            let source = build_rx_flowgraph(&mut fg, config, frames_for_pipe).await?;
             futuresdr::tracing::debug!("starting WLAN WASM flowgraph");
             let running = rt_handle.start(fg).await?;
             let source = running.handle().block(source);
@@ -467,96 +393,33 @@ fn gain_range_from_capabilities(
 
 async fn build_rx_flowgraph(
     fg: &mut Flowgraph,
-    src: BlockRef<AsyncSource<DynAsyncDevice>>,
+    config: ReceiverConfig,
     frames: FrameSender,
-    dc_offset: bool,
-) -> Result<()> {
-    let (prev, output): (BlockId, &'static str) = if dc_offset {
-        let mut avg_real = 0.0;
-        let mut avg_img = 0.0;
-        let ratio = 1.0e-5;
-        let dc = Apply::new(move |c: &Complex32| -> Complex32 {
-            avg_real = ratio * (c.re - avg_real) + avg_real;
-            avg_img = ratio * (c.im - avg_img) + avg_img;
-            Complex32::new(c.re - avg_real, c.im - avg_img)
-        });
-
-        connect_async!(fg, src.outputs[0] > dc);
-        (dc.into(), "output")
-    } else {
-        (src.into(), "outputs[0]")
-    };
-
-    // Drop the initial samples while the simple IIR DC-offset correction
-    // converges. Otherwise the receiver can lock to startup transients and
-    // emit many bogus back-to-back sync candidates.
-    info!(
-        "WLAN RX: dropping first {} samples after DC correction for warm-up",
-        DC_OFFSET_WARMUP_SAMPLES
-    );
-    let dc_warmup = fg
-        .add_async(Delay::<Complex32>::new(
-            -(DC_OFFSET_WARMUP_SAMPLES as isize),
-        ))
-        .await?;
-    fg.stream_dyn(prev, output, dc_warmup, "input")?;
-
-    // WASM slab buffers support one reader per output. Explicitly duplicate
-    // streams whenever one output feeds multiple downstream blocks.
-    let input_dup = fg
-        .add_async(StreamDuplicator::<Complex32, 3>::new())
-        .await?;
-    connect_async!(fg, dc_warmup > input_dup);
-
-    let delay = fg.add_async(Delay::<Complex32>::new(16)).await?;
-    let complex_to_mag_2 = fg
-        .add_async(Apply::new(|i: &Complex32| i.norm_sqr()))
-        .await?;
-    let mult_conj = fg
-        .add_async(Combine::new(|a: &Complex32, b: &Complex32| a * b.conj()))
+) -> Result<BlockId> {
+    let source_domain = fg.local_domain()?;
+    let source = fg
+        .with_local_domain_async(source_domain, async move |ctx: &LocalDomainContext<'_>| {
+            let builder = AsyncBuilder::new("driver=hackrf")
+                .await?
+                .frequency(config.frequency)
+                .sample_rate(config.sample_rate)
+                .gain(config.gain);
+            if config.dc_offset {
+                let source = builder
+                    .build_source_with_buffer::<slab::Writer<Complex32>>()
+                    .await?;
+                Ok(ctx.add(source).id())
+            } else {
+                let source = builder
+                    .build_source_with_buffer::<mpsc_queue::Writer<Complex32>>()
+                    .await?;
+                Ok(ctx.add(source).id())
+            }
+        })
         .await?;
 
-    fg.stream_dyn(input_dup, "outputs[0]", delay, "input")?;
-    fg.stream_dyn(input_dup, "outputs[1]", complex_to_mag_2, "input")?;
-    fg.stream_dyn(input_dup, "outputs[2]", mult_conj, "in0")?;
-
-    let float_avg = MovingAverage::<f32>::new(64);
-    connect_async!(fg, complex_to_mag_2 > float_avg);
-
-    let delay_dup = StreamDuplicator::<Complex32, 2>::new();
-    let complex_avg = MovingAverage::<Complex32>::new(48);
-    connect_async!(fg, delay > delay_dup;
-                 delay_dup.outputs[0] > in1.mult_conj;
-                 mult_conj > complex_avg);
-
-    let complex_avg_dup = StreamDuplicator::<Complex32, 2>::new();
-    let divide_mag = Combine::new(|a: &Complex32, b: &f32| {
-        if *b > 1.0e-12 {
-            a.norm_sqr() / (*b * *b)
-        } else {
-            0.0
-        }
-    });
-    connect_async!(fg, complex_avg > complex_avg_dup;
-                 complex_avg_dup.outputs[0] > in0.divide_mag;
-                 float_avg > in1.divide_mag);
-
-    let mut sync_short: SyncShort = SyncShort::new();
-    sync_short.in_sig().set_min_buffers(4);
-    connect_async!(fg, delay_dup.outputs[1] > in_sig.sync_short;
-                 complex_avg_dup.outputs[1] > in_abs.sync_short;
-                 divide_mag > in_cor.sync_short);
-
-    let sync_long: SyncLong = SyncLong::new();
-    let fft = Fft::new(64);
-    let frame_equalizer: FrameEqualizer = FrameEqualizer::new();
-    let decoder: Decoder = Decoder::new();
-    let frame_pipe = FramePipe::new(frames);
-
-    connect_async!(fg, sync_short > sync_long > fft > frame_equalizer > decoder;
-                 decoder.rx_frames | frame_pipe);
-
-    Ok(())
+    crate::receiver::build_rx_flowgraph(fg, source, "outputs[0]", frames, config.dc_offset).await?;
+    Ok(source)
 }
 
 async fn poll_frames(
