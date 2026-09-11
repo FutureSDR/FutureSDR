@@ -39,6 +39,18 @@ pub mod local;
 #[path = "queued.rs"]
 pub mod queued;
 
+#[doc(hidden)]
+#[path = "mpsc_queued.rs"]
+pub mod mpsc_queued;
+
+/// Thread-safe queue buffer with multiple downstream readers.
+#[path = "mpsc_queue.rs"]
+pub mod mpsc_queue;
+
+/// Same-domain queue buffer with multiple downstream readers.
+#[path = "local_mpsc_queue.rs"]
+pub mod local_mpsc_queue;
+
 /// Double-mapped circular CPU buffer.
 #[cfg(not(target_arch = "wasm32"))]
 #[path = "circular.rs"]

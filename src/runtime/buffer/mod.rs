@@ -21,6 +21,8 @@ pub use self::core::circuit;
 #[cfg(not(target_arch = "wasm32"))]
 pub use self::core::circular;
 pub use self::core::local;
+pub use self::core::local_mpsc_queue;
+pub use self::core::mpsc_queue;
 #[doc(hidden)]
 pub use self::core::queued;
 pub use self::core::slab;
