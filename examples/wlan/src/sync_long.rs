@@ -73,7 +73,6 @@ where
         input.set_min_items(SEARCH_WINDOW + 128);
         let mut output = O::default();
         output.set_min_items(128);
-        output.set_min_buffer_size_in_items(128);
         Self {
             input,
             output,

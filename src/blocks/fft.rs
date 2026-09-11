@@ -106,7 +106,6 @@ where
         input.set_min_items(len);
         let mut output = O::default();
         output.set_min_items(len);
-        output.set_min_buffer_size_in_items(len);
 
         Self {
             input,
