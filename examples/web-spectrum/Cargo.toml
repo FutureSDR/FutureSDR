@@ -10,7 +10,7 @@ debug = false
 strip = true
 
 [[bin]]
-name = "futuresdr_app"
+name = "futuresdr-app"
 path = "src/main.rs"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

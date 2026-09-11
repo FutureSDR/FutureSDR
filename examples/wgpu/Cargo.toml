@@ -9,7 +9,7 @@ edition = "2024"
 crate-type = ["cdylib", "rlib"]
 
 [[bin]]
-name = "futuresdr_app"
+name = "futuresdr-app"
 path = "src/loopback.rs"
 
 [dependencies]

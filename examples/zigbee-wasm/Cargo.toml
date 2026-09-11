@@ -2,12 +2,12 @@
 name = "zigbee-wasm"
 version = "0.1.0"
 edition = "2024"
-default-run = "futuresdr_app"
+default-run = "futuresdr-app"
 
 [workspace]
 
 [[bin]]
-name = "futuresdr_app"
+name = "futuresdr-app"
 path = "src/bin/futuresdr_app.rs"
 
 [dependencies]

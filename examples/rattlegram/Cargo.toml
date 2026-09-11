@@ -10,7 +10,7 @@ crate-type = ["cdylib", "rlib"]
 
 
 [[bin]]
-name = "futuresdr_app"
+name = "futuresdr-app"
 path = "src/bin/wasm.rs"
 
 [dependencies]
