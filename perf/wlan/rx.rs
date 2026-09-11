@@ -54,7 +54,13 @@ fn run(args: Args) -> Result<()> {
     let float_avg = MovingAverage::<f32>::new(64);
     let mult_conj = Combine::new(|a: &Complex32, b: &Complex32| a * b.conj());
     let complex_avg = MovingAverage::<Complex32>::new(48);
-    let divide_mag = Combine::new(|a: &Complex32, b: &f32| a.norm() / b);
+    let divide_mag = Combine::new(|a: &Complex32, b: &f32| {
+        if *b > 1.0e-12 {
+            a.norm_sqr() / (*b * *b)
+        } else {
+            0.0
+        }
+    });
     let sync_short: SyncShort = SyncShort::new();
     let sync_long: SyncLong = SyncLong::new();
     let fft = Fft::new(64);

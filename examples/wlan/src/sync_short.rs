@@ -3,7 +3,7 @@ use futuresdr::runtime::dev::prelude::*;
 const MIN_GAP: usize = 480;
 const MAX_SAMPLES: usize = 540 * 80;
 const NCO_RECALCULATE_INTERVAL: usize = 1024;
-const THRESHOLD: f32 = 0.56;
+const THRESHOLD_SQUARED: f32 = 0.56 * 0.56;
 
 #[derive(Debug)]
 enum State {
@@ -94,12 +94,12 @@ where
         while i < n_input && o < out.len() {
             match self.state {
                 State::Search => {
-                    if in_cor[i] > THRESHOLD {
+                    if in_cor[i] > THRESHOLD_SQUARED {
                         self.state = State::Found;
                     }
                 }
                 State::Found => {
-                    if in_cor[i] > THRESHOLD {
+                    if in_cor[i] > THRESHOLD_SQUARED {
                         let f_offset = -in_abs[i].arg() / 16.0;
                         self.state = State::Copy(0, f_offset, false);
                         self.pending_start_tag = Some(f_offset);
@@ -108,7 +108,7 @@ where
                     }
                 }
                 State::Copy(n_copied, f_offset, mut last_above_threshold) => {
-                    if in_cor[i] > THRESHOLD {
+                    if in_cor[i] > THRESHOLD_SQUARED {
                         // resync
                         if last_above_threshold && n_copied > MIN_GAP {
                             let f_offset = -in_abs[i].arg() / 16.0;

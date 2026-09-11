@@ -84,11 +84,13 @@ fn main() -> Result<()> {
     connect!(fg, mult_conj > complex_avg;
                  delay > in1.mult_conj);
 
-    let divide_mag = Combine::new(
-        |a: &Complex32, b: &f32| {
-            if *b > 1.0e-12 { a.norm() / b } else { 0.0 }
-        },
-    );
+    let divide_mag = Combine::new(|a: &Complex32, b: &f32| {
+        if *b > 1.0e-12 {
+            a.norm_sqr() / (*b * *b)
+        } else {
+            0.0
+        }
+    });
     connect!(fg, complex_avg > in0.divide_mag; float_avg > in1.divide_mag);
 
     let sync_short: SyncShort = SyncShort::new();

@@ -530,11 +530,13 @@ async fn build_rx_flowgraph(
                  mult_conj > complex_avg);
 
     let complex_avg_dup = StreamDuplicator::<Complex32, 2>::new();
-    let divide_mag = Combine::new(
-        |a: &Complex32, b: &f32| {
-            if *b > 1.0e-12 { a.norm() / b } else { 0.0 }
-        },
-    );
+    let divide_mag = Combine::new(|a: &Complex32, b: &f32| {
+        if *b > 1.0e-12 {
+            a.norm_sqr() / (*b * *b)
+        } else {
+            0.0
+        }
+    });
     connect_async!(fg, complex_avg > complex_avg_dup;
                  complex_avg_dup.outputs[0] > in0.divide_mag;
                  float_avg > in1.divide_mag);
