@@ -2,6 +2,7 @@ use futuresdr::runtime::dev::prelude::*;
 
 const MIN_GAP: usize = 480;
 const MAX_SAMPLES: usize = 540 * 80;
+const NCO_RECALCULATE_INTERVAL: usize = 1024;
 const THRESHOLD: f32 = 0.56;
 
 #[derive(Debug)]
@@ -88,6 +89,7 @@ where
 
         let mut o = 0;
         let mut i = 0;
+        let mut nco = None;
 
         while i < n_input && o < out.len() {
             match self.state {
@@ -112,6 +114,7 @@ where
                             let f_offset = -in_abs[i].arg() / 16.0;
                             self.state = State::Copy(0, f_offset, false);
                             self.pending_start_tag = Some(f_offset);
+                            nco = None;
                             i += 1;
                             continue;
                         } else {
@@ -127,11 +130,20 @@ where
                         tags.add_tag(o, Tag::NamedF32("wifi_start".to_string(), f_offset));
                     }
 
-                    out[o] = in_sig[i] * Complex32::from_polar(1.0, f_offset * n_copied as f32); // accum?
+                    if nco.is_none() || n_copied.is_multiple_of(NCO_RECALCULATE_INTERVAL) {
+                        nco = Some((
+                            Complex32::from_polar(1.0, f_offset * n_copied as f32),
+                            Complex32::from_polar(1.0, f_offset),
+                        ));
+                    }
+                    let (phase, step) = nco.as_mut().unwrap();
+                    out[o] = in_sig[i] * *phase;
+                    *phase *= *step;
                     o += 1;
 
                     if n_copied + 1 == MAX_SAMPLES {
                         self.state = State::Search;
+                        nco = None;
                     } else {
                         self.state = State::Copy(n_copied + 1, f_offset, last_above_threshold);
                     }
@@ -150,5 +162,39 @@ where
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futuresdr::runtime::mocker::Mocker;
+    use futuresdr::runtime::mocker::Reader;
+    use futuresdr::runtime::mocker::Writer;
+
+    #[test]
+    fn nco_matches_direct_frequency_correction() {
+        const START: usize = 777;
+        const LEN: usize = 2_048;
+        const FREQUENCY: f32 = 0.0123;
+
+        let mut block =
+            SyncShort::<Reader<Complex32>, Reader<Complex32>, Reader<f32>, Writer<Complex32>>::new(
+            );
+        block.state = State::Copy(START, FREQUENCY, false);
+        block.in_sig.set(vec![Complex32::new(0.25, -0.75); LEN]);
+        block.in_abs.set(vec![Complex32::new(0.0, 0.0); LEN]);
+        block.in_cor.set(vec![0.0; LEN]);
+        block.output.reserve(LEN);
+
+        let mut mocker = Mocker::new(block);
+        mocker.run();
+        let (output, _) = mocker.output.get();
+
+        for (i, actual) in output.iter().enumerate() {
+            let expected = Complex32::new(0.25, -0.75)
+                * Complex32::from_polar(1.0, FREQUENCY * (START + i) as f32);
+            assert!((actual - expected).norm() < 1.0e-4, "sample {i}");
+        }
     }
 }

@@ -156,9 +156,11 @@ where
                     let (offset, freq_offset) = self.corr.sync(&input[0..SEARCH_WINDOW + 63]);
                     // debug!("long start: offset {}   freq {}", offset, freq_offset);
 
+                    let mut phase = Complex32::new(1.0, 0.0);
+                    let step = Complex32::from_polar(1.0, freq_offset);
                     for i in 0..128 {
-                        out[i] =
-                            input[offset + i] * Complex32::from_polar(1.0, i as f32 * freq_offset);
+                        out[i] = input[offset + i] * phase;
+                        phase *= step;
                     }
                     out_tags.add_tag(
                         0,
@@ -177,14 +179,16 @@ where
             }
             State::Copy(n_copied, freq_offset) => {
                 let syms = std::cmp::min(input_limit / 80, out.len() / 64);
+                let first_sample = n_copied * 80 + 128 + 16;
+                let mut phase = Complex32::from_polar(1.0, first_sample as f32 * freq_offset);
+                let step = Complex32::from_polar(1.0, freq_offset);
+                let prefix = Complex32::from_polar(1.0, 16.0 * freq_offset);
                 for i in 0..syms {
                     for k in 0..64 {
-                        out[i * 64 + k] = input[i * 80 + 16 + k]
-                            * Complex32::from_polar(
-                                1.0,
-                                ((n_copied + i) * 80 + 128 + 16 + k) as f32 * freq_offset,
-                            );
+                        out[i * 64 + k] = input[i * 80 + 16 + k] * phase;
+                        phase *= step;
                     }
+                    phase *= prefix;
                 }
                 self.input.consume(syms * 80);
                 self.output.produce(syms * 64);
@@ -315,5 +319,33 @@ mod tests {
         mocker.run();
 
         assert!(matches!(mocker.state, State::Sync(_)));
+    }
+
+    #[test]
+    fn nco_matches_direct_frequency_correction() {
+        const START_SYMBOL: usize = 7;
+        const SYMBOLS: usize = 16;
+        const FREQUENCY: f32 = 0.0123;
+
+        let mut block = SyncLong::<Reader<Complex32>, Writer<Complex32>>::new();
+        block.state = State::Copy(START_SYMBOL, FREQUENCY);
+        block
+            .input
+            .set(vec![Complex32::new(0.25, -0.75); SYMBOLS * 80]);
+        block.output.reserve(SYMBOLS * 64);
+
+        let mut mocker = Mocker::new(block);
+        mocker.run();
+        let (output, _) = mocker.output.get();
+
+        for symbol in 0..SYMBOLS {
+            for sample in 0..64 {
+                let index = symbol * 64 + sample;
+                let source_index = (START_SYMBOL + symbol) * 80 + 128 + 16 + sample;
+                let expected = Complex32::new(0.25, -0.75)
+                    * Complex32::from_polar(1.0, source_index as f32 * FREQUENCY);
+                assert!((output[index] - expected).norm() < 1.0e-4, "sample {index}");
+            }
+        }
     }
 }

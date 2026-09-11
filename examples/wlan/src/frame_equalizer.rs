@@ -243,38 +243,37 @@ where
                 self.sym_in[m] = input[i * 64 + k];
             }
 
-            match self.state {
-                State::Sync1 | State::Sync2 => {
-                    let beta =
-                        (self.sym_in[11] - self.sym_in[25] + self.sym_in[39] + self.sym_in[53])
-                            .arg();
-                    for i in 0..64 {
-                        self.sym_in[i] *= Complex32::from_polar(1.0, -beta);
-                    }
-                }
+            let beta = match self.state {
+                State::Sync1 | State::Sync2 => Some(
+                    (self.sym_in[11] - self.sym_in[25] + self.sym_in[39] + self.sym_in[53]).arg(),
+                ),
                 State::Signal => {
                     let p = POLARITY[0];
-                    let beta = ((self.sym_in[11] * p)
-                        + (self.sym_in[39] * p)
-                        + (self.sym_in[25] * p)
-                        + (self.sym_in[53] * -p))
-                        .arg();
-                    for i in 0..64 {
-                        self.sym_in[i] *= Complex32::from_polar(1.0, -beta);
-                    }
+                    Some(
+                        ((self.sym_in[11] * p)
+                            + (self.sym_in[39] * p)
+                            + (self.sym_in[25] * p)
+                            + (self.sym_in[53] * -p))
+                            .arg(),
+                    )
                 }
                 State::Copy(left, n, _) => {
                     let p = POLARITY[(n - left + 1) % 127];
-                    let beta = ((self.sym_in[11] * p)
-                        + (self.sym_in[39] * p)
-                        + (self.sym_in[25] * p)
-                        + (self.sym_in[53] * -p))
-                        .arg();
-                    for i in 0..64 {
-                        self.sym_in[i] *= Complex32::from_polar(1.0, -beta);
-                    }
+                    Some(
+                        ((self.sym_in[11] * p)
+                            + (self.sym_in[39] * p)
+                            + (self.sym_in[25] * p)
+                            + (self.sym_in[53] * -p))
+                            .arg(),
+                    )
                 }
-                _ => {}
+                _ => None,
+            };
+            if let Some(beta) = beta {
+                let correction = Complex32::from_polar(1.0, -beta);
+                for sample in &mut self.sym_in {
+                    *sample *= correction;
+                }
             }
 
             // println!("equalizer state {:?}", self.state);
