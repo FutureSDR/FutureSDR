@@ -121,7 +121,7 @@ kanal = "0.1.1"
 num-complex = { version = "0.4", features = ["bytemuck"] }
 num-integer = "0.1"
 once_cell = "1.21"
-rustfft = "6.4"
+rustfft = { version = "6.4", features = ["wasm_simd"] }
 seify = { version = "0.23.0", default-features = false, optional = true }
 slab = "0.4"
 thiserror = "2.0"

@@ -6,6 +6,12 @@ default-run = "futuresdr_app"
 
 [workspace]
 
+[profile.release]
+codegen-units = 1
+lto = "fat"
+opt-level = 3
+panic = "abort"
+
 [[bin]]
 name = "futuresdr_app"
 path = "src/bin/futuresdr_app.rs"
