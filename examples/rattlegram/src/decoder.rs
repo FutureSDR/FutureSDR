@@ -536,17 +536,11 @@ impl<const NUM: usize> Delay<NUM> {
     }
 }
 
-struct Sma4F32<const NUM: usize, const NORM: bool>
-where
-    [(); 2 * NUM]:,
-{
+struct Sma4F32<const NUM: usize, const NORM: bool> {
     swa: SwaF32<NUM>,
 }
 
-impl<const NUM: usize, const NORM: bool> Sma4F32<NUM, NORM>
-where
-    [(); 2 * NUM]:,
-{
+impl<const NUM: usize, const NORM: bool> Sma4F32<NUM, NORM> {
     fn new() -> Self {
         Self {
             swa: SwaF32::new(0.0),
@@ -562,17 +556,11 @@ where
     }
 }
 
-struct Sma4Complex32<const NUM: usize, const NORM: bool>
-where
-    [(); 2 * NUM]:,
-{
+struct Sma4Complex32<const NUM: usize, const NORM: bool> {
     swa: SwaComplex32<NUM>,
 }
 
-impl<const NUM: usize, const NORM: bool> Sma4Complex32<NUM, NORM>
-where
-    [(); 2 * NUM]:,
-{
+impl<const NUM: usize, const NORM: bool> Sma4Complex32<NUM, NORM> {
     fn new() -> Self {
         Self {
             swa: SwaComplex32::new(Complex32::new(0.0, 0.0)),
@@ -588,21 +576,15 @@ where
     }
 }
 
-struct SwaF32<const NUM: usize>
-where
-    [(); 2 * NUM]:,
-{
-    tree: [f32; 2 * NUM],
+struct SwaF32<const NUM: usize> {
+    tree: Box<[f32]>,
     leaf: usize,
 }
 
-impl<const NUM: usize> SwaF32<NUM>
-where
-    [(); 2 * NUM]:,
-{
+impl<const NUM: usize> SwaF32<NUM> {
     pub fn new(ident: f32) -> Self {
         Self {
-            tree: [ident; 2 * NUM],
+            tree: vec![ident; 2 * NUM].into_boxed_slice(),
             leaf: NUM,
         }
     }
@@ -624,21 +606,15 @@ where
     }
 }
 
-struct SwaComplex32<const NUM: usize>
-where
-    [(); 2 * NUM]:,
-{
-    tree: [Complex32; 2 * NUM],
+struct SwaComplex32<const NUM: usize> {
+    tree: Box<[Complex32]>,
     leaf: usize,
 }
 
-impl<const NUM: usize> SwaComplex32<NUM>
-where
-    [(); 2 * NUM]:,
-{
+impl<const NUM: usize> SwaComplex32<NUM> {
     pub fn new(ident: Complex32) -> Self {
         Self {
-            tree: [ident; 2 * NUM],
+            tree: vec![ident; 2 * NUM].into_boxed_slice(),
             leaf: NUM,
         }
     }
@@ -660,22 +636,16 @@ where
     }
 }
 
-struct BipBuffer<const NUM: usize>
-where
-    [(); 2 * NUM]:,
-{
-    buf: [Complex32; 2 * NUM],
+struct BipBuffer<const NUM: usize> {
+    buf: Box<[Complex32]>,
     pos0: usize,
     pos1: usize,
 }
 
-impl<const NUM: usize> BipBuffer<NUM>
-where
-    [(); 2 * NUM]:,
-{
+impl<const NUM: usize> BipBuffer<NUM> {
     pub fn new() -> Self {
         Self {
-            buf: [Complex32::new(0.0, 0.0); 2 * NUM],
+            buf: vec![Complex32::new(0.0, 0.0); 2 * NUM].into_boxed_slice(),
             pos0: 0,
             pos1: NUM,
         }
@@ -773,25 +743,19 @@ impl Kaiser {
     }
 }
 
-struct Hilbert<const TAPS: usize>
-where
-    [(); (TAPS - 1) / 4]:,
-{
+struct Hilbert<const TAPS: usize> {
     real: [f32; TAPS],
-    imco: [f32; (TAPS - 1) / 4],
+    imco: Box<[f32]>,
     reco: f32,
 }
 
-impl<const TAPS: usize> Hilbert<TAPS>
-where
-    [(); (TAPS - 1) / 4]:,
-{
+impl<const TAPS: usize> Hilbert<TAPS> {
     pub fn new() -> Self {
         assert_eq!((TAPS - 1) % 4, 0, "TAPS-1 not divisible by four");
         let kaiser = Kaiser::new(2.0);
         let reco = kaiser.get((TAPS - 1) / 2, TAPS);
         let real = [0.0; TAPS];
-        let mut imco = [0.0; (TAPS - 1) / 4];
+        let mut imco = vec![0.0; (TAPS - 1) / 4].into_boxed_slice();
 
         for i in 0..(TAPS - 1) / 4 {
             imco[i] = kaiser.get((2 * i + 1) + (TAPS - 1) / 2, TAPS) * 2.0

@@ -1,10 +1,6 @@
 use crate::get_le_bit;
 use crate::set_le_bit;
 
-struct Assert<const V: bool>;
-trait True {}
-impl True for Assert<true> {}
-
 struct Crc32 {
     poly: u32,
     crc: u32,
@@ -373,10 +369,7 @@ impl PolarListDecoder {
 
 struct PolarListNode<const M: usize>;
 
-impl<const M: usize> PolarListNode<M>
-where
-    Assert<{ M > 0 }>: True,
-{
+impl<const M: usize> PolarListNode<M> {
     const N: usize = 1 << M;
 
     fn rate0(metric: &mut [Path], hard: &mut [Type], soft: &[Type]) -> Map {
@@ -410,27 +403,6 @@ where
 }
 
 impl PolarListNode<0> {
-    fn rate0(metric: &mut [Path], hard: &mut [Type], soft: &[Type]) -> Map {
-        // println!("soft ({}) {:?}", soft.len(), soft);
-        // println!("hard ({}) {:?}", hard.len(), hard);
-        // println!("metric ({}) {:?}", metric.len(), metric);
-        // panic!("foo");
-        hard[0] = [1i8; LEN];
-        for k in 0..LEN {
-            if soft[1][k] < 0 {
-                metric[k] -= soft[1][k] as i64;
-            }
-        }
-        let mut map = [0u8; LEN];
-        for k in 0..LEN as u8 {
-            map[k as usize] = k;
-        }
-        // println!("hard ({}) {:?}", hard.len(), hard);
-        // println!("metric ({}) {:?}", metric.len(), metric);
-        // panic!("foo");
-        map
-    }
-
     fn rate1(
         metric: &mut [Path],
         message: &mut [Type],
