@@ -426,7 +426,7 @@ where
     fn max_contiguous_items(&self) -> usize {
         self.buffer
             .as_ref()
-            .map(|buffer| (buffer.slice.len() - buffer.byte_offset) / D::SIZE.get())
+            .map(|buffer| (buffer.slice.len() - buffer.byte_offset) / D::SIZE)
             .or(self.state.connected().max_contiguous_items)
             .expect("D2H buffer capacity queried without a current page")
     }

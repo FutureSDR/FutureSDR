@@ -91,13 +91,13 @@ where
             .unwrap();
         let nitem_to_process = min(n_items_to_produce, nitem_to_consume);
         if nitem_to_process > 0 {
-            for j in 0..N {
-                let (out, mut out_tags) = self.outputs[j].slice_with_tags();
+            for output in &mut self.outputs {
+                let (out, mut out_tags) = output.slice_with_tags();
                 out[..nitem_to_process].copy_from_slice(&input[..nitem_to_process]);
                 tags.iter()
                     .filter(|t| t.index < nitem_to_process)
                     .for_each(|t| out_tags.add_tag(t.index, t.tag.clone()));
-                self.outputs[j].produce(nitem_to_process);
+                output.produce(nitem_to_process);
             }
             self.input.consume(nitem_to_process);
         }

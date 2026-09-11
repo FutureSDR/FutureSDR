@@ -1059,7 +1059,7 @@ pub trait InplaceWriter: BufferWriter + Default {
     fn has_more_buffers(&mut self) -> bool;
     /// Inject new empty buffers using the configured default item capacity.
     fn inject_buffers(&mut self, n_buffers: usize) {
-        let n_items = config().buffer_size / Self::Item::SIZE.get();
+        let n_items = config().buffer_size / Self::Item::SIZE;
         self.inject_buffers_with_items(n_buffers, n_items);
     }
     /// Inject new empty buffers with an explicit item capacity.

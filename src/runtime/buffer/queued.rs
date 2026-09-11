@@ -327,7 +327,7 @@ where
             let min_reader = dest.core.min_buffer_size_in_items().unwrap_or(0);
             std::cmp::max(min_self, min_reader)
         } else {
-            config::config().buffer_size / D::SIZE.get()
+            config::config().buffer_size / D::SIZE
         };
 
         page_items = page_items
@@ -434,7 +434,7 @@ where
             let min_reader = token.reader_min_buffer_size.unwrap_or(0);
             std::cmp::max(min_self, min_reader)
         } else {
-            config::config().buffer_size / D::SIZE.get()
+            config::config().buffer_size / D::SIZE
         };
 
         page_items = page_items

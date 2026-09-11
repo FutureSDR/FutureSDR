@@ -186,7 +186,7 @@ where
                 buffer_size += page_size;
             }
 
-            let capacity = buffer_size / T::SIZE.get();
+            let capacity = buffer_size / T::SIZE;
             self.core.set_min_buffer_size_in_items(capacity);
             dest.core.set_min_buffer_size_in_items(capacity);
 

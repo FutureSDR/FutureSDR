@@ -138,7 +138,7 @@ where
     /// Number of elements in the buffer
     pub fn num_host_elements(&self) -> usize {
         let elem = self.num_tensor_elements();
-        elem * size_of::<E::Elem>() / S::SIZE.get()
+        elem * size_of::<E::Elem>() / S::SIZE
     }
 }
 
@@ -260,7 +260,7 @@ where
             state: ConnectionState::disconnected(),
             device: None,
             permits: Arc::new(AtomicUsize::new(0)),
-            buffer_size_in_items: config().buffer_size / SW::SIZE.get(),
+            buffer_size_in_items: config().buffer_size / SW::SIZE,
             current: None,
             tags: Vec::new(),
         }
@@ -360,7 +360,7 @@ where
         dest.state.set_connected(ConnectedReader {
             writer: PortEndpoint::new(self.core.inbox().clone(), self.core.port_id()),
             inbound,
-            max_contiguous_items: self.buffer_size_in_items * size_of::<E::Elem>() / SR::SIZE.get(),
+            max_contiguous_items: self.buffer_size_in_items * size_of::<E::Elem>() / SR::SIZE,
         });
     }
 
@@ -410,8 +410,7 @@ where
             connected: ConnectedReader {
                 writer: PortEndpoint::new(self.core.inbox().clone(), self.core.port_id()),
                 inbound,
-                max_contiguous_items: self.buffer_size_in_items * size_of::<E::Elem>()
-                    / SR::SIZE.get(),
+                max_contiguous_items: self.buffer_size_in_items * size_of::<E::Elem>() / SR::SIZE,
             },
         }
     }
@@ -682,7 +681,7 @@ where
         }
 
         let (c, o) = self.current.as_mut().unwrap();
-        let valid = c.valid * size_of::<E::Elem>() / SR::SIZE.get();
+        let valid = c.valid * size_of::<E::Elem>() / SR::SIZE;
         debug_assert!(n <= valid - *o);
         *o += n;
 
@@ -698,7 +697,7 @@ where
     fn max_contiguous_items(&self) -> usize {
         self.current
             .as_ref()
-            .map(|(buffer, offset)| buffer.valid * size_of::<E::Elem>() / SR::SIZE.get() - offset)
+            .map(|(buffer, offset)| buffer.valid * size_of::<E::Elem>() / SR::SIZE - offset)
             .unwrap_or_else(|| self.state.connected().max_contiguous_items)
     }
 }

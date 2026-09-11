@@ -61,8 +61,8 @@ where
         let buffer = bytemuck::cast_slice_mut(o);
 
         let n_bytes = self.receiver.as_mut().unwrap().recv_into(buffer, 0)?;
-        debug_assert_eq!(n_bytes % T::SIZE.get(), 0);
-        let n = n_bytes / T::SIZE.get();
+        debug_assert_eq!(n_bytes % T::SIZE, 0);
+        let n = n_bytes / T::SIZE;
         debug!("SubSource received {}", n);
         self.output.produce(n);
 

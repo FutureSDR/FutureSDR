@@ -1,4 +1,6 @@
 #![recursion_limit = "512"]
+#![allow(clippy::redundant_field_names)]
+
 pub mod dataset;
 pub mod fft;
 pub mod model;

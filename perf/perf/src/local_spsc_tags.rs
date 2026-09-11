@@ -180,8 +180,8 @@ where
             buffer_size += page_size;
         }
 
-        let buffer: DoubleMappedBuffer<T> = DoubleMappedBuffer::new(buffer_size / T::SIZE.get())
-            .expect("failed to allocate SPSC buffer");
+        let buffer: DoubleMappedBuffer<T> =
+            DoubleMappedBuffer::new(buffer_size / T::SIZE).expect("failed to allocate SPSC buffer");
         let capacity = buffer.capacity();
         let base = unsafe { buffer.slice().as_ptr().cast_mut() };
         let inner = Rc::new(Inner {

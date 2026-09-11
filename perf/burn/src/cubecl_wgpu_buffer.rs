@@ -959,7 +959,7 @@ impl<D: CpuSample + Pod> CpuBufferReader for D2HReader<D> {
             full.buffer.unmap();
             self.outbound.lock().unwrap().push(OutputBufferEmpty {
                 buffer: full.buffer,
-                capacity: full.used_bytes / D::SIZE.get(),
+                capacity: full.used_bytes / D::SIZE,
                 _p: PhantomData,
             });
             self.state.connected().writer.inbox().notify();
@@ -970,7 +970,7 @@ impl<D: CpuSample + Pod> CpuBufferReader for D2HReader<D> {
     fn max_contiguous_items(&self) -> usize {
         self.buffer
             .as_ref()
-            .map(|buffer| (buffer.slice.len() - buffer.byte_offset) / D::SIZE.get())
+            .map(|buffer| (buffer.slice.len() - buffer.byte_offset) / D::SIZE)
             .or(self.max_contiguous_items)
             .expect("CubeCL D2H buffer capacity queried without a current page")
     }

@@ -353,7 +353,7 @@ where
     fn max_contiguous_items(&self) -> usize {
         self.current
             .as_ref()
-            .map(|buffer| (buffer.byte_len - buffer.byte_offset) / D::SIZE.get())
+            .map(|buffer| (buffer.byte_len - buffer.byte_offset) / D::SIZE)
             .expect("Zynq D2H buffer capacity queried without a current page")
     }
 }

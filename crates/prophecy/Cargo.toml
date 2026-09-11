@@ -6,7 +6,6 @@ edition = "2024"
 license = "Apache-2.0"
 homepage = "https://www.futuresdr.org"
 repository = "https://github.com/futuresdr/futuresdr/"
-readme = "README.md"
 description = "FutureSDR GUI"
 keywords = ["sdr", "radio", "runtime", "async", "acceleration"]
 categories = [

@@ -276,7 +276,7 @@ where
     }
 
     fn inject_buffers(&mut self, n_buffers: usize) {
-        let n_items = config().buffer_size / T::SIZE.get();
+        let n_items = config().buffer_size / T::SIZE;
         self.inject_buffers_with_items(n_buffers, n_items);
     }
 }

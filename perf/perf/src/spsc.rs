@@ -204,8 +204,8 @@ where
             buffer_size += page_size;
         }
 
-        let buffer = DoubleMappedBuffer::new(buffer_size / T::SIZE.get())
-            .expect("failed to allocate SPSC buffer");
+        let buffer =
+            DoubleMappedBuffer::new(buffer_size / T::SIZE).expect("failed to allocate SPSC buffer");
         let capacity = buffer.capacity();
         let inner = Arc::new(Inner {
             buffer,
@@ -290,8 +290,8 @@ where
             buffer_size += page_size;
         }
 
-        let buffer = DoubleMappedBuffer::new(buffer_size / T::SIZE.get())
-            .expect("failed to allocate SPSC buffer");
+        let buffer =
+            DoubleMappedBuffer::new(buffer_size / T::SIZE).expect("failed to allocate SPSC buffer");
         let capacity = buffer.capacity();
         let inner = Arc::new(Inner {
             buffer,

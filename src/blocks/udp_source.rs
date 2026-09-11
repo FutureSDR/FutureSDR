@@ -77,7 +77,7 @@ where
         {
             Ok((s, _)) => {
                 debug!("udp source read bytes {}", s);
-                self.output.produce(s / T::SIZE.get());
+                self.output.produce(s / T::SIZE);
             }
             Err(_) => {
                 debug!("udp source socket closed");

@@ -216,12 +216,12 @@ where
             }
 
             self.core
-                .set_min_buffer_size_in_items(buffer_size / D::SIZE.get());
+                .set_min_buffer_size_in_items(buffer_size / D::SIZE);
             dest.core
-                .set_min_buffer_size_in_items(buffer_size / D::SIZE.get());
+                .set_min_buffer_size_in_items(buffer_size / D::SIZE);
 
             ConnectedWriter {
-                writer: generic::Circular::with_capacity(buffer_size / D::SIZE.get()).unwrap(),
+                writer: generic::Circular::with_capacity(buffer_size / D::SIZE).unwrap(),
                 readers: vec![],
             }
         };
@@ -322,12 +322,12 @@ where
             }
 
             self.core
-                .set_min_buffer_size_in_items(buffer_size / D::SIZE.get());
+                .set_min_buffer_size_in_items(buffer_size / D::SIZE);
             self.state.set_connected(ConnectedWriter {
-                writer: generic::Circular::with_capacity(buffer_size / D::SIZE.get()).unwrap(),
+                writer: generic::Circular::with_capacity(buffer_size / D::SIZE).unwrap(),
                 readers: vec![],
             });
-            buffer_size / D::SIZE.get()
+            buffer_size / D::SIZE
         };
 
         let writer_notifier = MyNotifier {
