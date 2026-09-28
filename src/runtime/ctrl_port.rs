@@ -334,7 +334,9 @@ async fn serve_connection(
     let mut builder = http1::Builder::new();
     builder.timer(AsyncIoTimer::new());
 
-    let conn = builder.serve_connection(FuturesIo::new(stream), service);
+    let conn = builder
+        .serve_connection(FuturesIo::new(stream), service)
+        .with_upgrades();
     futures::pin_mut!(conn);
     let shutdown = rx_shutdown.fuse();
     futures::pin_mut!(shutdown);
