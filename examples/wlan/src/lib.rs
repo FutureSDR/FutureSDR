@@ -7,6 +7,9 @@ mod channels;
 pub use channels::channel_to_freq;
 pub use channels::parse_channel;
 
+mod dc_removal;
+pub use dc_removal::DcRemoval;
+
 mod decoder;
 pub use decoder::Decoder;
 

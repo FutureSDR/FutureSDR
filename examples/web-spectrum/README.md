@@ -1,7 +1,7 @@
 # FutureSDR WebGPU Spectrum
 
-This browser-only example receives IQ samples from a HackRF, HydraSDR, RTL-SDR,
-or UHD (USRP B2xx) device through Seify's async WebUSB backend and computes a
+This browser-only example receives IQ samples from a first-generation bladeRF, HackRF,
+HydraSDR, PlutoSDR, RTL-SDR, or UHD (USRP B2xx) device through Seify's async WebUSB backend and computes a
 32-frame, 2048-bin spectrum directly with WGPU/WGSL. The GPU emits
 linear mean power; the Prophecy spectrum and waterfall shaders convert it to dB
 while rendering.
@@ -26,3 +26,6 @@ Click **Start** and select the radio in the browser's WebUSB permission chooser.
 A USRP may reconnect after loading firmware. If prompted to request permission
 again, click **Start** again and select the reconnected device. FPGA loading can
 take several seconds.
+
+RX DC correction is enabled when supported by the driver. Devices without
+hardware correction stream their IQ samples without software compensation.

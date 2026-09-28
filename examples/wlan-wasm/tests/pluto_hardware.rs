@@ -65,9 +65,10 @@ fn pluto_source_runs_wlan_graph_and_reconfigures() -> Result<()> {
     let source = block_on(fg.with_local_domain_async(
         source_domain,
         async move |ctx: &LocalDomainContext<'_>| {
-            let (source, driver) =
+            let (source, driver, software_dc) =
                 wlan_wasm::radio::source("driver=pluto", 2_462_000_000.0, 50.0).await?;
             assert_eq!(driver, Driver::Pluto);
+            assert!(!software_dc);
             Ok(ctx.add(source).id())
         },
     ))?;
@@ -86,7 +87,7 @@ fn pluto_source_runs_wlan_graph_and_reconfigures() -> Result<()> {
     fg.stream_dyn(source, "outputs[0]", monitor, "input")?;
     let (frames_tx, frames_rx) = mpsc::channel(100);
     block_on(wlan_wasm::receiver::build_rx_flowgraph(
-        &mut fg, monitor, "output", frames_tx, true,
+        &mut fg, monitor, "output", frames_tx, false,
     ))?;
     let running = Runtime::new().start(fg)?;
     let start = Instant::now();

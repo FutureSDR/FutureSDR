@@ -14,7 +14,7 @@ pub struct Config {
     pub chan: Option<usize>,
     /// Antenna
     pub antenna: Option<String>,
-    /// Bandwidth
+    /// Bandwidth, applied after sample rate to override automatic driver selection.
     pub bandwidth: Option<f64>,
     /// Frequency
     pub freq: Option<f64>,
@@ -99,9 +99,6 @@ impl Config {
                 if let Some(ref a) = self.antenna {
                     channel.antenna().select(a)?;
                 }
-                if let Some(b) = self.bandwidth {
-                    channel.bandwidth().set(b)?;
-                }
                 if let Some(f) = self.freq {
                     channel.frequency().set(f)?;
                 }
@@ -110,6 +107,9 @@ impl Config {
                 }
                 if let Some(s) = self.sample_rate {
                     channel.sample_rate().set(s)?;
+                }
+                if let Some(b) = self.bandwidth {
+                    channel.bandwidth().set(b)?;
                 }
             }
             Direction::Tx => {
@@ -117,9 +117,6 @@ impl Config {
                 if let Some(ref a) = self.antenna {
                     channel.antenna().select(a)?;
                 }
-                if let Some(b) = self.bandwidth {
-                    channel.bandwidth().set(b)?;
-                }
                 if let Some(f) = self.freq {
                     channel.frequency().set(f)?;
                 }
@@ -128,6 +125,9 @@ impl Config {
                 }
                 if let Some(s) = self.sample_rate {
                     channel.sample_rate().set(s)?;
+                }
+                if let Some(b) = self.bandwidth {
+                    channel.bandwidth().set(b)?;
                 }
             }
         }
@@ -149,11 +149,6 @@ impl Config {
                         Error::SeifyError(format!("selecting async RX antenna: {error}"))
                     })?;
                 }
-                if let Some(b) = self.bandwidth {
-                    channel.bandwidth().set(b).await.map_err(|error| {
-                        Error::SeifyError(format!("setting async RX bandwidth: {error}"))
-                    })?;
-                }
                 if let Some(f) = self.freq {
                     channel.frequency().set(f).await.map_err(|error| {
                         Error::SeifyError(format!("setting async RX frequency: {error}"))
@@ -169,17 +164,17 @@ impl Config {
                         Error::SeifyError(format!("setting async RX sample rate: {error}"))
                     })?;
                 }
+                if let Some(b) = self.bandwidth {
+                    channel.bandwidth().set(b).await.map_err(|error| {
+                        Error::SeifyError(format!("setting async RX bandwidth: {error}"))
+                    })?;
+                }
             }
             Direction::Tx => {
                 let channel = dev.tx(chan).await?;
                 if let Some(ref a) = self.antenna {
                     channel.antenna().select(a).await.map_err(|error| {
                         Error::SeifyError(format!("selecting async TX antenna: {error}"))
-                    })?;
-                }
-                if let Some(b) = self.bandwidth {
-                    channel.bandwidth().set(b).await.map_err(|error| {
-                        Error::SeifyError(format!("setting async TX bandwidth: {error}"))
                     })?;
                 }
                 if let Some(f) = self.freq {
@@ -195,6 +190,11 @@ impl Config {
                 if let Some(s) = self.sample_rate {
                     channel.sample_rate().set(s).await.map_err(|error| {
                         Error::SeifyError(format!("setting async TX sample rate: {error}"))
+                    })?;
+                }
+                if let Some(b) = self.bandwidth {
+                    channel.bandwidth().set(b).await.map_err(|error| {
+                        Error::SeifyError(format!("setting async TX bandwidth: {error}"))
                     })?;
                 }
             }

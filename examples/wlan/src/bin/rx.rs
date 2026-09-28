@@ -7,7 +7,9 @@ use futuresdr::blocks::MessagePipe;
 use futuresdr::blocks::WebsocketPmtSink;
 use futuresdr::blocks::seify::Builder;
 use futuresdr::prelude::*;
+use futuresdr::seify::DynDevice;
 
+use wlan::DcRemoval;
 use wlan::Decoder;
 use wlan::FrameEqualizer;
 use wlan::MovingAverage;
@@ -33,9 +35,6 @@ struct Args {
     /// WLAN Channel Number
     #[clap(short, long, value_parser = parse_channel, default_value = "34")]
     channel: f64,
-    /// DC Offset
-    #[clap(short, long, default_value_t = false)]
-    dc_offset: bool,
 }
 
 fn main() -> Result<()> {
@@ -45,7 +44,13 @@ fn main() -> Result<()> {
     let rt = Runtime::new();
     let mut fg = Flowgraph::new();
 
-    let src = Builder::new(args.args)?
+    let dev = DynDevice::from_args(args.args)?;
+    let software_dc = match dev.rx(0)?.dc_offset().enable() {
+        Ok(()) => false,
+        Err(error) if error.is_unsupported() => true,
+        Err(error) => return Err(error.into()),
+    };
+    let src = Builder::from_dyn_device(dev)
         .frequency(args.channel)
         .sample_rate(args.sample_rate)
         .gain(args.gain)
@@ -54,15 +59,8 @@ fn main() -> Result<()> {
 
     connect!(fg, src);
 
-    let (prev, output): (BlockId, _) = if args.dc_offset {
-        let mut avg_real = 0.0;
-        let mut avg_img = 0.0;
-        let ratio = 1.0e-5;
-        let dc = Apply::new(move |c: &Complex32| -> Complex32 {
-            avg_real = ratio * (c.re - avg_real) + avg_real;
-            avg_img = ratio * (c.im - avg_img) + avg_img;
-            Complex32::new(c.re - avg_real, c.im - avg_img)
-        });
+    let (prev, output): (BlockId, _) = if software_dc {
+        let dc = DcRemoval::new();
 
         connect!(fg, src.outputs[0] > dc);
         (dc.into(), "output")

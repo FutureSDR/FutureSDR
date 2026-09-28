@@ -17,14 +17,15 @@ trunk serve
 Then open <http://127.0.0.1:8080/> and click **Start RX**. Seify uses an already
 authorized, accessible device, or opens the browser's WebUSB chooser with USB
 filters for all enabled Seify backends. Select a supported device there. Seify
-automatically chooses the backend when the RX worker opens the device. Channel,
-gain, and **DC Offset Correction** can be changed live.
-DC correction is a software filter and defaults to enabled.
+automatically chooses the backend when the RX worker opens the device. Channel
+and gain can be changed live. RX DC correction is automatic: hardware correction
+is enabled when supported, with a software filter otherwise. There is no DC toggle.
 
-The root crate and `futuresdr-types` use Seify 0.24.0 from crates.io. The `bladerf1`
-feature enables its native Rust bladeRF 1 backend and requires Rust 1.98.1 or newer.
+The example uses Seify 0.25.0 and the released Pluto driver from crates.io.
+The `bladerf1` feature enables its native Rust bladeRF 1 backend and requires
+Rust 1.98.1 or newer.
 The `uhd` feature enables Seify's native Rust UHD backend. The `pluto` feature enables
-its native IIO-over-USB driver. No sibling driver checkouts are required.
+its native IIO-over-USB driver.
 Permission and worker-side opening use empty Seify arguments, with no preferred
 driver. Pluto-specific RX settings are applied after Seify identifies the device.
 

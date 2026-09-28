@@ -20,7 +20,6 @@ const DEFAULT_CHANNEL: &str = "11";
 const DEFAULT_FREQUENCY: f64 = 2_462_000_000.0;
 const DEFAULT_SAMPLE_RATE: f64 = crate::radio::SAMPLE_RATE;
 const DEFAULT_GAIN: f64 = 50.0;
-const DC_OFFSET_CORRECTION: bool = true;
 const STREAM_BUFFER_SIZE: usize = 512 * 1024;
 const FRAME_QUEUE_LIMIT: usize = 100;
 const DISPLAY_FRAME_LIMIT: usize = 50;
@@ -102,7 +101,6 @@ type Shared<T> = Arc<Mutex<Option<T>>>;
 #[derive(Clone)]
 struct RunControl {
     source: FlowgraphBlockHandle,
-    dc: FlowgraphBlockHandle,
     driver: Driver,
 }
 
@@ -115,7 +113,6 @@ struct ReceiverConfig {
     frequency: f64,
     sample_rate: f64,
     gain: f64,
-    dc_offset: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -134,8 +131,6 @@ pub fn Gui() -> impl IntoView {
     let (frequency_range, set_frequency_range) = signal(None::<futuresdr::seify::Range>);
     let (frequency, set_frequency) = signal(DEFAULT_FREQUENCY);
     let (gain, set_gain) = signal(DEFAULT_GAIN);
-    let (dc_offset, set_dc_offset) = signal(DC_OFFSET_CORRECTION);
-    let (dc_pending, set_dc_pending) = signal(false);
     let (gain_range, set_gain_range) = signal(None::<GainRange>);
     let receiver_store = Shared::<Receiver>::default();
 
@@ -148,7 +143,6 @@ pub fn Gui() -> impl IntoView {
             frequency: frequency.get_untracked(),
             sample_rate: DEFAULT_SAMPLE_RATE,
             gain: gain.get_untracked(),
-            dc_offset: dc_offset.get_untracked(),
         };
 
         set_running.set(true);
@@ -254,30 +248,7 @@ pub fn Gui() -> impl IntoView {
                             />
                         </label>
 
-                        <label class="inline-flex items-center gap-2 text-sm text-slate-300">
-                            <input
-                                class="accent-cyan-400"
-                                type="checkbox"
-                                prop:checked=move || dc_offset.get()
-                                disabled=move || dc_pending.get() || (running.get() && control.get().is_none())
-                                on:change=move |ev| {
-                                    let input: HtmlInputElement = ev.target().unwrap().dyn_into().unwrap();
-                                    let enabled = input.checked();
-                                    set_dc_offset.set(enabled);
-                                    if let Some(control) = control.get_untracked() {
-                                        set_dc_pending.set(true);
-                                        spawn_local(async move {
-                                            if let Err(error) = control.dc.call("enabled", Pmt::Bool(enabled)).await {
-                                                set_dc_offset.set(!enabled);
-                                                set_status.set(format!("DC correction failed: {error}"));
-                                            }
-                                            set_dc_pending.set(false);
-                                        });
-                                    }
-                                }
-                            />
-                            "DC Offset Correction"
-                        </label>
+
                     </div>
 
                     <Show when=move || control.get().is_some_and(|control| control.driver == Driver::Pluto)>
@@ -354,11 +325,10 @@ async fn start_receiver(
 ) -> anyhow::Result<Receiver> {
     AsyncRegistry::default().request_permission("").await?;
     futuresdr::tracing::info!(
-        "starting WLAN WASM RX: frequency {} Hz, sample rate {} Hz, gain {} dB, dc_offset {}",
+        "starting WLAN WASM RX: frequency {} Hz, sample rate {} Hz, gain {} dB",
         config.frequency,
         config.sample_rate,
-        config.gain,
-        config.dc_offset
+        config.gain
     );
     set_status.set("starting flowgraph".to_string());
 
@@ -383,7 +353,7 @@ async fn start_receiver(
                 }
             };
             let (result, ()) = futuresdr::futures::future::join(build, report).await;
-            let (source, dc, driver) = result?;
+            let (source, driver) = result?;
             set_status.set("initializing receiver blocks".to_string());
             futuresdr::tracing::debug!("starting WLAN WASM flowgraph");
             let running = rt_handle.start(fg).await?;
@@ -408,11 +378,7 @@ async fn start_receiver(
                     set_status.set(format!("running (gain control unavailable: {error})"));
                 }
             }
-            set_control.set(Some(RunControl {
-                source,
-                dc: running.handle().block(dc),
-                driver,
-            }));
+            set_control.set(Some(RunControl { source, driver }));
             futuresdr::tracing::debug!("WLAN receiver control handle installed");
             futuresdr::tracing::debug!("WLAN WASM flowgraph started; detaching runtime task");
             drop(running);
@@ -457,24 +423,23 @@ async fn build_rx_flowgraph(
     config: ReceiverConfig,
     frames: FrameSender,
     progress: mpsc::Sender<&'static str>,
-) -> Result<(BlockId, BlockId, Driver)> {
+) -> Result<(BlockId, Driver)> {
     let _ = progress.send("starting radio worker").await;
     let source_domain = fg.local_domain()?;
     let radio_progress = progress.clone();
-    let (source, driver) = fg
+    let (source, driver, software_dc) = fg
         .with_local_domain_async(source_domain, async move |ctx: &LocalDomainContext<'_>| {
             let _ = radio_progress.send("opening radio").await;
             let _ = radio_progress.send("configuring radio at 20 MHz").await;
-            let (source, driver) = crate::radio::source("", config.frequency, config.gain).await?;
-            Ok((ctx.add(source).id(), driver))
+            let (source, driver, software_dc) =
+                crate::radio::source("", config.frequency, config.gain).await?;
+            Ok((ctx.add(source).id(), driver, software_dc))
         })
         .await?;
 
     let _ = progress.send("building DSP workers").await;
-    let dc =
-        crate::receiver::build_rx_flowgraph(fg, source, "outputs[0]", frames, config.dc_offset)
-            .await?;
-    Ok((source, dc, driver))
+    crate::receiver::build_rx_flowgraph(fg, source, "outputs[0]", frames, software_dc).await?;
+    Ok((source, driver))
 }
 
 async fn poll_frames(

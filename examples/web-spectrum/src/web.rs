@@ -398,11 +398,13 @@ async fn run(
     let src = fg
         .with_local_domain_async(seify_domain, async move |ctx: &LocalDomainContext<'_>| {
             let dev = DynAsyncDevice::from_args("").await?;
+            let rate = dev.rx(0).await?.sample_rate().value().await?;
             let range = dev.rx(0).await?.gain().range().await?;
             let gain = range.closest(range.min().midpoint(range.max()));
             // Start with manual gain near the middle of the supported range.
             let builder = AsyncBuilder::from_dyn_device(dev)
                 .frequency(100e6)
+                .sample_rate(rate)
                 .gain(gain);
             let src = builder.build_source().await?;
             Ok(ctx.add(src))

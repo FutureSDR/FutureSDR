@@ -125,7 +125,7 @@ num-complex = { version = "0.4", features = ["bytemuck"] }
 num-integer = "0.1"
 once_cell = "1.21"
 rustfft = { version = "6.4", features = ["wasm_simd"] }
-seify = { version = "0.24.0", default-features = false, optional = true }
+seify = { version = "0.25.0", default-features = false, optional = true }
 slab = "0.4"
 thiserror = "2.0"
 tracing = { version = "0.1", default-features = false, features = ["log", "std"] }
