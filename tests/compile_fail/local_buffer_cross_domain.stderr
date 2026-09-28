@@ -16,8 +16,9 @@ help: the trait `ThreadSafeConnect` is implemented for `futuresdr::runtime::buff
 note: required by a bound in `runtime::flowgraph::stream_api::<impl futuresdr::runtime::Flowgraph>::stream`
   --> src/runtime/flowgraph/stream_api.rs
    |
+   | impl Flowgraph {
+...
    |     pub fn stream<KS, KD, B, FS, FD>(
-   |            ------ required by a bound in this associated function
 ...
    |         B: ThreadSafeConnect + 'static,
    |            ^^^^^^^^^^^^^^^^^ required by this bound in `runtime::flowgraph::stream_api::<impl Flowgraph>::stream`
