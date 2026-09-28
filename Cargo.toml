@@ -64,8 +64,8 @@ rtlsdr = ["seify/rtlsdr"]
 seify = ["dep:seify", "futuresdr-types/seify"]
 seify_dummy = ["seify/dummy"]
 soapy = ["seify/soapy"]
-tracing_max_level_debug = ["tracing/max_level_debug"]
-tracing_release_max_level_info = ["tracing/release_max_level_info"]
+tracing_max_level_debug = ["tracing/max_level_debug", "log/max_level_debug"]
+tracing_release_max_level_info = ["tracing/release_max_level_info", "log/release_max_level_info"]
 uhd = ["seify/uhd", "seify/smol"]
 wgpu = ["dep:wgpu"]
 zeromq = ["dep:zmq"]
@@ -120,6 +120,7 @@ futuredsp.workspace = true
 futuresdr-macros.workspace = true
 futuresdr-types.workspace = true
 kanal = "0.1.1"
+log = { version = "0.4", default-features = false }
 num-complex = { version = "0.4", features = ["bytemuck"] }
 num-integer = "0.1"
 once_cell = "1.21"
