@@ -4,7 +4,7 @@ version.workspace = true
 authors = ["FutureSDR Contributors <team@futuresdr.org>"]
 edition = "2024"
 # Minimum rustc version; FutureSDR currently requires the nightly channel (see rust-toolchain.toml).
-rust-version = "1.95"
+rust-version = "1.98.1"
 license = "Apache-2.0"
 homepage = "https://www.futuresdr.org"
 repository = "https://github.com/futuresdr/futuresdr/"
@@ -52,18 +52,21 @@ futuresdr-types = { path = "crates/types", version = "0.9.0-dev" }
 default = ["ctrl_port", "tracing_max_level_debug", "tracing_release_max_level_info"]
 aaronia_http = ["seify/aaronia_http"]
 audio = ["dep:cpal", "dep:hound", "dep:rodio"]
+bladerf1 = ["seify/bladerf1", "seify/smol"]
 burn = ["dep:burn"]
 ctrl_port = ["dep:axum", "dep:hyper", "dep:tower-http", "dep:tower-service"]
 flow_scheduler = []
 hackrf = ["seify/hackrf"]
 hydrasdr = ["seify/hydrasdr", "seify/smol"]
 mocker = []
+pluto = ["seify/pluto", "seify/smol"]
 rtlsdr = ["seify/rtlsdr"]
 seify = ["dep:seify", "futuresdr-types/seify"]
 seify_dummy = ["seify/dummy"]
 soapy = ["seify/soapy"]
 tracing_max_level_debug = ["tracing/max_level_debug"]
 tracing_release_max_level_info = ["tracing/release_max_level_info"]
+uhd = ["seify/uhd", "seify/smol"]
 wgpu = ["dep:wgpu"]
 zeromq = ["dep:zmq"]
 
@@ -121,7 +124,7 @@ num-complex = { version = "0.4", features = ["bytemuck"] }
 num-integer = "0.1"
 once_cell = "1.21"
 rustfft = { version = "6.4", features = ["wasm_simd"] }
-seify = { version = "0.23.0", default-features = false, optional = true }
+seify = { version = "0.24.0", default-features = false, optional = true }
 slab = "0.4"
 thiserror = "2.0"
 tracing = { version = "0.1", default-features = false, features = ["log", "std"] }

@@ -5,6 +5,7 @@ use futuresdr::blocks::MovingAvg;
 use futuresdr::blocks::seify::AsyncBuilder;
 use futuresdr::runtime::dev::prelude::*;
 use futuresdr::seify::AsyncRegistry;
+use futuresdr::seify::DynAsyncDevice;
 use prophecy::FlowgraphCanvas;
 use prophecy::FlowgraphTable;
 use prophecy::PmtEditor;
@@ -409,22 +410,22 @@ async fn run(
     let local = fg.local_domain()?;
     let seify_block_id = fg
         .with_local_domain_async(local, async move |ctx: &LocalDomainContext<'_>| {
-            let src = AsyncBuilder::new("")
-                .await
-                .map_err(|error| {
-                    futuresdr::runtime::Error::RuntimeError(format!(
-                        "opening async Seify device: {error}"
-                    ))
-                })?
+            let dev = DynAsyncDevice::from_args("").await.map_err(|error| {
+                futuresdr::runtime::Error::RuntimeError(format!(
+                    "opening async Seify device: {error}"
+                ))
+            })?;
+            let range = dev.rx(0).await?.gain().range().await?;
+            let gain = range.closest(range.min().midpoint(range.max()));
+            // Start with manual gain near the middle of the supported range.
+            let builder = AsyncBuilder::from_dyn_device(dev)
                 .frequency(100e6)
-                .sample_rate(10e6)
-                .build_source()
-                .await
-                .map_err(|error| {
-                    futuresdr::runtime::Error::RuntimeError(format!(
-                        "configuring async Seify source: {error}"
-                    ))
-                })?;
+                .gain(gain);
+            let src = builder.build_source().await.map_err(|error| {
+                futuresdr::runtime::Error::RuntimeError(format!(
+                    "configuring async Seify source: {error}"
+                ))
+            })?;
             let src = ctx.add(src);
             let seify_block_id = src.id().0;
             let fft = ctx.add(Fft::with_options(

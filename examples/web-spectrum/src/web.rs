@@ -2,6 +2,7 @@ use bytemuck::cast_slice;
 use futuresdr::blocks::seify::AsyncBuilder;
 use futuresdr::runtime::dev::prelude::*;
 use futuresdr::seify::AsyncRegistry;
+use futuresdr::seify::DynAsyncDevice;
 use leptos::web_sys::HtmlInputElement;
 use prophecy::FlowgraphCanvas;
 use prophecy::FlowgraphTable;
@@ -396,12 +397,14 @@ async fn run(
     let seify_domain = fg.local_domain()?;
     let src = fg
         .with_local_domain_async(seify_domain, async move |ctx: &LocalDomainContext<'_>| {
-            let src = AsyncBuilder::new("")
-                .await?
-                .frequency(100_000_000.0)
-                .sample_rate(10_000_000.0)
-                .build_source()
-                .await?;
+            let dev = DynAsyncDevice::from_args("").await?;
+            let range = dev.rx(0).await?.gain().range().await?;
+            let gain = range.closest(range.min().midpoint(range.max()));
+            // Start with manual gain near the middle of the supported range.
+            let builder = AsyncBuilder::from_dyn_device(dev)
+                .frequency(100e6)
+                .gain(gain);
+            let src = builder.build_source().await?;
             Ok(ctx.add(src))
         })
         .await?;

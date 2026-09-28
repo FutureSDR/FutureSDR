@@ -1,8 +1,8 @@
 # FutureSDR WebGPU Spectrum
 
-This browser-only example receives IQ samples from a HackRF or HydraSDR through
-Seify's async WebUSB backend and computes a 32-frame, 2048-bin spectrum directly
-with WGPU/WGSL. The GPU emits
+This browser-only example receives IQ samples from a HackRF, HydraSDR, RTL-SDR,
+or UHD (USRP B2xx) device through Seify's async WebUSB backend and computes a
+32-frame, 2048-bin spectrum directly with WGPU/WGSL. The GPU emits
 linear mean power; the Prophecy spectrum and waterfall shaders convert it to dB
 while rendering.
 
@@ -21,3 +21,8 @@ The worker build uses shared WebAssembly memory, so deployments outside Trunk's
 development server must also send the `Cross-Origin-Opener-Policy: same-origin`
 and `Cross-Origin-Embedder-Policy: require-corp` response headers configured in
 `Trunk.toml`.
+
+Click **Start** and select the radio in the browser's WebUSB permission chooser.
+A USRP may reconnect after loading firmware. If prompted to request permission
+again, click **Start** again and select the reconnected device. FPGA loading can
+take several seconds.

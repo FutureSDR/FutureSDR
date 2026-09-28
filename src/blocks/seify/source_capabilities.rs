@@ -124,9 +124,9 @@ mod tests {
         let capabilities = SourceCapabilities {
             chan: 1,
             antenna: Some(vec!["RX".to_string(), "RX2".to_string()]),
-            freq: Some(Range::new(vec![RangeItem::Interval(1e6, 6e9)])),
-            gain: Some(Range::new(vec![RangeItem::Step(0.0, 40.0, 8.0)])),
-            sample_rate: Some(Range::new(vec![RangeItem::Value(10e6)])),
+            freq: Some(Range::new(vec![RangeItem::Interval(1e6, 6e9)]).unwrap()),
+            gain: Some(Range::new(vec![RangeItem::Step(0.0, 40.0, 8.0)]).unwrap()),
+            sample_rate: Some(Range::new(vec![RangeItem::Value(10e6)]).unwrap()),
             ..Default::default()
         };
 

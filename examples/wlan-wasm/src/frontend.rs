@@ -1,12 +1,10 @@
 use any_spawner::Executor;
-use futuresdr::blocks::seify::AsyncBuilder;
 use futuresdr::blocks::seify::SourceCapabilities;
 use futuresdr::prelude::*;
-use futuresdr::runtime::buffer::mpsc_queue;
-use futuresdr::runtime::buffer::slab;
 use futuresdr::runtime::channel::mpsc;
 use futuresdr::runtime::scheduler::WasmMainScheduler;
 use futuresdr::seify::AsyncRegistry;
+use futuresdr::seify::Driver;
 use futuresdr::seify::RangeItem;
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
@@ -20,8 +18,8 @@ use std::sync::Mutex;
 
 const DEFAULT_CHANNEL: &str = "11";
 const DEFAULT_FREQUENCY: f64 = 2_462_000_000.0;
-const DEFAULT_SAMPLE_RATE: f64 = 20_000_000.0;
-const DEFAULT_GAIN: f64 = 70.0;
+const DEFAULT_SAMPLE_RATE: f64 = crate::radio::SAMPLE_RATE;
+const DEFAULT_GAIN: f64 = 50.0;
 const DC_OFFSET_CORRECTION: bool = true;
 const STREAM_BUFFER_SIZE: usize = 512 * 1024;
 const FRAME_QUEUE_LIMIT: usize = 100;
@@ -104,6 +102,8 @@ type Shared<T> = Arc<Mutex<Option<T>>>;
 #[derive(Clone)]
 struct RunControl {
     source: FlowgraphBlockHandle,
+    dc: FlowgraphBlockHandle,
+    driver: Driver,
 }
 
 struct Receiver {
@@ -131,8 +131,11 @@ pub fn Gui() -> impl IntoView {
     let (running, set_running) = signal(false);
     let (frames, set_frames) = signal(VecDeque::<Frame>::new());
     let (control, set_control) = signal(None::<RunControl>);
+    let (frequency_range, set_frequency_range) = signal(None::<futuresdr::seify::Range>);
     let (frequency, set_frequency) = signal(DEFAULT_FREQUENCY);
     let (gain, set_gain) = signal(DEFAULT_GAIN);
+    let (dc_offset, set_dc_offset) = signal(DC_OFFSET_CORRECTION);
+    let (dc_pending, set_dc_pending) = signal(false);
     let (gain_range, set_gain_range) = signal(None::<GainRange>);
     let receiver_store = Shared::<Receiver>::default();
 
@@ -145,20 +148,29 @@ pub fn Gui() -> impl IntoView {
             frequency: frequency.get_untracked(),
             sample_rate: DEFAULT_SAMPLE_RATE,
             gain: gain.get_untracked(),
-            dc_offset: DC_OFFSET_CORRECTION,
+            dc_offset: dc_offset.get_untracked(),
         };
 
         set_running.set(true);
-        set_status.set("requesting HackRF permission".to_string());
+        set_status.set("requesting device permission".to_string());
         set_frames.set(VecDeque::new());
         set_gain_range.set(None);
+        set_frequency_range.set(None);
         let receiver_store = receiver_store.clone();
 
         spawn_local(async move {
-            match start_receiver(config, set_status, set_frames, set_control, set_gain_range).await
+            match start_receiver(
+                config,
+                set_status,
+                set_frames,
+                set_control,
+                set_gain_range,
+                set_frequency_range,
+                set_running,
+            )
+            .await
             {
                 Ok(receiver) => {
-                    set_status.set("running".to_string());
                     if let Ok(mut stored) = receiver_store.lock() {
                         *stored = Some(receiver);
                         futuresdr::tracing::debug!("WLAN receiver handle stored");
@@ -181,7 +193,7 @@ pub fn Gui() -> impl IntoView {
             <header class="bg-slate-800 border-b border-slate-700 shadow-lg">
                 <div class="flex items-center gap-3 px-4 py-3">
                     <div class="text-white font-semibold tracking-tight text-base">"FutureSDR WLAN RX"</div>
-                    <div class="text-xs text-slate-400">"HackRF source worker + 4 DSP worker domains, 20 MHz, DC correction"</div>
+                    <div class="text-xs text-slate-400">"bladeRF 1 / PlutoSDR / HackRF / UHD · 20 MHz"</div>
                 </div>
             </header>
 
@@ -207,8 +219,10 @@ pub fn Gui() -> impl IntoView {
                                     }
                                 }
                             >
-                                {WLAN_CHANNELS.iter().map(|(chan, _)| view! {
-                                    <option value=*chan selected=*chan == DEFAULT_CHANNEL>{*chan}</option>
+                                {WLAN_CHANNELS.iter().map(|(chan, freq)| view! {
+                                    <option value=*chan selected=*chan == DEFAULT_CHANNEL
+                                        disabled=move || frequency_range.get().is_some_and(|range| !range.contains(*freq))
+                                    >{*chan}</option>
                                 }).collect_view()}
                             </select>
                         </label>
@@ -228,7 +242,7 @@ pub fn Gui() -> impl IntoView {
                                 min=move || gain_range.get().map(|range| range.min)
                                 max=move || gain_range.get().map(|range| range.max)
                                 step=move || gain_range.get().map(|range| range.step)
-                                value=DEFAULT_GAIN
+                                prop:value=move || gain.get()
                                 disabled=move || gain_range.get().is_none() || control.get().is_none()
                                 on:input=move |ev| {
                                     let input: HtmlInputElement = ev.target().unwrap().dyn_into().unwrap();
@@ -241,17 +255,49 @@ pub fn Gui() -> impl IntoView {
                         </label>
 
                         <label class="inline-flex items-center gap-2 text-sm text-slate-300">
-                            <input class="accent-cyan-400" type="checkbox" checked=true disabled=true />
+                            <input
+                                class="accent-cyan-400"
+                                type="checkbox"
+                                prop:checked=move || dc_offset.get()
+                                disabled=move || dc_pending.get() || (running.get() && control.get().is_none())
+                                on:change=move |ev| {
+                                    let input: HtmlInputElement = ev.target().unwrap().dyn_into().unwrap();
+                                    let enabled = input.checked();
+                                    set_dc_offset.set(enabled);
+                                    if let Some(control) = control.get_untracked() {
+                                        set_dc_pending.set(true);
+                                        spawn_local(async move {
+                                            if let Err(error) = control.dc.call("enabled", Pmt::Bool(enabled)).await {
+                                                set_dc_offset.set(!enabled);
+                                                set_status.set(format!("DC correction failed: {error}"));
+                                            }
+                                            set_dc_pending.set(false);
+                                        });
+                                    }
+                                }
+                            />
                             "DC Offset Correction"
                         </label>
                     </div>
+
+                    <Show when=move || control.get().is_some_and(|control| control.driver == Driver::Pluto)>
+                        <p class="mt-4 text-sm text-amber-300">
+                            "Pluto reception is experimental: USB bandwidth limits continuous 20 MHz capture, so samples and frames can be lost."
+                        </p>
+                    </Show>
 
                     <button
                         class="mt-5 rounded bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-600 text-white px-4 py-2 font-semibold"
                         on:click=start
                         disabled=running
                     >
-                        {move || if running.get() { "Running" } else { "Start RX" }}
+                        {move || if !running.get() {
+                            "Start RX"
+                        } else if control.get().is_none() {
+                            "Starting…"
+                        } else {
+                            "Running"
+                        }}
                     </button>
                 </section>
 
@@ -285,14 +331,14 @@ fn post_source(control: ReadSignal<Option<RunControl>>, handler: &'static str, p
     let value = format!("{p:?}");
     if let Some(run_control) = control.get_untracked() {
         spawn_local(async move {
-            futuresdr::tracing::info!("posting HackRF setting {handler} = {value}");
+            futuresdr::tracing::info!("posting source setting {handler} = {value}");
             if let Err(e) = run_control.source.post(handler, p).await {
-                futuresdr::tracing::warn!("failed to post HackRF setting {handler}: {e:?}");
+                futuresdr::tracing::warn!("failed to post source setting {handler}: {e:?}");
             }
         });
     } else {
         futuresdr::tracing::debug!(
-            "ignoring HackRF setting {handler} = {value}; receiver control not installed yet"
+            "ignoring source setting {handler} = {value}; receiver control not installed yet"
         );
     }
 }
@@ -303,10 +349,10 @@ async fn start_receiver(
     set_frames: WriteSignal<VecDeque<Frame>>,
     set_control: WriteSignal<Option<RunControl>>,
     set_gain_range: WriteSignal<Option<GainRange>>,
+    set_frequency_range: WriteSignal<Option<futuresdr::seify::Range>>,
+    set_running: WriteSignal<bool>,
 ) -> anyhow::Result<Receiver> {
-    AsyncRegistry::default()
-        .request_permission("driver=hackrf")
-        .await?;
+    AsyncRegistry::default().request_permission("").await?;
     futuresdr::tracing::info!(
         "starting WLAN WASM RX: frequency {} Hz, sample rate {} Hz, gain {} dB, dc_offset {}",
         config.frequency,
@@ -329,31 +375,44 @@ async fn start_receiver(
     let failure_for_task = failure.clone();
     spawn_local(async move {
         let result = async move {
-            let source = build_rx_flowgraph(&mut fg, config, frames_for_pipe).await?;
+            let (progress_tx, progress_rx) = mpsc::channel::<&'static str>(8);
+            let build = build_rx_flowgraph(&mut fg, config, frames_for_pipe, progress_tx);
+            let report = async move {
+                while let Some(stage) = progress_rx.recv().await {
+                    set_status.set(stage.to_string());
+                }
+            };
+            let (result, ()) = futuresdr::futures::future::join(build, report).await;
+            let (source, dc, driver) = result?;
+            set_status.set("initializing receiver blocks".to_string());
             futuresdr::tracing::debug!("starting WLAN WASM flowgraph");
             let running = rt_handle.start(fg).await?;
+            set_status.set("running".to_string());
             let source = running.handle().block(source);
             match source.call("capabilities", Pmt::U64(0)).await {
                 Ok(capabilities) => match SourceCapabilities::try_from(capabilities)
+                    .inspect(|capabilities| set_frequency_range.set(capabilities.freq.clone()))
                     .map_err(|error| error.to_string())
                     .and_then(gain_range_from_capabilities)
                 {
                     Ok(range) => set_gain_range.set(Some(range)),
                     Err(error) => {
                         futuresdr::tracing::warn!(
-                            "failed to configure gain control from HackRF capabilities: {error}"
+                            "failed to configure gain control from source capabilities: {error}"
                         );
                         set_status.set(format!("running (gain control unavailable: {error})"));
                     }
                 },
                 Err(error) => {
-                    futuresdr::tracing::warn!(
-                        "failed to query HackRF source capabilities: {error}"
-                    );
+                    futuresdr::tracing::warn!("failed to query source capabilities: {error}");
                     set_status.set(format!("running (gain control unavailable: {error})"));
                 }
             }
-            set_control.set(Some(RunControl { source }));
+            set_control.set(Some(RunControl {
+                source,
+                dc: running.handle().block(dc),
+                driver,
+            }));
             futuresdr::tracing::debug!("WLAN receiver control handle installed");
             futuresdr::tracing::debug!("WLAN WASM flowgraph started; detaching runtime task");
             drop(running);
@@ -361,10 +420,12 @@ async fn start_receiver(
         }
         .await;
 
-        if let Err(e) = result
-            && let Ok(mut failure) = failure_for_task.lock()
-        {
-            *failure = Some(format!("{e:?}"));
+        if let Err(e) = result {
+            set_control.set(None);
+            set_running.set(false);
+            if let Ok(mut failure) = failure_for_task.lock() {
+                *failure = Some(format!("{e:?}"));
+            }
         }
     });
 
@@ -377,7 +438,7 @@ fn gain_range_from_capabilities(
     let range = capabilities
         .gain
         .ok_or_else(|| "source exposes no overall gain range".to_string())?;
-    let [RangeItem::Step(min, max, step)] = range.items.as_slice() else {
+    let [RangeItem::Step(min, max, step)] = range.items() else {
         return Err("source gain range is not one stepped interval".to_string());
     };
     if !min.is_finite() || !max.is_finite() || !step.is_finite() || max < min || *step <= 0.0 {
@@ -395,31 +456,25 @@ async fn build_rx_flowgraph(
     fg: &mut Flowgraph,
     config: ReceiverConfig,
     frames: FrameSender,
-) -> Result<BlockId> {
+    progress: mpsc::Sender<&'static str>,
+) -> Result<(BlockId, BlockId, Driver)> {
+    let _ = progress.send("starting radio worker").await;
     let source_domain = fg.local_domain()?;
-    let source = fg
+    let radio_progress = progress.clone();
+    let (source, driver) = fg
         .with_local_domain_async(source_domain, async move |ctx: &LocalDomainContext<'_>| {
-            let builder = AsyncBuilder::new("driver=hackrf")
-                .await?
-                .frequency(config.frequency)
-                .sample_rate(config.sample_rate)
-                .gain(config.gain);
-            if config.dc_offset {
-                let source = builder
-                    .build_source_with_buffer::<slab::Writer<Complex32>>()
-                    .await?;
-                Ok(ctx.add(source).id())
-            } else {
-                let source = builder
-                    .build_source_with_buffer::<mpsc_queue::Writer<Complex32>>()
-                    .await?;
-                Ok(ctx.add(source).id())
-            }
+            let _ = radio_progress.send("opening radio").await;
+            let _ = radio_progress.send("configuring radio at 20 MHz").await;
+            let (source, driver) = crate::radio::source("", config.frequency, config.gain).await?;
+            Ok((ctx.add(source).id(), driver))
         })
         .await?;
 
-    crate::receiver::build_rx_flowgraph(fg, source, "outputs[0]", frames, config.dc_offset).await?;
-    Ok(source)
+    let _ = progress.send("building DSP workers").await;
+    let dc =
+        crate::receiver::build_rx_flowgraph(fg, source, "outputs[0]", frames, config.dc_offset)
+            .await?;
+    Ok((source, dc, driver))
 }
 
 async fn poll_frames(

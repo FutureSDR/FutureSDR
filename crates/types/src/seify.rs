@@ -8,7 +8,7 @@ impl From<&Range> for Pmt {
     fn from(value: &Range) -> Self {
         Pmt::VecPmt(
             value
-                .items
+                .items()
                 .iter()
                 .map(|x| match x {
                     RangeItem::Interval(min, max) => Pmt::MapStrPmt(HashMap::from([
@@ -68,7 +68,7 @@ impl TryFrom<&Pmt> for Range {
                         _ => Err(PmtConversionError),
                     })
                     .collect::<Result<Vec<RangeItem>, PmtConversionError>>()?;
-                Ok(Range { items })
+                Range::new(items).map_err(|_| PmtConversionError)
             }
             _ => Err(PmtConversionError),
         }
@@ -88,16 +88,12 @@ mod tests {
     use super::*;
 
     fn value() -> (Range, Pmt) {
-        let range = Range {
-            items: vec![RangeItem::Value(3.0)],
-        };
+        let range = Range::new(vec![RangeItem::Value(3.0)]).unwrap();
         let pmt = Pmt::VecPmt(vec![Pmt::F64(3.0)]);
         (range, pmt)
     }
     fn interval() -> (Range, Pmt) {
-        let range = Range {
-            items: vec![RangeItem::Interval(1.0, 2.0)],
-        };
+        let range = Range::new(vec![RangeItem::Interval(1.0, 2.0)]).unwrap();
         let pmt = Pmt::VecPmt(vec![Pmt::MapStrPmt(HashMap::from([
             ("min".to_owned(), Pmt::F64(1.0)),
             ("max".to_owned(), Pmt::F64(2.0)),
@@ -106,9 +102,7 @@ mod tests {
     }
 
     fn stepped() -> (Range, Pmt) {
-        let range = Range {
-            items: vec![RangeItem::Step(1.0, 2.0, 0.5)],
-        };
+        let range = Range::new(vec![RangeItem::Step(1.0, 2.0, 0.5)]).unwrap();
         let pmt = Pmt::VecPmt(vec![Pmt::MapStrPmt(HashMap::from([
             ("min".to_owned(), Pmt::F64(1.0)),
             ("max".to_owned(), Pmt::F64(2.0)),
@@ -164,5 +158,25 @@ mod tests {
         let pmt = Pmt::VecPmt(vec![Pmt::String("3.0".into()), Pmt::F64(4.0)]);
         let result = Range::try_from(&pmt);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn try_from_pmt_rejects_invalid_ranges() {
+        for pmt in [
+            Pmt::VecPmt(vec![]),
+            Pmt::VecPmt(vec![Pmt::F64(f64::NAN)]),
+            Pmt::VecPmt(vec![Pmt::MapStrPmt(HashMap::from([
+                ("min".to_owned(), Pmt::F64(2.0)),
+                ("max".to_owned(), Pmt::F64(1.0)),
+            ]))]),
+            Pmt::VecPmt(vec![Pmt::MapStrPmt(HashMap::from([
+                ("min".to_owned(), Pmt::F64(0.0)),
+                ("max".to_owned(), Pmt::F64(1.0)),
+                ("step".to_owned(), Pmt::F64(0.0)),
+            ]))]),
+        ] {
+            assert!(Range::try_from(&pmt).is_err());
+            assert!(Range::try_from(pmt).is_err());
+        }
     }
 }

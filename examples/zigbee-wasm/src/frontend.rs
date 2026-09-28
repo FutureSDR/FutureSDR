@@ -10,6 +10,8 @@ use futuresdr::runtime::dev::WorkIo;
 use futuresdr::runtime::macros::Block;
 use futuresdr::runtime::scheduler::WasmScheduler;
 use futuresdr::seify::AsyncRegistry;
+use futuresdr::seify::DynAsyncDevice;
+use futuresdr::seify::RangeItem;
 use futuresdr::tracing::info;
 use leptos::html::Input;
 use leptos::html::Select;
@@ -54,6 +56,7 @@ type Shared<T> = Arc<Mutex<Option<T>>>;
 #[derive(Clone)]
 struct RunControl {
     source: FlowgraphBlockHandle,
+    gain_range: (f64, f64, f64),
 }
 
 struct Receiver {
@@ -125,7 +128,7 @@ fn Gui() -> impl IntoView {
         }
 
         set_running.set(true);
-        set_status.set("requesting HackRF permission".to_string());
+        set_status.set("requesting radio permission".to_string());
         set_frames.set(VecDeque::new());
         set_n_frames.set(0);
         let receiver_store = receiver_store.clone();
@@ -158,7 +161,7 @@ fn Gui() -> impl IntoView {
                 <div class="flex items-center justify-between gap-3 px-4 py-3">
                     <div>
                         <div class="text-white font-semibold tracking-tight text-base">"FutureSDR ZigBee RX"</div>
-                        <div class="text-xs text-slate-400">"HackRF local domain + 2 WASM scheduler workers, 4 MHz"</div>
+                        <div class="text-xs text-slate-400">"bladeRF 1 / HackRF / USRP B2xx, 4 MHz"</div>
                     </div>
                     <span class="rounded-full bg-slate-900 border border-slate-700 px-3 py-1 text-xs text-slate-300">
                         {move || status.get()}
@@ -171,7 +174,7 @@ fn Gui() -> impl IntoView {
                     <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
                         <div>
                             <h2 class="text-white text-lg font-semibold">"Receiver"</h2>
-                            <div class="text-sm text-slate-400">"Configure HackRF and ZigBee channel"</div>
+                            <div class="text-sm text-slate-400">"Configure radio and ZigBee channel"</div>
                         </div>
                         <div class="flex items-center gap-3">
                             <span class="text-sm text-slate-300">{move || if running.get() { "running" } else { "idle" }}</span>
@@ -242,7 +245,11 @@ fn GainControls(control: ReadSignal<Option<RunControl>>) -> impl IntoView {
     view! {
         <label class="block rounded-lg bg-slate-900 border border-slate-700 p-4 h-full">
             <span class="text-slate-300 text-sm">"Gain: " {move || gain.get()} " dB"</span>
-            <input class="mt-2 w-full accent-cyan-400" type="range" min="0" max="116" step="2" value=DEFAULT_GAIN node_ref=gain_ref on:change=change/>
+            <input class="mt-2 w-full accent-cyan-400" type="range" min=move || control.get().map(|c| c.gain_range.0)
+                max=move || control.get().map(|c| c.gain_range.1)
+                step=move || control.get().map(|c| c.gain_range.2)
+                disabled=move || control.get().is_none()
+                value=DEFAULT_GAIN node_ref=gain_ref on:change=change/>
         </label>
     }
 }
@@ -263,7 +270,7 @@ fn Channel(control: ReadSignal<Option<RunControl>>) -> impl IntoView {
     view! {
         <label class="block rounded-lg bg-slate-900 border border-slate-700 p-4 h-full">
             <span class="text-slate-300 text-sm">"ZigBee Channel"</span>
-            <select class="mt-2 w-full rounded bg-slate-950 border border-slate-600 text-slate-100 px-2 py-2" on:change=change node_ref=select_ref>
+            <select class="mt-2 w-full rounded bg-slate-950 border border-slate-600 text-slate-100 px-2 py-2" on:change=change node_ref=select_ref disabled=move || control.get().is_none()>
                 {ZIGBEE_CHANNELS.iter().map(|(chan, freq)| view! {
                     <option value=freq.to_string() selected=*chan == DEFAULT_CHANNEL>{*chan}</option>
                 }).collect_view()}
@@ -279,68 +286,65 @@ async fn start_receiver(
     set_control: WriteSignal<Option<RunControl>>,
     set_status: WriteSignal<String>,
 ) -> Result<Receiver> {
-    AsyncRegistry::default()
-        .request_permission("driver=hackrf")
-        .await?;
-    set_status.set("starting flowgraph".to_string());
+    AsyncRegistry::default().request_permission("").await?;
+    set_status.set("opening radio (firmware and FPGA loading may take a while)".to_string());
 
     let rt = Runtime::with_scheduler(WasmScheduler::new(2));
     let rt_handle = rt.handle();
     let (frames_for_pipe, frame_rx) = mpsc::channel::<Vec<u8>>(FRAME_QUEUE_LIMIT);
-    spawn_local(poll_frames(frame_rx, set_n_frames, set_frames, set_status));
 
     let mut fg = Flowgraph::new();
     let local = fg.local_domain()?;
-    let src = fg
+    let (src, gain_range) = fg
         .with_local_domain_async(local, async |ctx: &LocalDomainContext<'_>| {
-            let src = AsyncBuilder::new("driver=hackrf")
-                .await?
+            let dev = DynAsyncDevice::from_args("").await?;
+            let range = dev.rx(0).await?.gain().range().await?;
+            let [RangeItem::Step(min, max, step)] = range.items() else {
+                return Err(futuresdr::runtime::Error::RuntimeError(
+                    "radio gain range is not one stepped interval".to_string(),
+                ));
+            };
+            let gain_range = (*min, *max, *step);
+            let src = AsyncBuilder::from_dyn_device(dev)
                 .frequency(2_480_000_000.0)
                 .sample_rate(4_000_000.0)
                 .gain(DEFAULT_GAIN)
                 .build_source()
                 .await?;
-            Ok(ctx.add(src))
+            Ok((ctx.add(src), gain_range))
         })
         .await?;
     let source = src.id();
 
-    spawn_local(async move {
-        let result = async move {
-            let mut last: Complex32 = Complex32::new(0.0, 0.0);
-            let mut iir: f32 = 0.0;
-            let alpha = 0.00016;
-            let avg = Apply::new(move |i: &Complex32| -> f32 {
-                let phase = (last.conj() * i).arg();
-                last = *i;
-                iir = (1.0 - alpha) * iir + alpha * phase;
-                phase - iir
-            });
-
-            let mm: ClockRecoveryMm = ClockRecoveryMm::new(2.0, 0.000225, 0.5, 0.03, 0.0002);
-            let decoder = Decoder::new(6);
-            let mac: Mac = Mac::new();
-            let snk = NullSink::<u8>::new();
-            let frame_pipe = FramePipe::new(frames_for_pipe);
-
-            connect_async!(fg, src.outputs[0] > avg > mm > decoder;
-                         mac > snk;
-                         decoder | rx.mac;
-                         mac.rxed | frame_pipe);
-
-            let running = rt_handle.start(fg).await?;
-            set_control.set(Some(RunControl {
-                source: running.handle().block(source),
-            }));
-            drop(running);
-            Ok::<(), futuresdr::runtime::Error>(())
-        }
-        .await;
-
-        if let Err(e) = result {
-            info!("ZigBee flowgraph failed: {:?}", e);
-        }
+    set_status.set("starting flowgraph".to_string());
+    let mut last: Complex32 = Complex32::new(0.0, 0.0);
+    let mut iir: f32 = 0.0;
+    let alpha = 0.00016;
+    let avg = Apply::new(move |i: &Complex32| -> f32 {
+        let phase = (last.conj() * i).arg();
+        last = *i;
+        iir = (1.0 - alpha) * iir + alpha * phase;
+        phase - iir
     });
+
+    let mm: ClockRecoveryMm = ClockRecoveryMm::new(2.0, 0.000225, 0.5, 0.03, 0.0002);
+    let decoder = Decoder::new(6);
+    let mac: Mac = Mac::new();
+    let snk = NullSink::<u8>::new();
+    let frame_pipe = FramePipe::new(frames_for_pipe);
+
+    connect_async!(fg, src.outputs[0] > avg > mm > decoder;
+                 mac > snk;
+                 decoder | rx.mac;
+                 mac.rxed | frame_pipe);
+
+    let running = rt_handle.start(fg).await?;
+    set_control.set(Some(RunControl {
+        source: running.handle().block(source),
+        gain_range,
+    }));
+    spawn_local(poll_frames(frame_rx, set_n_frames, set_frames, set_status));
+    drop(running);
 
     Ok(Receiver { _runtime: rt })
 }
@@ -395,13 +399,13 @@ fn post_source(control: ReadSignal<Option<RunControl>>, handler: &'static str, p
     let value = format!("{p:?}");
     if let Some(run_control) = control.get_untracked() {
         spawn_local(async move {
-            info!("posting HackRF setting {handler} = {value}");
+            info!("posting radio setting {handler} = {value}");
             if let Err(e) = run_control.source.post(handler, p).await {
-                warn!("failed to post HackRF setting {handler}: {e:?}");
+                warn!("failed to post radio setting {handler}: {e:?}");
             }
         });
     } else {
-        info!("ignoring HackRF setting {handler} = {value}; receiver control not installed yet");
+        info!("ignoring radio setting {handler} = {value}; receiver control not installed yet");
     }
 }
 

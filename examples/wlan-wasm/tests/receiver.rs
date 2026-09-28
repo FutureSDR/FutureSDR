@@ -6,7 +6,6 @@ use futuresdr::blocks::VectorSource;
 use futuresdr::futures::future::Either;
 use futuresdr::futures::future::select;
 use futuresdr::prelude::*;
-use futuresdr::runtime::buffer::mpsc_queue;
 use futuresdr::runtime::buffer::slab;
 use futuresdr::runtime::dev::prelude::*;
 use std::time::Duration;
@@ -101,17 +100,11 @@ fn decode(dc_offset: bool) -> Result<()> {
     let mut fg = Flowgraph::new();
     let source_domain = fg.local_domain()?;
     let source = fg.with_local_domain(source_domain, move |ctx| {
-        if dc_offset {
-            Ok(ctx
-                .add(VectorSource::<Complex32, slab::Writer<Complex32>>::new(
-                    samples,
-                ))
-                .id())
-        } else {
-            Ok(ctx
-                .add(VectorSource::<Complex32, mpsc_queue::Writer<Complex32>>::new(samples))
-                .id())
-        }
+        Ok(ctx
+            .add(VectorSource::<Complex32, slab::Writer<Complex32>>::new(
+                samples,
+            ))
+            .id())
     })?;
     let (tx, rx) = mpsc::channel(16);
     block_on(wlan_wasm::receiver::build_rx_flowgraph(

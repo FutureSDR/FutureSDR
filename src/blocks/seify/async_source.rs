@@ -4,6 +4,7 @@ use seify::AsyncRxStreamer;
 use seify::Direction::Rx;
 use seify::DynAsyncDevice;
 use std::time::Duration;
+use web_time::Instant;
 
 use crate::blocks::seify::Config;
 use crate::blocks::seify::SourceCapabilities;
@@ -68,6 +69,8 @@ where
     streamer: Option<D::RxStreamer>,
     start_time: Option<i64>,
     overflows: u64,
+    rate_check_interval: Option<Duration>,
+    rate_monitor: Option<RateMonitor>,
 }
 
 impl<D, OUT> AsyncSource<D, OUT>
@@ -91,7 +94,37 @@ where
             streamer: None,
             start_time,
             overflows: 0,
+            rate_check_interval: None,
+            rate_monitor: None,
         }
+    }
+
+    /// Periodically log the delivered and actual device sample rates.
+    ///
+    /// Checks every interval's worth of samples per channel, including time spent
+    /// waiting for downstream buffers. Monitoring starts with the first nonempty
+    /// read and resets after reconfiguration. A complete stall cannot be reported
+    /// until reads resume. Disabled by default; set before starting the flowgraph.
+    pub fn set_rate_check_interval(&mut self, interval: Duration) {
+        assert!(!interval.is_zero(), "rate check interval must be positive");
+        self.rate_check_interval = Some(interval);
+    }
+
+    async fn reset_rate_monitor(&mut self) -> Result<()> {
+        self.rate_monitor = None;
+        if let Some(interval) = self.rate_check_interval {
+            let rate = self
+                .ctrl
+                .rx(self.channels[0])
+                .await?
+                .sample_rate()
+                .value()
+                .await?;
+            if rate.is_finite() && rate > 0.0 {
+                self.rate_monitor = Some(RateMonitor::new(rate, interval));
+            }
+        }
+        Ok(())
     }
 
     async fn apply_config_while_paused(
@@ -109,6 +142,9 @@ where
 
         let update = config.apply_async(&self.ctrl, &self.channels, Rx).await;
         let restart = streamer.activate().await;
+        if restart.is_ok() {
+            self.reset_rate_monitor().await?;
+        }
         match (update, restart) {
             (Ok(()), Ok(())) => Ok(()),
             (Err(error), Ok(())) => Err(error),
@@ -303,7 +339,17 @@ where
         _mo: &mut MessageOutputs,
         _meta: &BlockMeta,
     ) -> Result<()> {
-        let result = {
+        let streamer = self
+            .streamer
+            .as_mut()
+            .ok_or_else(|| Error::RuntimeError("Seify: no async RX streamer".to_string()))?;
+        let result = if let [output] = self.outputs.as_mut_slice() {
+            let buffer = output.slice();
+            if buffer.is_empty() {
+                return Ok(());
+            }
+            streamer.read(&mut [buffer], 500_000).await
+        } else {
             let mut buffers = self
                 .outputs
                 .iter_mut()
@@ -312,19 +358,25 @@ where
             if buffers.iter().any(|buffer| buffer.is_empty()) {
                 return Ok(());
             }
-
-            self.streamer
-                .as_mut()
-                .ok_or_else(|| Error::RuntimeError("Seify: no async RX streamer".to_string()))?
-                .read(&mut buffers, 500_000)
-                .await
+            streamer.read(&mut buffers, 500_000).await
         };
 
         match result {
-            Ok(len) => self
-                .outputs
-                .iter_mut()
-                .for_each(|output| output.produce(len)),
+            Ok(len) => {
+                self.outputs
+                    .iter_mut()
+                    .for_each(|output| output.produce(len));
+                if let Some(monitor) = &mut self.rate_monitor
+                    && let Some(rate) = monitor.record(len, Instant::now)
+                {
+                    warn!(
+                        "Async Seify source RX throughput: {:.2} MS/s, expected {:.2} MS/s ({:.1}%)",
+                        rate / 1e6,
+                        monitor.expected_rate / 1e6,
+                        rate / monitor.expected_rate * 100.0,
+                    );
+                }
+            }
             Err(seify::Error::Overrun) => {
                 self.overflows += 1;
                 warn!("Async Seify Source Overrun");
@@ -352,6 +404,7 @@ where
             .await
             .map_err(|error| Error::SeifyError(format!("activating async RX streamer: {error}")))?;
         self.streamer = Some(streamer);
+        self.reset_rate_monitor().await?;
         Ok(())
     }
 
@@ -360,5 +413,81 @@ where
             streamer.deactivate().await?;
         }
         Ok(())
+    }
+}
+
+struct RateMonitor {
+    expected_rate: f64,
+    window_samples: u64,
+    samples: u64,
+    started: Option<Instant>,
+}
+
+impl RateMonitor {
+    fn new(expected_rate: f64, interval: Duration) -> Self {
+        Self {
+            expected_rate,
+            window_samples: (expected_rate * interval.as_secs_f64()).ceil().max(1.0) as u64,
+            samples: 0,
+            started: None,
+        }
+    }
+
+    fn record(&mut self, samples: usize, now: impl FnOnce() -> Instant) -> Option<f64> {
+        if samples == 0 {
+            return None;
+        }
+        let Some(started) = self.started else {
+            self.started = Some(now());
+            return None;
+        };
+        self.samples = self.samples.saturating_add(samples as u64);
+        if self.samples < self.window_samples {
+            return None;
+        }
+        let now = now();
+        let rate = self.samples as f64 / now.duration_since(started).as_secs_f64();
+        self.started = Some(now);
+        self.samples = 0;
+        Some(rate)
+    }
+}
+
+#[cfg(test)]
+mod rate_tests {
+    use super::*;
+
+    #[test]
+    fn measures_delivery_including_backpressure_and_resets_window() {
+        let mut monitor = RateMonitor::new(20e6, Duration::from_secs(5));
+        let start = Instant::now();
+        assert_eq!(monitor.record(1024, || start), None);
+        assert_eq!(
+            monitor.record(50_000_000, || panic!("clock read before window end")),
+            None
+        );
+        assert_eq!(
+            monitor.record(50_000_000, || start + Duration::from_secs(10)),
+            Some(10e6)
+        );
+        assert_eq!(
+            monitor.record(100_000_000, || start + Duration::from_secs(15)),
+            Some(20e6)
+        );
+    }
+
+    #[test]
+    fn ignores_empty_reads_and_counts_entire_final_read() {
+        let mut monitor = RateMonitor::new(100.0, Duration::from_secs(1));
+        let start = Instant::now();
+        assert_eq!(
+            monitor.record(0, || panic!("empty read starts no window")),
+            None
+        );
+        assert_eq!(monitor.record(100, || start), None);
+        assert_eq!(
+            monitor.record(120, || start + Duration::from_secs(2)),
+            Some(60.0)
+        );
     }
 }

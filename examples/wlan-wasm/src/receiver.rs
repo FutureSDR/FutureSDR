@@ -8,10 +8,7 @@ use futuresdr::runtime::buffer::local;
 use futuresdr::runtime::buffer::local_mpsc_queue;
 use futuresdr::runtime::buffer::mpsc_queue;
 use futuresdr::runtime::buffer::slab;
-use futuresdr::runtime::dev::BlockMeta;
-use futuresdr::runtime::dev::MessageOutputs;
-use futuresdr::runtime::dev::WorkIo;
-use futuresdr::runtime::macros::Block;
+use futuresdr::runtime::dev::prelude::*;
 use wlan::Decoder;
 use wlan::FrameEqualizer;
 use wlan::MovingAverage;
@@ -67,16 +64,16 @@ impl FramePipe {
 
 /// Add the four DSP worker domains to an existing source domain.
 ///
-/// The source must expose `slab::Writer<Complex32>` when DC correction is
-/// enabled, or `mpsc_queue::Writer<Complex32>` otherwise. No startup samples
-/// are discarded. Frames are forwarded to the bounded message channel.
+/// The source must expose `slab::Writer<Complex32>`. No startup samples are
+/// discarded. Frames are forwarded to the bounded message channel. Returns
+/// the DC correction block; its `enabled` message input accepts a boolean.
 pub async fn build_rx_flowgraph(
     fg: &mut Flowgraph,
     source: BlockId,
     source_port: &str,
     frames: FrameSender,
     dc_offset: bool,
-) -> Result<()> {
+) -> Result<BlockId> {
     let dsp0 = fg.local_domain()?;
     let dsp1 = fg.local_domain()?;
     let dsp2 = fg.local_domain()?;
@@ -84,25 +81,12 @@ pub async fn build_rx_flowgraph(
 
     let (dc, delay, magnitude) = fg
         .with_local_domain_async(dsp0, async move |ctx: &LocalDomainContext<'_>| {
-            let dc = if dc_offset {
-                let mut avg_real = 0.0;
-                let mut avg_img = 0.0;
-                let ratio = 1.0e-5;
-                let dc = Apply::<
-                    _,
-                    Complex32,
-                    Complex32,
+            let dc = ctx
+                .add(DcCorrection::<
                     slab::Reader<Complex32>,
                     mpsc_queue::Writer<Complex32>,
-                >::with_buffers(move |c: &Complex32| {
-                    avg_real = ratio * (c.re - avg_real) + avg_real;
-                    avg_img = ratio * (c.im - avg_img) + avg_img;
-                    Complex32::new(c.re - avg_real, c.im - avg_img)
-                });
-                Some(ctx.add(dc).id())
-            } else {
-                None
-            };
+                >::new(dc_offset))
+                .id();
             let delay = ctx.add(Delay::<
                 Complex32,
                 mpsc_queue::Reader<Complex32>,
@@ -191,12 +175,8 @@ pub async fn build_rx_flowgraph(
         })
         .await?;
 
-    let (input, port) = if let Some(dc) = dc {
-        fg.stream_dyn(source, source_port, dc, "input")?;
-        (dc, "output")
-    } else {
-        (source, source_port)
-    };
+    fg.stream_dyn(source, source_port, dc, "input")?;
+    let (input, port) = (dc, "output");
     fg.stream_dyn(input, port, delay, "input")?;
     fg.stream_dyn(input, port, magnitude, "input")?;
     fg.stream_dyn(input, port, mult_conj, "in0")?;
@@ -208,5 +188,117 @@ pub async fn build_rx_flowgraph(
     fg.stream_dyn(sync_short, "output", sync_long, "input")?;
     fg.stream_dyn(frame_equalizer, "output", decoder, "input")?;
     fg.message(decoder, "rx_frames", frame_pipe, "in")?;
-    Ok(())
+    Ok(dc)
+}
+
+#[derive(Block)]
+#[message_inputs(enabled)]
+struct DcCorrection<IN: CpuBufferReader<Item = Complex32>, OUT: CpuBufferWriter<Item = Complex32>> {
+    #[input]
+    input: IN,
+    #[output]
+    output: OUT,
+    enabled: bool,
+    average: Complex32,
+}
+
+impl<IN: CpuBufferReader<Item = Complex32>, OUT: CpuBufferWriter<Item = Complex32>>
+    DcCorrection<IN, OUT>
+{
+    fn new(enabled: bool) -> Self {
+        Self {
+            input: Default::default(),
+            output: Default::default(),
+            enabled,
+            average: Complex32::new(0.0, 0.0),
+        }
+    }
+
+    async fn enabled(
+        &mut self,
+        _io: &mut WorkIo,
+        _mo: &mut MessageOutputs,
+        _meta: &BlockMeta,
+        p: Pmt,
+    ) -> Result<Pmt> {
+        match p {
+            Pmt::Bool(enabled) => self.enabled = enabled,
+            Pmt::Null => (),
+            _ => return Ok(Pmt::InvalidValue),
+        }
+        Ok(Pmt::Bool(self.enabled))
+    }
+}
+
+impl<IN: CpuBufferReader<Item = Complex32>, OUT: CpuBufferWriter<Item = Complex32>> Kernel
+    for DcCorrection<IN, OUT>
+{
+    async fn work(
+        &mut self,
+        io: &mut WorkIo,
+        _mo: &mut MessageOutputs,
+        _meta: &BlockMeta,
+    ) -> Result<()> {
+        let (input, tags) = self.input.slice_with_tags();
+        let (output, mut output_tags) = self.output.slice_with_tags();
+        let input_len = input.len();
+        let n = input_len.min(output.len());
+        // Track the offset even while bypassed so re-enabling has no warmup.
+        for (sample, out) in input.iter().zip(output.iter_mut()) {
+            self.average += (*sample - self.average) * 1.0e-5;
+            *out = if self.enabled {
+                *sample - self.average
+            } else {
+                *sample
+            };
+        }
+        for tag in tags.iter().filter(|tag| tag.index < n) {
+            output_tags.add_tag(tag.index, tag.tag.clone());
+        }
+        self.input.consume(n);
+        self.output.produce(n);
+        if self.input.finished() && n == input_len {
+            io.finished = true;
+        }
+        Ok(())
+    }
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests {
+    use super::*;
+    use futuresdr::runtime::mocker::Mocker;
+    use futuresdr::runtime::mocker::Reader;
+    use futuresdr::runtime::mocker::Writer;
+
+    #[test]
+    fn dc_correction_can_be_toggled_while_processing() -> Result<()> {
+        let mut dc = Mocker::new(DcCorrection::<Reader<Complex32>, Writer<Complex32>>::new(
+            false,
+        ));
+        let offset = Complex32::new(0.5, -0.25);
+        dc.input().set(vec![offset; 300_000]);
+        dc.output().reserve(300_000);
+        dc.run();
+        let (output, _) = dc.output().get();
+        assert!(output.iter().all(|sample| *sample == offset));
+
+        assert_eq!(dc.post("enabled", Pmt::Bool(true))?, Pmt::Bool(true));
+        dc.input().set(vec![offset; 16]);
+        dc.output().reserve(16);
+        dc.run();
+        let (output, _) = dc.output().get();
+        assert_eq!(output.len(), 16);
+        assert!(output.iter().all(|sample| sample.norm() < 0.03));
+
+        assert_eq!(dc.post("enabled", Pmt::Bool(false))?, Pmt::Bool(false));
+        dc.input().set(vec![offset; 16]);
+        dc.output().reserve(16);
+        dc.run();
+        let (output, _) = dc.output().get();
+        assert_eq!(output, vec![offset; 16]);
+        assert_eq!(dc.post("enabled", Pmt::U32(1))?, Pmt::InvalidValue);
+        assert_eq!(dc.post("enabled", Pmt::Null)?, Pmt::Bool(false));
+        Ok(())
+    }
 }
