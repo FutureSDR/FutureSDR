@@ -105,6 +105,8 @@ where
     /// waiting for downstream buffers. Monitoring starts with the first nonempty
     /// read and resets after reconfiguration. A complete stall cannot be reported
     /// until reads resume. Disabled by default; set before starting the flowgraph.
+    /// Reports use info level, or warn after two consecutive measurement windows
+    /// below 90% of the expected rate. Recovery resets the warning threshold.
     pub fn set_rate_check_interval(&mut self, interval: Duration) {
         assert!(!interval.is_zero(), "rate check interval must be positive");
         self.rate_check_interval = Some(interval);
@@ -369,12 +371,21 @@ where
                 if let Some(monitor) = &mut self.rate_monitor
                     && let Some(rate) = monitor.record(len, Instant::now)
                 {
-                    warn!(
-                        "Async Seify source RX throughput: {:.2} MS/s, expected {:.2} MS/s ({:.1}%)",
-                        rate / 1e6,
-                        monitor.expected_rate / 1e6,
-                        rate / monitor.expected_rate * 100.0,
-                    );
+                    if monitor.low_rate_windows >= 2 {
+                        warn!(
+                            "Async Seify source RX throughput: {:.2} MS/s, expected {:.2} MS/s ({:.1}%)",
+                            rate / 1e6,
+                            monitor.expected_rate / 1e6,
+                            rate / monitor.expected_rate * 100.0,
+                        );
+                    } else {
+                        info!(
+                            "Async Seify source RX throughput: {:.2} MS/s, expected {:.2} MS/s ({:.1}%)",
+                            rate / 1e6,
+                            monitor.expected_rate / 1e6,
+                            rate / monitor.expected_rate * 100.0,
+                        );
+                    }
                 }
             }
             Err(seify::Error::Overrun) => {
@@ -421,6 +432,7 @@ struct RateMonitor {
     window_samples: u64,
     samples: u64,
     started: Option<Instant>,
+    low_rate_windows: u8,
 }
 
 impl RateMonitor {
@@ -430,6 +442,7 @@ impl RateMonitor {
             window_samples: (expected_rate * interval.as_secs_f64()).ceil().max(1.0) as u64,
             samples: 0,
             started: None,
+            low_rate_windows: 0,
         }
     }
 
@@ -447,6 +460,11 @@ impl RateMonitor {
         }
         let now = now();
         let rate = self.samples as f64 / now.duration_since(started).as_secs_f64();
+        self.low_rate_windows = if rate < self.expected_rate * 0.9 {
+            self.low_rate_windows.saturating_add(1)
+        } else {
+            0
+        };
         self.started = Some(now);
         self.samples = 0;
         Some(rate)
@@ -456,6 +474,22 @@ impl RateMonitor {
 #[cfg(test)]
 mod rate_tests {
     use super::*;
+
+    #[test]
+    fn shortfall_requires_consecutive_slow_windows_and_resets_on_recovery() {
+        let mut monitor = RateMonitor::new(100.0, Duration::from_secs(1));
+        let start = Instant::now();
+        monitor.record(100, || start);
+        monitor.record(100, || start + Duration::from_secs(2));
+        assert_eq!(monitor.low_rate_windows, 1);
+        monitor.record(100, || start + Duration::from_secs(4));
+        assert_eq!(monitor.low_rate_windows, 2);
+        // Exactly 90% counts as recovery.
+        monitor.record(180, || start + Duration::from_secs(6));
+        assert_eq!(monitor.low_rate_windows, 0);
+        monitor.record(100, || start + Duration::from_secs(8));
+        assert_eq!(monitor.low_rate_windows, 1);
+    }
 
     #[test]
     fn measures_delivery_including_backpressure_and_resets_window() {

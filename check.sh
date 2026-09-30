@@ -148,3 +148,4 @@ cd ${SCRIPTPATH}/perf/perf && cargo test --all-features
 
 # examples
 cd ${SCRIPTPATH}/examples/wlan && cargo test
+cd ${SCRIPTPATH} && cargo test --manifest-path=examples/wlan-wasm/Cargo.toml --test receiver

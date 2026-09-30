@@ -446,6 +446,7 @@ jobs:
       - run: cargo test --manifest-path=perf/burn/Cargo.toml
       - run: cargo test --all-features --manifest-path=perf/perf/Cargo.toml
       - run: cargo test --manifest-path=examples/wlan/Cargo.toml
+      - run: cargo test --manifest-path=examples/wlan-wasm/Cargo.toml --test receiver
 
   test-macos:
     name: Unit Tests macOS
