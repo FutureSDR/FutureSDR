@@ -290,53 +290,6 @@ impl PortInboxes {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn assert_inbox_notifier<I, N>()
-    where
-        I: BufferInbox<Notifier = N>,
-        N: BufferNotifier,
-    {
-    }
-
-    #[test]
-    fn built_in_inboxes_select_concrete_notifiers() {
-        assert_inbox_notifier::<BlockInbox, BlockNotifier>();
-        assert_inbox_notifier::<LocalBlockInbox, LocalBlockNotifier>();
-    }
-
-    #[test]
-    fn erased_connection_capability_follows_thread_safe_connect_impl() {
-        let writer = super::DefaultCpuWriter::<u8>::default();
-        assert!(DynBufferWriter::thread_safe_connect(&writer).is_some());
-
-        let writer = super::local::Writer::<u8>::default();
-        assert!(DynBufferWriter::thread_safe_connect(&writer).is_none());
-    }
-
-    #[test]
-    fn buffer_requirements_are_extracted_from_configured_ports() {
-        let mut writer = super::DefaultCpuWriter::<u8>::default();
-        BufferWriter::set_min_items(&mut writer, 4);
-        BufferWriter::set_min_buffer_size_in_items(&mut writer, 32);
-
-        let mut reader = super::DefaultCpuReader::<u8>::default();
-        BufferReader::set_min_items(&mut reader, 8);
-        BufferReader::set_min_buffer_size_in_items(&mut reader, 64);
-
-        let writer_requirements = BufferWriter::buffer_requirements(&writer);
-        let reader_requirements = BufferReader::buffer_requirements(&reader);
-
-        assert_eq!(writer_requirements.min_items(), Some(4));
-        assert_eq!(writer_requirements.min_buffer_size_in_items(), Some(32));
-        assert_eq!(BufferWriter::max_readers(&writer), usize::MAX);
-        assert_eq!(reader_requirements.min_items(), Some(8));
-        assert_eq!(reader_requirements.min_buffer_size_in_items(), Some(64));
-    }
-}
-
 /// Binding state shared by all stream ports.
 #[derive(Debug, Clone)]
 enum PortBinding<I: BufferInbox = BlockInbox> {
@@ -1114,5 +1067,52 @@ impl<'a> Tags<'a> {
             index: index + self.offset,
             tag,
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn assert_inbox_notifier<I, N>()
+    where
+        I: BufferInbox<Notifier = N>,
+        N: BufferNotifier,
+    {
+    }
+
+    #[test]
+    fn built_in_inboxes_select_concrete_notifiers() {
+        assert_inbox_notifier::<BlockInbox, BlockNotifier>();
+        assert_inbox_notifier::<LocalBlockInbox, LocalBlockNotifier>();
+    }
+
+    #[test]
+    fn erased_connection_capability_follows_thread_safe_connect_impl() {
+        let writer = super::DefaultCpuWriter::<u8>::default();
+        assert!(DynBufferWriter::thread_safe_connect(&writer).is_some());
+
+        let writer = super::local::Writer::<u8>::default();
+        assert!(DynBufferWriter::thread_safe_connect(&writer).is_none());
+    }
+
+    #[test]
+    fn buffer_requirements_are_extracted_from_configured_ports() {
+        let mut writer = super::DefaultCpuWriter::<u8>::default();
+        BufferWriter::set_min_items(&mut writer, 4);
+        BufferWriter::set_min_buffer_size_in_items(&mut writer, 32);
+
+        let mut reader = super::DefaultCpuReader::<u8>::default();
+        BufferReader::set_min_items(&mut reader, 8);
+        BufferReader::set_min_buffer_size_in_items(&mut reader, 64);
+
+        let writer_requirements = BufferWriter::buffer_requirements(&writer);
+        let reader_requirements = BufferReader::buffer_requirements(&reader);
+
+        assert_eq!(writer_requirements.min_items(), Some(4));
+        assert_eq!(writer_requirements.min_buffer_size_in_items(), Some(32));
+        assert_eq!(BufferWriter::max_readers(&writer), usize::MAX);
+        assert_eq!(reader_requirements.min_items(), Some(8));
+        assert_eq!(reader_requirements.min_buffer_size_in_items(), Some(64));
     }
 }
