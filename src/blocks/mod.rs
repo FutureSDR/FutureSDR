@@ -2,76 +2,76 @@
 //! ## Functional/Apply-style Blocks
 //! | Block | Usage | WebAssembly? |
 //! |---|---|---|
-//! | [Apply](crate::blocks::Apply) | Apply a function to each sample. | ✅ |
-//! | [ApplyIntoIter](crate::blocks::ApplyIntoIter) | Apply a function on each input sample to create an iterator and output its values. | ✅ |
-//! | [ApplyNM](crate::blocks::ApplyNM) | Apply a function to each N input samples, producing M output samples. | ✅ |
-//! | [Combine](crate::blocks::Combine) | Apply a function to combine two streams into one. | ✅ |
-//! | [Filter](crate::blocks::Filter) | Apply a function, returning an [Option] to allow filtering samples. | ✅ |
-//! | [Sink](crate::blocks::Sink) | Apply a function to received samples. | ✅ |
-//! | [Source](crate::blocks::Source) | Repeatedly apply a function to generate samples. | ✅ |
-//! | [Split](crate::blocks::Split) | Apply a function to split a stream. | ✅ |
-//! | [FiniteSource](crate::blocks::FiniteSource) | Repeatedly apply a function to generate samples, using [Option] values to allow termination. | ✅ |
+//! | [Apply] | Apply a function to each sample. | ✅ |
+//! | [ApplyIntoIter] | Apply a function on each input sample to create an iterator and output its values. | ✅ |
+//! | [ApplyNM] | Apply a function to each N input samples, producing M output samples. | ✅ |
+//! | [Combine] | Apply a function to combine two streams into one. | ✅ |
+//! | [Filter] | Apply a function, returning an [Option] to allow filtering samples. | ✅ |
+//! | [Sink] | Apply a function to received samples. | ✅ |
+//! | [Source] | Repeatedly apply a function to generate samples. | ✅ |
+//! | [Split] | Apply a function to split a stream. | ✅ |
+//! | [FiniteSource] | Repeatedly apply a function to generate samples, using [Option] values to allow termination. | ✅ |
 //!
 //! ## Streams
 //! | Block | Usage | WebAssembly? |
 //! |---|---|---|
-//! | [StreamDeinterleaver](crate::blocks::StreamDeinterleaver) | Stream Deinterleave | ✅ |
-//! | [StreamDuplicator](crate::blocks::StreamDuplicator) | Stream Duplicator | ✅ |
+//! | [StreamDeinterleaver] | Stream Deinterleave | ✅ |
+//! | [StreamDuplicator] | Stream Duplicator | ✅ |
 //!
 //! ## DSP blocks
 //! | Block | Usage | WebAssembly? |
 //! |---|---|---|
-//! | [Fft](crate::blocks::Fft) | Compute an FFT. | ✅ |
+//! | [Fft] | Compute an FFT. | ✅ |
 //! | [Fir](crate::blocks::FirBuilder) | FIR filter and resampler. | ✅ |
 //! | [Iir](crate::blocks::IirBuilder) | IIR filter. | ✅ |
-//! | [PfbArbResampler](crate::blocks::PfbArbResampler) | Polyphase Arbitrary Rate Resampler | ✅ |
-//! | [PfbChannelizer](crate::blocks::PfbChannelizer) | Polyphase Channelizer | ✅ |
-//! | [PfbSynthesizer](crate::blocks::PfbSynthesizer) | Polyphase Synthesizer | ✅ |
-//! | [XlatingFir](crate::blocks::XlatingFir) | Xlating FIR filter and decimator. | ✅ |
+//! | [PfbArbResampler] | Polyphase Arbitrary Rate Resampler | ✅ |
+//! | [PfbChannelizer] | Polyphase Channelizer | ✅ |
+//! | [PfbSynthesizer] | Polyphase Synthesizer | ✅ |
+//! | [XlatingFir] | Xlating FIR filter and decimator. | ✅ |
 //!
 //! ## Misc
 //! | Block | Usage | WebAssembly? |
 //! |---|---|---|
-//! | [Delay](crate::blocks::Delay) | Delays samples. | ✅ |
-//! | [Head](crate::blocks::Head) | Copies only a given number of samples and stops. | ✅ |
-//! | [MovingAvg](crate::blocks::MovingAvg) | Applies an exponential moving average over a window samples. | ✅ |
-//! | [NullSink](crate::blocks::NullSink) | Drops samples. | ✅ |
-//! | [NullSource](crate::blocks::NullSource) | Generates a stream of zeros. | ✅ |
-//! | [Selector](crate::blocks::Selector) | Forward the input stream with a given index to the output stream with a given index. | ✅ |
-//! | [TagDebug](crate::blocks::TagDebug) | Drop samples, printing tags. | ✅ |
-//! | [Throttle](crate::blocks::Throttle) | Limit sample rate. | ✅ |
-//! | [VectorSink](crate::blocks::VectorSink) | Store received samples in vector. | ✅ |
-//! | [VectorSource](crate::blocks::VectorSource) | Stream samples from vector. | ✅ |
+//! | [Delay] | Delays samples. | ✅ |
+//! | [Head] | Copies only a given number of samples and stops. | ✅ |
+//! | [MovingAvg] | Applies an exponential moving average over a window samples. | ✅ |
+//! | [NullSink] | Drops samples. | ✅ |
+//! | [NullSource] | Generates a stream of zeros. | ✅ |
+//! | [Selector] | Forward the input stream with a given index to the output stream with a given index. | ✅ |
+//! | [TagDebug] | Drop samples, printing tags. | ✅ |
+//! | [Throttle] | Limit sample rate. | ✅ |
+//! | [VectorSink] | Store received samples in vector. | ✅ |
+//! | [VectorSource] | Stream samples from vector. | ✅ |
 //!
 //! ## Message Passing
 //! | Block | Usage | WebAssembly? |
 //! |---|---|---|
-//! | [MessageAnnotator](crate::blocks::MessageAnnotator) | Wrap every message in a DictStrPmt and add fixed additional fields, to facilitate multiplexing w/o losing the source association | ✅ |
-//! | [MessageApply](crate::blocks::MessageApply) | Apply a function to each message, emitting the result as a new message. | ✅ |
-//! | [MessageBurst](crate::blocks::MessageBurst) | Output a given number of messages in one burst and terminate. | ✅ |
-//! | [MessageCopy](crate::blocks::MessageCopy) | Forward messages. | ✅ |
-//! | [MessagePipe](crate::blocks::MessagePipe) | Push received messages into a channel. | ✅ |
-//! | [MessageSink](crate::blocks::MessageSink) | Black hole for messages. | ✅ |
+//! | [MessageAnnotator] | Wrap every message in a DictStrPmt and add fixed additional fields, to facilitate multiplexing w/o losing the source association | ✅ |
+//! | [MessageApply] | Apply a function to each message, emitting the result as a new message. | ✅ |
+//! | [MessageBurst] | Output a given number of messages in one burst and terminate. | ✅ |
+//! | [MessageCopy] | Forward messages. | ✅ |
+//! | [MessagePipe] | Push received messages into a channel. | ✅ |
+//! | [MessageSink] | Black hole for messages. | ✅ |
 //! | [MessageSource](crate::blocks::MessageSourceBuilder) | Output the same message periodically. | ✅ |
 //!
 //! ## Performance Evaluation
 //! | Block | Usage | WebAssembly? | Feature |
 //! |---|---|---|---|
-//! | [Copy](crate::blocks::Copy) | Copy input samples to the output. | ✅ | |
+//! | [struct@Copy] | Copy input samples to the output. | ✅ | |
 //!
 //! ## I/O
 //! | Block | Usage | WebAssembly? |
 //! |---|---|---|
-//! | [BlobToUdp](crate::blocks::BlobToUdp) | Push [blobs](crate::runtime::Pmt::Blob) into a UDP socket. | ❌ |
-//! | [ChannelSource](crate::blocks::ChannelSource) | Push samples through a channel into a stream connection. | ✅ |
-//! | [ChannelSink](crate::blocks::ChannelSink) | Read samples from Flowgraph and send them into a channel | ✅ |
-//! | [FileSink](crate::blocks::FileSink) | Write samples to a file. | ❌ |
-//! | [FileSource](crate::blocks::FileSource) | Read samples from a file. | ❌ |
-//! | [TcpSource](crate::blocks::TcpSource) | Reads samples from a TCP socket. | ❌ |
-//! | [TcpSink](crate::blocks::TcpSink) | Push samples into a TCP socket. | ❌ |
-//! | [UdpSource](crate::blocks::UdpSource) | Reads samples from a UDP socket. | ❌ |
-//! | [WebsocketSink](crate::blocks::WebsocketSink) | Push samples in a WebSocket. | ❌ |
-//! | [WebsocketPmtSink](crate::blocks::WebsocketPmtSink) | Push samples from Pmts a WebSocket. | ❌ |
+//! | [BlobToUdp] | Push [blobs](crate::runtime::Pmt::Blob) into a UDP socket. | ❌ |
+//! | [ChannelSource] | Push samples through a channel into a stream connection. | ✅ |
+//! | [ChannelSink] | Read samples from Flowgraph and send them into a channel | ✅ |
+//! | [FileSink] | Write samples to a file. | ❌ |
+//! | [FileSource] | Read samples from a file. | ❌ |
+//! | [TcpSource] | Reads samples from a TCP socket. | ❌ |
+//! | [TcpSink] | Push samples into a TCP socket. | ❌ |
+//! | [UdpSource] | Reads samples from a UDP socket. | ❌ |
+//! | [WebsocketSink] | Push samples in a WebSocket. | ❌ |
+//! | [WebsocketPmtSink] | Push samples from Pmts a WebSocket. | ❌ |
 //! | `zeromq::PubSink` | Push samples into [ZeroMQ](https://zeromq.org/) socket. | ❌ |
 //! | `zeromq::SubSource` | Read samples from [ZeroMQ](https://zeromq.org/) socket. | ❌ |
 //!

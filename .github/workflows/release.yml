@@ -13,8 +13,15 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  checks:
+    name: Release checks
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
   publish:
     name: Publish
+    needs: checks
     runs-on: ubuntu-latest
 
     steps:
@@ -23,51 +30,11 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@nightly
-        with:
-          components: clippy, rustfmt
 
       - name: Install system dependencies
         run: |
           sudo apt-get -y update
           sudo apt-get -y install libasound2-dev libsoapysdr-dev libzmq3-dev
-
-      - name: Validate tag matches workspace crate versions
-        run: |
-          tag_version="${GITHUB_REF_NAME#v}"
-          mismatches="$(cargo metadata --no-deps --format-version 1 | jq -r --arg version "$tag_version" '.packages[] | select(.version != $version) | "\(.name) \(.version)"')"
-
-          if [ -n "$mismatches" ]; then
-            echo "Tag $GITHUB_REF_NAME does not match workspace crate versions:"
-            echo "$mismatches"
-            exit 1
-          fi
-
-      - name: Check format
-        run: cargo fmt --all -- --check
-
-      - name: Run Clippy
-        run: cargo clippy --all-targets --workspace --features=burn,aaronia_http,zeromq,audio,flow_scheduler,seify_dummy,soapy,wgpu,mocker -- -D warnings
-
-      - name: Run tests
-        run: |
-          cargo test --package=futuresdr --features=zeromq,audio,flow_scheduler,seify_dummy,soapy,wgpu,mocker
-          cargo test --package=futuredsp
-          cargo test --all-features --package=futuresdr-types
-          cargo test --package=futuresdr-remote
-
-      - name: Run doc tests
-        run: cargo test --doc --workspace --features=zeromq,audio,flow_scheduler,seify_dummy,soapy,wgpu,mocker
-
-      - name: Check public API docs
-        env:
-          RUSTDOCFLAGS: "-D warnings"
-        run: cargo doc --no-deps --workspace --features=zeromq,audio,flow_scheduler,seify_dummy,soapy,wgpu,mocker
-
-      - name: Package leaf crates
-        run: |
-          cargo package --manifest-path crates/futuredsp/Cargo.toml
-          cargo package --manifest-path crates/macros/Cargo.toml
-          cargo package --manifest-path crates/types/Cargo.toml
 
       - name: Authenticate with crates.io
         id: auth
@@ -116,13 +83,10 @@ jobs:
           publish_and_wait crates/macros/Cargo.toml futuresdr-macros
           publish_and_wait crates/types/Cargo.toml futuresdr-types
 
-          cargo package --manifest-path crates/remote/Cargo.toml
           publish_and_wait crates/remote/Cargo.toml futuresdr-remote
 
-          cargo package --manifest-path Cargo.toml
           publish_and_wait Cargo.toml futuresdr
 
-          cargo package --manifest-path crates/prophecy/Cargo.toml
           publish_and_wait crates/prophecy/Cargo.toml prophecy
 
       - name: Create GitHub release

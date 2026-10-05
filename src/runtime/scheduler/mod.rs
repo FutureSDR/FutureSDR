@@ -3,10 +3,10 @@
 //! Schedulers execute normal flowgraph block tasks and general async tasks
 //! spawned through [`crate::runtime::Runtime`]. Most applications use the
 //! default scheduler selected by `Runtime::new`; custom schedulers implement
-//! [`Scheduler`](crate::runtime::scheduler::Scheduler) or
-//! [`LocalScheduler`](crate::runtime::scheduler::LocalScheduler). The support
+//! [`Scheduler`] or
+//! [`LocalScheduler`]. The support
 //! types required by custom implementations are grouped under
-//! [`dev`](crate::runtime::scheduler::dev).
+//! [`dev`].
 
 #[cfg(feature = "flow_scheduler")]
 mod flow;

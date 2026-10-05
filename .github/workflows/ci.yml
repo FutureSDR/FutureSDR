@@ -1,8 +1,52 @@
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+  workflow_call:
 
 name: CI
 
 jobs:
+  release_checks:
+    name: Release metadata, docs, and packages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@nightly
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get -y update
+          sudo apt-get -y install libasound2-dev libsoapysdr-dev libzmq3-dev
+
+      - name: Validate workspace versions and release tag
+        run: |
+          metadata="$(cargo metadata --no-deps --format-version 1)"
+          version="$(jq -r '.packages[] | select(.name == "futuresdr") | .version' <<< "$metadata")"
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            version="${GITHUB_REF_NAME#v}"
+          fi
+          mismatches="$(jq -r --arg version "$version" '.packages[] | select(.version != $version) | "\(.name) \(.version)"' <<< "$metadata")"
+          if [ -n "$mismatches" ]; then
+            echo "Workspace crate versions do not match $version:"
+            echo "$mismatches"
+            exit 1
+          fi
+
+      - name: Test release feature set
+        run: cargo test --package=futuresdr --features=zeromq,audio,flow_scheduler,seify_dummy,soapy,wgpu,mocker
+
+      - name: Run workspace doc tests
+        run: cargo test --doc --workspace --features=zeromq,audio,flow_scheduler,seify_dummy,soapy,wgpu,mocker
+
+      - name: Check public API docs
+        env:
+          RUSTDOCFLAGS: "-D warnings"
+        run: cargo doc --no-deps --workspace --features=zeromq,audio,flow_scheduler,seify_dummy,soapy,wgpu,mocker
+
+      - name: Package and verify all workspace crates
+        run: cargo package --workspace
+
   fmt:
     name: Fmt
     runs-on: ubuntu-latest
