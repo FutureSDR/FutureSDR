@@ -253,7 +253,7 @@ pub fn Gui() -> impl IntoView {
 
                     <Show when=move || control.get().is_some_and(|control| control.driver == Driver::Pluto)>
                         <p class="mt-4 text-sm text-amber-300">
-                            "Pluto reception is experimental: USB bandwidth limits continuous 20 MHz capture, so samples and frames can be lost."
+                            "Pluto's USB bandwidth limits continuous 20 MHz capture, so samples and frames can be lost."
                         </p>
                     </Show>
 

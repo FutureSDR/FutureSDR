@@ -46,7 +46,7 @@ The gain slider and supported WLAN channels use firmware-reported ranges, so
 the stock AD9363 tuning range does not offer unsupported 5 GHz WLAN
 channels once the source is open. Gain and channel changes pause/restart RX.
 
-**Pluto reception is experimental at this rate.** Its current IIOD stream uses
+Pluto's current IIOD stream uses
 four bytes per complex sample: 20 MS/s requires 80 MB/s, exceeding the USB 2.0
 link's nominal 60 MB/s before overhead. Samples/frames can be lost even when
 the sample-clock readback is 20 MHz. The source logs delivered throughput every
