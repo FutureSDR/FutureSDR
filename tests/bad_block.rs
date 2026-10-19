@@ -150,13 +150,13 @@ fn run_work_err() -> Result<()> {
 }
 
 #[test]
-#[ignore]
-#[should_panic(expected = "BadBlock!")]
-fn run_work_panic() {
-    // this currently hangs the runtime
+fn run_work_panic() -> Result<()> {
     let mut bb = BadBlock::<f32>::new();
     bb.work_fail = Some(FailType::Panic);
-    let _ = run_badblock(bb, RunMode::Run);
+    match run_badblock(bb, RunMode::Run)? {
+        Some(Error::BlockPanic(_, msg)) if msg == "BadBlock!" => Ok(()),
+        other => bail!("Expected BlockPanic, got: {:?}", other),
+    }
 }
 
 #[test]
@@ -194,21 +194,12 @@ fn terminate_work_err() -> Result<()> {
 }
 
 #[test]
-#[ignore]
-// #[should_panic(expected = "BadBlock!")]
 fn terminate_work_panic() -> Result<()> {
-    // not much we can do here, I guess
     let mut bb = BadBlock::<f32>::new();
     bb.work_fail = Some(FailType::Panic);
     match run_badblock(bb, RunMode::Terminate)? {
-        None => bail!("Expected Error, got: None"),
-        Some(e) => {
-            debug!("Error: {}", e);
-            if e.to_string() != "Flowgraph was terminated" {
-                bail!("Unexpected Error: {}", e)
-            }
-            Ok(())
-        }
+        Some(Error::BlockPanic(_, msg)) if msg == "BadBlock!" => Ok(()),
+        other => bail!("Expected BlockPanic, got: {:?}", other),
     }
 }
 

@@ -300,6 +300,10 @@ pub enum Error {
     /// The target block has already terminated.
     #[error("Block already terminated")]
     BlockTerminated,
+    /// A block panicked in one of its kernel callbacks (`init`, `work`, a
+    /// message handler, or `deinit`).
+    #[error("Block {0:?} panicked: {1}")]
+    BlockPanic(BlockId, String),
     /// Internal runtime failure or unexpected async-channel shutdown.
     #[error("Runtime error ({0})")]
     RuntimeError(String),

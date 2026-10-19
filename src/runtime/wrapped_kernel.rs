@@ -1,7 +1,10 @@
+use futures::FutureExt;
+use std::any::Any;
 use std::collections::VecDeque;
 use std::future::Future;
 use std::ops::Deref;
 use std::ops::DerefMut;
+use std::panic::AssertUnwindSafe;
 
 use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
@@ -431,7 +434,30 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> KernelWrapper<K, I> {
             inbox,
             ..
         } = self;
-        Self::run_loop(*id, meta, mo, kernel, main_inbox, inbox.run_inbox_mut()).await
+        // A panic in a kernel callback would unwind out of the block task without
+        // notifying the flowgraph, which would then wait for this block forever.
+        // Report it like an error returned by the kernel instead.
+        AssertUnwindSafe(Self::run_loop(
+            *id,
+            meta,
+            mo,
+            kernel,
+            main_inbox,
+            inbox.run_inbox_mut(),
+        ))
+        .catch_unwind()
+        .await
+        .unwrap_or_else(|payload| Err(Error::BlockPanic(*id, panic_message(payload.as_ref()))))
+    }
+}
+
+fn panic_message(payload: &(dyn Any + Send)) -> String {
+    if let Some(s) = payload.downcast_ref::<&str>() {
+        s.to_string()
+    } else if let Some(s) = payload.downcast_ref::<String>() {
+        s.clone()
+    } else {
+        "unknown panic payload".to_string()
     }
 }
 
