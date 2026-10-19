@@ -112,6 +112,30 @@ where
         }
     }
 
+    /// Clock changes can require stopping RX, while keeping the flowgraph alive.
+    fn apply_rate_config(&mut self, config: &Config) -> Result<Pmt> {
+        let streamer = self
+            .streamer
+            .as_mut()
+            .context("no RX stream for reconfiguration")?;
+        streamer.deactivate()?;
+        let update = config.apply(&self.ctrl, &self.channels, Rx);
+        let restart = streamer.activate();
+        match (update, restart) {
+            (Ok(()), Ok(())) => Ok(Pmt::Ok),
+            (Err(error), Ok(())) => {
+                warn!("Seify source rejected configuration; reception resumed: {error}");
+                Ok(Pmt::InvalidValue)
+            }
+            (Ok(()), Err(error)) => Err(Error::SeifyError(format!(
+                "reactivating RX streamer after sample-rate change: {error}"
+            )).into()),
+            (Err(update), Err(restart)) => Err(Error::SeifyError(format!(
+                "RX configuration failed ({update}); restarting the streamer also failed ({restart})"
+            )).into()),
+        }
+    }
+
     async fn terminate(
         &mut self,
         io: &mut WorkIo,
@@ -138,6 +162,9 @@ where
         p: Pmt,
     ) -> Result<Pmt> {
         let c: Config = p.try_into()?;
+        if c.sample_rate.is_some() {
+            return self.apply_rate_config(&c);
+        }
         match c.apply(&self.ctrl, &self.channels, Rx) {
             Ok(()) => Ok(Pmt::Ok),
             Err(Error::InvalidParameter) => Ok(Pmt::InvalidValue),
@@ -194,18 +221,25 @@ where
         _meta: &BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
-        for c in &self.channels {
-            let channel = self.ctrl.rx(*c)?;
-            match &p {
-                Pmt::F32(v) => channel.sample_rate().set(*v as f64)?,
-                Pmt::F64(v) => channel.sample_rate().set(*v)?,
-                Pmt::U32(v) => channel.sample_rate().set(*v as f64)?,
-                Pmt::U64(v) => channel.sample_rate().set(*v as f64)?,
-                Pmt::Null => return Ok(Pmt::F64(channel.sample_rate().value()?)),
-                _ => return Ok(Pmt::InvalidValue),
-            };
+        let rate = match p {
+            Pmt::F32(value) => value as f64,
+            Pmt::F64(value) => value,
+            Pmt::U32(value) => value as f64,
+            Pmt::U64(value) => value as f64,
+            Pmt::Null => {
+                return Ok(Pmt::F64(
+                    self.ctrl.rx(self.channels[0])?.sample_rate().value()?,
+                ));
+            }
+            _ => return Ok(Pmt::InvalidValue),
+        };
+        if !rate.is_finite() || rate <= 0.0 {
+            return Ok(Pmt::InvalidValue);
         }
-        Ok(Pmt::Ok)
+        self.apply_rate_config(&Config {
+            sample_rate: Some(rate),
+            ..Config::default()
+        })
     }
 
     async fn config(

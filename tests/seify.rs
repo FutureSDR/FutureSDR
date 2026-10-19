@@ -446,3 +446,180 @@ fn src_config_cmd_invalid_chan() -> Result<()> {
 
     Ok(())
 }
+
+#[derive(Default)]
+struct ClockedRxState {
+    active: bool,
+    rate: f64,
+    starts: usize,
+    samples: usize,
+}
+
+/// Models a radio that returns Busy if a clock change is attempted during RX.
+#[derive(Clone, Default)]
+struct ClockedRx(std::sync::Arc<std::sync::Mutex<ClockedRxState>>);
+
+impl seify::DeviceInfo for ClockedRx {
+    fn driver(&self) -> seify::Driver {
+        seify::Driver::Dummy
+    }
+    fn id(&self) -> Result<String, seify::Error> {
+        Ok("clocked-rx".to_string())
+    }
+    fn info(&self) -> Result<seify::Args, seify::Error> {
+        Ok(seify::Args::new())
+    }
+    fn num_channels(&self, dir: seify::Direction) -> Result<usize, seify::Error> {
+        Ok(usize::from(dir == seify::Direction::Rx))
+    }
+    fn full_duplex(&self) -> Result<bool, seify::Error> {
+        Ok(false)
+    }
+}
+
+seify::dev::impl_dyn_device_backend!(ClockedRx => [rx, sample_rate]);
+
+impl seify::SampleRateControl for ClockedRx {
+    fn sample_rate(&self, _: seify::Direction, _: usize) -> Result<f64, seify::Error> {
+        Ok(self.0.lock().unwrap().rate)
+    }
+    fn set_sample_rate(
+        &self,
+        _: seify::Direction,
+        _: usize,
+        rate: f64,
+    ) -> Result<(), seify::Error> {
+        let mut state = self.0.lock().unwrap();
+        if state.active {
+            return Err(seify::Error::Busy);
+        }
+        if !rate.is_finite() || !(1e6..=20e6).contains(&rate) {
+            return Err(seify::Error::invalid_argument(
+                "sample_rate",
+                "unsupported rate",
+            ));
+        }
+        state.rate = if rate > 16e6 { 20e6 } else { rate };
+        Ok(())
+    }
+    fn get_sample_rate_range(
+        &self,
+        _: seify::Direction,
+        _: usize,
+    ) -> Result<seify::Range, seify::Error> {
+        seify::Range::new(vec![seify::RangeItem::Interval(1e6, 20e6)])
+    }
+}
+
+impl seify::RxDevice for ClockedRx {
+    type RxStreamer = Self;
+    fn rx_streamer(&self, _: &[usize], _: seify::Args) -> Result<Self, seify::Error> {
+        Ok(self.clone())
+    }
+}
+
+impl seify::RxStreamer for ClockedRx {
+    fn mtu(&self) -> Result<usize, seify::Error> {
+        Ok(1024)
+    }
+    fn activate_at(&mut self, _: Option<i64>) -> Result<(), seify::Error> {
+        let mut state = self.0.lock().unwrap();
+        state.active = true;
+        state.starts += 1;
+        Ok(())
+    }
+    fn deactivate_at(&mut self, _: Option<i64>) -> Result<(), seify::Error> {
+        self.0.lock().unwrap().active = false;
+        Ok(())
+    }
+    fn read(&mut self, buffers: &mut [&mut [Complex<f32>]], _: i64) -> Result<usize, seify::Error> {
+        let mut state = self.0.lock().unwrap();
+        if !state.active {
+            return Err(seify::Error::StreamInactive);
+        }
+        let count = buffers.iter().map(|b| b.len()).min().unwrap_or(0).min(1024);
+        for buffer in buffers {
+            buffer[..count].fill(Complex::new(0.0, 0.0));
+        }
+        state.samples += count;
+        Ok(count)
+    }
+}
+
+#[test]
+fn source_rate_changes_pause_rx_and_rejected_updates_keep_streaming() -> Result<()> {
+    let radio = ClockedRx::default();
+    let source = Builder::from_device(seify::Device::from_impl(radio.clone()))
+        .sample_rate(4e6)
+        .build_source()?;
+    let mut fg = Flowgraph::new();
+    let sink = NullSink::<Complex<f32>>::new();
+    connect!(fg, source.outputs[0] > sink);
+    let rt = Runtime::new();
+    let running = rt.start(fg)?;
+    let handle = running.handle();
+    futuresdr::runtime::block_on(async {
+        // Both clock directions and repeated changes must leave the same graph running.
+        for rate in [20e6, 4e6, 18e6, 2e6] {
+            assert_eq!(
+                handle.call(source, "sample_rate", Pmt::F64(rate)).await?,
+                Pmt::Ok
+            );
+            let actual = if rate > 16e6 { 20e6 } else { rate };
+            assert_eq!(
+                handle.call(source, "sample_rate", Pmt::Null).await?,
+                Pmt::F64(actual)
+            );
+            assert!(radio.0.lock().unwrap().active);
+        }
+        let invalid = handle.call(source, "sample_rate", Pmt::F64(30e6)).await?;
+        assert_eq!(invalid, Pmt::InvalidValue);
+        assert_eq!(
+            handle.call(source, "sample_rate", Pmt::Null).await?,
+            Pmt::F64(2e6)
+        );
+        assert!(radio.0.lock().unwrap().active);
+        // The generic configuration message must also pause RX for a rate change.
+        let config = Config {
+            sample_rate: Some(20e6),
+            ..Config::default()
+        };
+        assert_eq!(
+            handle
+                .call(source, "cmd", config.to_serializable_pmt())
+                .await?,
+            Pmt::Ok
+        );
+        assert_eq!(
+            handle.call(source, "sample_rate", Pmt::Null).await?,
+            Pmt::F64(20e6)
+        );
+        assert_eq!(
+            handle
+                .call(source, "sample_rate", Pmt::String("invalid".to_string()))
+                .await?,
+            Pmt::InvalidValue
+        );
+        let before = radio.0.lock().unwrap().samples;
+        for _ in 0..100 {
+            if radio.0.lock().unwrap().samples > before {
+                break;
+            }
+            Timer::after(std::time::Duration::from_millis(1)).await;
+        }
+        assert!(
+            radio.0.lock().unwrap().samples > before,
+            "samples continue after updates"
+        );
+        handle.stop().await?;
+        anyhow::Ok(())
+    })?;
+    running.wait()?;
+    let state = radio.0.lock().unwrap();
+    assert!(!state.active);
+    assert_eq!(
+        state.starts, 7,
+        "initial activation plus six reconfigurations"
+    );
+    Ok(())
+}
