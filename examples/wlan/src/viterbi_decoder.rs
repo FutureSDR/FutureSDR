@@ -21,7 +21,7 @@ pub struct ViterbiDecoder {
     mmresult: [u8; 64],
     ppresult: [[u8; 64]; TRACEBACK_MAX],
 
-    depunctured: [u8; MAX_ENCODED_BITS],
+    depunctured: Box<[u8]>,
 }
 
 impl ViterbiDecoder {
@@ -41,7 +41,7 @@ impl ViterbiDecoder {
             mmresult: [0; 64],
             ppresult: [[0; 64]; TRACEBACK_MAX],
 
-            depunctured: [0; MAX_ENCODED_BITS],
+            depunctured: vec![0; MAX_ENCODED_BITS].into_boxed_slice(),
         }
     }
 

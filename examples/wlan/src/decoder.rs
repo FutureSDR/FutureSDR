@@ -19,11 +19,11 @@ where
     frame_param: FrameParam,
     decoder: ViterbiDecoder,
     copied: usize,
-    rx_symbols: [u8; 48 * MAX_SYM],
-    rx_bits: [u8; MAX_ENCODED_BITS],
-    deinterleaved_bits: [u8; MAX_ENCODED_BITS],
-    decoded_bits: [u8; MAX_ENCODED_BITS],
-    out_bytes: [u8; MAX_PSDU_SIZE + 2], // 2 for signal field
+    rx_symbols: Box<[u8]>,
+    rx_bits: Box<[u8]>,
+    deinterleaved_bits: Box<[u8]>,
+    decoded_bits: Box<[u8]>,
+    out_bytes: Box<[u8]>, // 2 for signal field
 }
 
 impl<I> Decoder<I>
@@ -39,11 +39,11 @@ where
             frame_param: FrameParam::new(Mcs::Bpsk_1_2, 0),
             decoder: ViterbiDecoder::new(),
             copied: 0,
-            rx_symbols: [0; 48 * MAX_SYM],
-            rx_bits: [0; MAX_ENCODED_BITS],
-            deinterleaved_bits: [0; MAX_ENCODED_BITS],
-            decoded_bits: [0; MAX_ENCODED_BITS],
-            out_bytes: [0; MAX_PSDU_SIZE + 2], // 2 for signal field
+            rx_symbols: vec![0; 48 * MAX_SYM].into_boxed_slice(),
+            rx_bits: vec![0; MAX_ENCODED_BITS].into_boxed_slice(),
+            deinterleaved_bits: vec![0; MAX_ENCODED_BITS].into_boxed_slice(),
+            decoded_bits: vec![0; MAX_ENCODED_BITS].into_boxed_slice(),
+            out_bytes: vec![0; MAX_PSDU_SIZE + 2].into_boxed_slice(), // 2 for signal field
         }
     }
     fn deinterleave(&mut self) {
