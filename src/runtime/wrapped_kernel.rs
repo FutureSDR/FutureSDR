@@ -36,11 +36,16 @@ use crate::runtime::kernel_interface::KernelInterface;
 use crate::runtime::kernel_interface::stream_input_finish;
 use crate::runtime::kernel_interface::stream_ports_init;
 use crate::runtime::kernel_interface::stream_ports_validate;
+use crate::runtime::yield_now;
 
 pub(super) type WrappedKernel<K> = KernelWrapper<K, KernelInboxes>;
 pub(super) type LocalWrappedKernel<K> = KernelWrapper<K, LocalKernelInboxes>;
 
 pub(super) trait WrappedInbox {
+    /// Whether the block shares a single-threaded local-domain executor and
+    /// has to yield between `work()` calls.
+    const COOPERATIVE: bool;
+
     fn try_recv(&mut self) -> Option<BlockMessage>;
     fn recv(&mut self) -> impl Future<Output = Option<BlockMessage>> + '_;
     fn take_message_pending(&self) -> bool;
@@ -49,6 +54,8 @@ pub(super) trait WrappedInbox {
 }
 
 impl WrappedInbox for BlockInboxReader {
+    const COOPERATIVE: bool = false;
+
     fn try_recv(&mut self) -> Option<BlockMessage> {
         self.try_recv()
     }
@@ -71,6 +78,8 @@ impl WrappedInbox for BlockInboxReader {
 }
 
 impl WrappedInbox for LocalBlockInboxReader {
+    const COOPERATIVE: bool = true;
+
     fn try_recv(&mut self) -> Option<BlockMessage> {
         self.try_recv()
     }
@@ -416,6 +425,13 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> KernelWrapper<K, I> {
             if let Err(e) = kernel.work(&mut work_io, mo, meta).await {
                 error!("{}: Error in work(). Terminating. ({:?})", instance_name, e);
                 return Err(e.into());
+            }
+
+            // The local domain delivers messages to its blocks from a loop on
+            // the same thread. A block that keeps `call_again` set would starve
+            // that loop and the other blocks of the domain without this yield.
+            if RI::COOPERATIVE && work_io.call_again {
+                yield_now().await;
             }
         }
 

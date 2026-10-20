@@ -137,9 +137,9 @@ pub mod __private {
 /// need to return errors from arbitrary libraries.
 pub type Result<T, E = anyhow::Error> = anyhow::Result<T, E>;
 
-#[cfg(target_arch = "wasm32")]
+/// Wake the current task and return [`std::task::Poll::Pending`] once.
 pub(crate) fn yield_now() -> impl std::future::Future<Output = ()> + Unpin {
-    WasmYieldNow(false)
+    YieldNow(false)
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -179,11 +179,9 @@ impl std::future::Future for WasmEventLoopYield {
     }
 }
 
-#[cfg(target_arch = "wasm32")]
-struct WasmYieldNow(bool);
+struct YieldNow(bool);
 
-#[cfg(target_arch = "wasm32")]
-impl std::future::Future for WasmYieldNow {
+impl std::future::Future for YieldNow {
     type Output = ();
 
     fn poll(

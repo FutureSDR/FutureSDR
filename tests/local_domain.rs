@@ -348,6 +348,50 @@ impl Kernel for BlockingNoop {
 }
 
 #[derive(Block)]
+#[blocking]
+#[message_inputs(ping)]
+struct BusyBlockingSource {
+    pings: u64,
+    #[output]
+    output: DefaultCpuWriter<f32>,
+}
+
+impl BusyBlockingSource {
+    fn new() -> Self {
+        Self {
+            pings: 0,
+            output: DefaultCpuWriter::default(),
+        }
+    }
+
+    async fn ping(
+        &mut self,
+        _io: &mut WorkIo,
+        _mo: &mut MessageOutputs,
+        _meta: &BlockMeta,
+        _p: Pmt,
+    ) -> Result<Pmt> {
+        self.pings += 1;
+        Ok(Pmt::U64(self.pings))
+    }
+}
+
+impl Kernel for BusyBlockingSource {
+    async fn work(
+        &mut self,
+        io: &mut WorkIo,
+        _mo: &mut MessageOutputs,
+        _meta: &BlockMeta,
+    ) -> Result<()> {
+        std::thread::sleep(std::time::Duration::from_millis(1));
+        let n = self.output.slice().len();
+        self.output.produce(n);
+        io.call_again = true;
+        Ok(())
+    }
+}
+
+#[derive(Block)]
 struct NonSendLocalSource {
     state: Rc<()>,
     emitted: bool,
@@ -867,6 +911,36 @@ fn blocking_add_runs_in_private_local_domain() -> Result<()> {
 
     assert!(worked.load(Ordering::SeqCst));
     assert!(fg.with(&blk, |_| true)?);
+    Ok(())
+}
+
+#[test]
+fn busy_blocking_block_receives_messages() -> Result<()> {
+    let mut fg = Flowgraph::new();
+    let src = BusyBlockingSource::new();
+    let snk = NullSink::<f32>::new();
+    connect!(fg, src > snk);
+
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let result = (|| -> Result<Pmt> {
+            let running = Runtime::new().start(fg)?;
+            let handle = running.handle();
+            futuresdr::runtime::block_on(async move {
+                handle.post(src, "ping", Pmt::Null).await?;
+                let pings = handle.call(src, "ping", Pmt::Null).await?;
+                handle.stop().await?;
+                running.wait_async().await?;
+                Ok(pings)
+            })
+        })();
+        let _ = tx.send(result);
+    });
+
+    let pings = rx
+        .recv_timeout(std::time::Duration::from_secs(10))
+        .expect("busy blocking block did not handle messages")?;
+    assert_eq!(pings, Pmt::U64(2));
     Ok(())
 }
 
