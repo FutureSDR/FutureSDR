@@ -45,6 +45,7 @@ impl<InputType, OutputType, TA> FirFilter<InputType, OutputType, TA> {
 /// instead of duplicating the hot loop at arbitrary code alignments.
 #[inline(never)]
 fn fir_kernel_core<
+    const BATCH: usize,
     InputType,
     OutputType,
     TapsType: Taps,
@@ -61,25 +62,43 @@ where
     OutputType: Copy,
     TapsType::TapType: Copy,
 {
-    let num_producable_samples = (i.len() + 1).saturating_sub(taps.num_taps());
+    let num_taps = taps.num_taps();
+    let num_producable_samples = (i.len() + 1).saturating_sub(num_taps);
     let (n, status) = match num_producable_samples.cmp(&o.len()) {
         Ordering::Greater => (o.len(), ComputationStatus::InsufficientOutput),
         Ordering::Equal => (num_producable_samples, ComputationStatus::BothSufficient),
         Ordering::Less => (num_producable_samples, ComputationStatus::InsufficientInput),
     };
 
-    unsafe {
-        for k in 0..n {
-            let mut sum = init;
-            for t in 0..taps.num_taps() {
-                sum = mac(
-                    sum,
-                    *i.get_unchecked(k + t),
-                    taps.get(taps.num_taps() - 1 - t),
-                );
+    if num_taps == 0 {
+        o[..n].fill(init);
+        return (n, n, status);
+    }
+
+    // Accumulate neighboring outputs together so the compiler can vectorize
+    // across outputs and keep their independent sums in registers.
+    // Process the remainder below without requiring input or output padding.
+    let (batches, tail) = o[..n].as_chunks_mut::<BATCH>();
+    for (batch, output) in batches.iter_mut().enumerate() {
+        let start = batch * BATCH;
+        let input = &i[start..start + BATCH + num_taps - 1];
+        let mut sums = [init; BATCH];
+        for (t, samples) in input.windows(BATCH).enumerate() {
+            let tap = taps.get(num_taps - 1 - t);
+            for (sum, &sample) in sums.iter_mut().zip(samples) {
+                *sum = mac(*sum, sample, tap);
             }
-            *o.get_unchecked_mut(k) = sum;
         }
+        *output = sums;
+    }
+
+    let start = batches.len() * BATCH;
+    for (k, output) in tail.iter_mut().enumerate() {
+        let mut sum = init;
+        for (t, &sample) in i[start + k..start + k + num_taps].iter().enumerate() {
+            sum = mac(sum, sample, taps.get(num_taps - 1 - t));
+        }
+        *output = sum;
     }
 
     (n, n, status)
@@ -90,7 +109,7 @@ mod inner {
 
     impl<TA: Taps<TapType = f32>> Filter<f32, f32, f32> for FirFilter<f32, f32, TA> {
         fn filter(&self, i: &[f32], o: &mut [f32]) -> (usize, usize, ComputationStatus) {
-            fir_kernel_core(&self.taps, i, o, 0.0, |accum, sample, tap| {
+            fir_kernel_core::<32, _, _, _, _>(&self.taps, i, o, 0.0, |accum, sample, tap| {
                 accum.algebraic_add(sample.algebraic_mul(tap))
             })
         }
@@ -101,7 +120,7 @@ mod inner {
 
     impl<TA: Taps<TapType = f64>> Filter<f64, f64, f64> for FirFilter<f64, f64, TA> {
         fn filter(&self, i: &[f64], o: &mut [f64]) -> (usize, usize, ComputationStatus) {
-            fir_kernel_core(&self.taps, i, o, 0.0, |accum, sample, tap| {
+            fir_kernel_core::<32, _, _, _, _>(&self.taps, i, o, 0.0, |accum, sample, tap| {
                 accum.algebraic_add(sample.algebraic_mul(tap))
             })
         }
@@ -118,7 +137,7 @@ mod inner {
             i: &[Complex<f32>],
             o: &mut [Complex<f32>],
         ) -> (usize, usize, ComputationStatus) {
-            fir_kernel_core(
+            fir_kernel_core::<32, _, _, _, _>(
                 &self.taps,
                 i,
                 o,
@@ -142,7 +161,7 @@ mod inner {
             i: &[Complex<f64>],
             o: &mut [Complex<f64>],
         ) -> (usize, usize, ComputationStatus) {
-            fir_kernel_core(
+            fir_kernel_core::<32, _, _, _, _>(
                 &self.taps,
                 i,
                 o,
@@ -166,7 +185,9 @@ mod inner {
             i: &[Complex<f32>],
             o: &mut [Complex<f32>],
         ) -> (usize, usize, ComputationStatus) {
-            fir_kernel_core(
+            // Complex multiplication needs more intermediate values; use a
+            // smaller batch to limit register pressure.
+            fir_kernel_core::<16, _, _, _, _>(
                 &self.taps,
                 i,
                 o,

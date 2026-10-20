@@ -136,6 +136,27 @@ pub fn criterion_benchmark(c: &mut Criterion) {
 
     group.finish();
 
+    let mut group = c.benchmark_group("fir-batched");
+    for nsamps in [31, 32, 33, 8192] {
+        group.throughput(criterion::Throughput::Elements(nsamps as u64));
+        group.bench_function(format!("127tap f32/f32 {nsamps}"), |b| {
+            bench_fir_dynamic_taps::<f32, f32, f32>(b, 127, nsamps);
+        });
+        group.bench_function(format!("127tap f64/f64 {nsamps}"), |b| {
+            bench_fir_dynamic_taps::<f64, f64, f64>(b, 127, nsamps);
+        });
+        group.bench_function(format!("127tap complex-f32/f32 {nsamps}"), |b| {
+            bench_fir_dynamic_taps::<Complex<f32>, Complex<f32>, f32>(b, 127, nsamps);
+        });
+        group.bench_function(format!("127tap complex-f64/f64 {nsamps}"), |b| {
+            bench_fir_dynamic_taps::<Complex<f64>, Complex<f64>, f64>(b, 127, nsamps);
+        });
+        group.bench_function(format!("127tap complex-f32/complex-f32 {nsamps}"), |b| {
+            bench_fir_dynamic_taps::<Complex<f32>, Complex<f32>, Complex<f32>>(b, 127, nsamps);
+        });
+    }
+    group.finish();
+
     let mut group32 = c.benchmark_group("iir32");
     group32.throughput(criterion::Throughput::Elements(nsamps as u64));
 
