@@ -1,6 +1,9 @@
 error[E0080]: evaluation panicked: sample types must not be zero-sized
  --> src/runtime/buffer/core.rs
   |
+  | pub trait CpuSample: Copy + Default + std::fmt::Debug + Send + Sync + 'static {
+  |     /// Non-zero size of one sample in bytes.
+  |     const SIZE: NonZeroUsize =
   |         NonZeroUsize::new(size_of::<Self>()).expect("sample types must not be zero-sized");
   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ evaluation of `<() as futuresdr::runtime::buffer::CpuSample>::SIZE` failed here
 
