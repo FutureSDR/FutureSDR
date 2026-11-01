@@ -414,6 +414,11 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> KernelWrapper<K, I> {
                 error!("{}: Error in work(). Terminating. ({:?})", instance_name, e);
                 return Err(e.into());
             }
+
+            // Yield after every work() so a continuous source (call_again stays
+            // set) does not starve queued local-domain tasks, e.g. the
+            // supervisor servicing "freq" retune calls.
+            futures_lite::future::yield_now().await;
         }
 
         Ok(())
